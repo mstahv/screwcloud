@@ -1366,10 +1366,22 @@ About 2 d left, done Thu 09:15
 
 The rate is the recent average temperature over six hours — degree-days per day and
 degrees Celsius are the same number — long enough to ride out a warm afternoon,
-short enough to follow a cold front. A counter started a moment ago has only one
-reading and no elapsed time, so its rate is simply the temperature right now;
-without that the card could say nothing but "waiting" until the second packet
-arrived.
+short enough to follow a cold front.
+
+**A brand-new counter forecasts from the temperature right now.** For its first few
+minutes a counter is younger than the device's send interval, so nothing has arrived
+since it started and there is nothing to average. The sensor's latest reading is
+still a straight answer to "how fast is this going", and it beats several minutes of
+"waiting". Such a forecast is labelled, because one reading is not a measurement of a
+trend:
+
+```
+About 1 d 18 h left, done tomorrow 09:15 — from the current temperature, sharpens as it runs
+```
+
+The notifications ignore those estimates entirely: extrapolating a whole target from
+a single reading is fine on a card someone is looking at, and not fine as a reason to
+make a phone buzz.
 
 Below freezing there is no completion date at all, and the card says so rather than
 forecasting decades. **No readings and a rate of zero are different things**, and

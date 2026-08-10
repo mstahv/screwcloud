@@ -57,6 +57,22 @@ public record HeatSum(double degreeDays, Duration measuredOver, Optional<Double>
     /**
      * @param history the sensor's readings from the counter's start onwards, oldest
      *        first, as the store returns them
+     * @param currentTemperature the sensor's latest reading, used only when nothing
+     *        has arrived since the counter started — which is the case for the first
+     *        few minutes of every counter, since it is younger than the device's send
+     *        interval. May be null.
+     */
+    public static HeatSum of(List<HistoryPoint> history, Double currentTemperature) {
+        HeatSum measured = of(history);
+        if (measured.recentRate().isPresent() || currentTemperature == null) {
+            return measured;
+        }
+        return new HeatSum(0, Duration.ZERO, Optional.of(Math.max(0, currentTemperature)));
+    }
+
+    /**
+     * @param history the sensor's readings from the counter's start onwards, oldest
+     *        first, as the store returns them
      */
     public static HeatSum of(List<HistoryPoint> history) {
         List<HistoryPoint> measured = history.stream()
@@ -109,6 +125,19 @@ public record HeatSum(double degreeDays, Duration measuredOver, Optional<Double>
 
     public boolean reached(double target) {
         return degreeDays >= target;
+    }
+
+    /**
+     * Whether the rate is a single temperature rather than an average measured over
+     * time — true for a counter that has just been started.
+     *
+     * <p>Worth saying out loud in two places: the card labels such a forecast as an
+     * estimate, and the notifications ignore it entirely. Waking someone's phone
+     * about a target that was extrapolated from one reading, before the counter has
+     * measured anything at all, would be guessing out loud.
+     */
+    public boolean provisional() {
+        return measuredOver.isZero() && recentRate.isPresent();
     }
 
     private Duration remainingAt(double rate, double target) {

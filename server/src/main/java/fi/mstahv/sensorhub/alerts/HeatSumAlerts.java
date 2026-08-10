@@ -106,6 +106,15 @@ public class HeatSumAlerts {
        temperature.
     */
     private static boolean nearlyThere(HeatSum sum, double target) {
+        /*
+           Never from a provisional rate. A counter that has just been started has
+           only one reading, and extrapolating a whole target from it is fine on a
+           card the reader is looking at — it is not fine as a reason to make a phone
+           buzz.
+        */
+        if (sum.provisional()) {
+            return false;
+        }
         return sum.remaining(target)
                 .map(remaining -> remaining.compareTo(NEARLY_THERE) <= 0)
                 .orElse(false);

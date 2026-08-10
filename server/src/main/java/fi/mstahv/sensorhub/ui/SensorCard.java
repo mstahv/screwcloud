@@ -129,6 +129,12 @@ class SensorCard extends Card {
        spirit as the settings form itself. Cheap: the popover is open, the reader is
        looking at a handful of rows.
     */
+    /**
+     * The last temperature shown, so the counter panel can be rebuilt after a change
+     * without waiting for the next packet. Null when the sensor has no reading.
+     */
+    private Double lastTemperature;
+
     private Component createCounterForm() {
         return new HeatSumCounterForm(
                 context.heatSums().countersFor(deviceId, sensorId),
@@ -150,7 +156,7 @@ class SensorCard extends Card {
                         Notification.show(e.getMessage());
                         return;
                     }
-                    showHeatSums();
+                    showHeatSums(lastTemperature);
                 },
                 id -> {
                     context.heatSums().stop(id);
@@ -164,7 +170,7 @@ class SensorCard extends Card {
        be more code for the same result.
     */
     private void afterCounterChange() {
-        showHeatSums();
+        showHeatSums(lastTemperature);
         settingsButton.close();
     }
 
@@ -226,7 +232,8 @@ class SensorCard extends Card {
 
         humidity.setText(Readings.format(sensor.humidity(), "%.1f %% RH"));
         sparkLine.setHistory(history);
-        showHeatSums();
+        lastTemperature = sensor.temperature();
+        showHeatSums(lastTemperature);
 
         /*
            A section left open has to keep up, otherwise it silently stays at the
@@ -244,12 +251,13 @@ class SensorCard extends Card {
        so this runs only when a new packet has arrived — the view skips the update
        entirely when nothing has changed.
     */
-    private void showHeatSums() {
+    private void showHeatSums(Double currentTemperature) {
         List<HeatSumPanel.CounterProgress> progress =
                 context.heatSums().countersFor(deviceId, sensorId).stream()
                         .map(counter -> new HeatSumPanel.CounterProgress(counter,
                                 HeatSum.of(context.measurements().history(
-                                        deviceId, sensorId, counter.getStartedAt()))))
+                                                deviceId, sensorId, counter.getStartedAt()),
+                                        currentTemperature)))
                         .toList();
 
         HeatSumPanel replacement = new HeatSumPanel(progress);

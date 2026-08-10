@@ -94,8 +94,17 @@ class HeatSumPanel extends VerticalLayout {
                 }
                 Optional<Duration> remaining = sum.remaining(target);
                 if (remaining.isPresent()) {
-                    return "About %s left, done %s".formatted(
+                    String estimate = "About %s left, done %s".formatted(
                             Elapsed.approximate(remaining.get()), completion(remaining.get()));
+                    /*
+                       A counter younger than the device's send interval has no
+                       readings of its own yet, so this came from the current
+                       temperature alone. Saying so is the difference between a
+                       number the reader can lean on and one they cannot.
+                    */
+                    return sum.provisional()
+                            ? estimate + " — from the current temperature, sharpens as it runs"
+                            : estimate;
                 }
                 /*
                    Two different reasons for having no forecast, and saying the wrong

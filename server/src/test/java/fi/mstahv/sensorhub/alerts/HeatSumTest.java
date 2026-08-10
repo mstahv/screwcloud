@@ -97,6 +97,63 @@ class HeatSumTest {
     }
 
     /*
+       A counter is younger than the send interval for its first few minutes, so
+       nothing has arrived since it started. The sensor's latest reading is still a
+       straight answer to "how fast is this going", and five minutes of "waiting" is
+       a poor substitute.
+    */
+    @Test
+    void withNoReadingsYetTheCurrentTemperatureIsUsed() {
+        HeatSum sum = HeatSum.of(List.of(), 23.0);
+
+        assertEquals(0.0, sum.degreeDays());
+        assertEquals(23.0, sum.recentRate().orElseThrow(), 0.001);
+        assertEquals(42, sum.remaining(40).orElseThrow().toHours(), 1);
+    }
+
+    /*
+       Such an estimate is flagged, because it is one reading rather than a measured
+       average and the card says so.
+    */
+    @Test
+    void anEstimateFromASingleTemperatureIsProvisional() {
+        assertTrue(HeatSum.of(List.of(), 23.0).provisional());
+        assertTrue(HeatSum.of(List.of(new HistoryPoint(START, 23.0, null))).provisional());
+    }
+
+    @Test
+    void aRateMeasuredOverTimeIsNotProvisional() {
+        assertFalse(HeatSum.of(steady(6.0, Duration.ofDays(1))).provisional());
+    }
+
+    @Test
+    void nothingIsProvisionalWhenThereIsNoRateAtAll() {
+        assertFalse(HeatSum.of(List.of()).provisional());
+        assertFalse(HeatSum.of(List.of(), null).provisional());
+    }
+
+    /*
+       Once real readings exist they win: the current temperature is a fallback, not
+       an override.
+    */
+    @Test
+    void realReadingsBeatTheFallback() {
+        HeatSum sum = HeatSum.of(steady(6.0, Duration.ofDays(2)), 23.0);
+
+        assertEquals(12.0, sum.degreeDays(), 0.1);
+        assertEquals(6.0, sum.recentRate().orElseThrow(), 0.1);
+        assertFalse(sum.provisional());
+    }
+
+    @Test
+    void aFallbackBelowFreezingStillDoesNotAccumulate() {
+        HeatSum sum = HeatSum.of(List.of(), -4.0);
+
+        assertEquals(0.0, sum.recentRate().orElseThrow(), 0.001);
+        assertTrue(sum.remaining(40).isEmpty());
+    }
+
+    /*
        No readings at all is a different thing from a frozen shed, and the two have
        to stay distinguishable — the UI says something different about each.
     */
