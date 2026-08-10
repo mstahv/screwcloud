@@ -1,0 +1,22 @@
+# Device-specific configuration: holds the WiFi password.
+# Copy the matching config.h.example to config.h and edit that.
+temperature-reader/config.h
+esp32-s3-reader/config.h
+
+# Arduino build output
+temperature-reader/build/
+esp32-s3-reader/build/
+
+.DS_Store
+
+# IDE
+.idea/
+
+# JVM crash logs
+hs_err_pid*.log
+replay_pid*.log
+
+# The deployment target of one particular server. Left untracked so a public
+# repository does not carry someone's host and account; delete this line if you
+# want yours in version control.
+vmhosting.conf

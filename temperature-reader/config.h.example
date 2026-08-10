@@ -1,0 +1,212 @@
+#pragma once
+
+/*
+  TEMPLATE — copy this to config.h and edit that copy:
+
+      cp config.h.example config.h
+
+  config.h is git-ignored because it holds your WiFi password. This template is
+  tracked, so keep placeholders here and real values only in your own copy.
+
+  For the minimum setup you only need to change DEVICE_ID, WIFI_SSID and
+  WIFI_PASSWORD. Everything else has a working default, including the server
+  address, which points at the public demo server.
+
+  A missing DHT22, a missing display and a missing NB-IoT modem are all detected
+  at runtime and do not need to be configured away. A bare Pico 2 W with a
+  RuuviTag in range is a complete setup.
+*/
+
+/*
+   Device identifier, exactly 4 ASCII characters. Goes into the packet header
+   and is shown as is in the server UI, so pick something readable. Give every
+   device its own.
+
+   An alternative would be to derive it from the RP2350 flash serial number so
+   no per-device code edit is needed, but that is unreadable in the UI, and
+   devices are flashed one at a time anyway.
+*/
+static const char DEVICE_ID[5] = "ABCD";
+
+// Send interval. Default 5 min.
+static const unsigned long SEND_INTERVAL_MS = 5UL * 60UL * 1000UL;
+
+/*
+   The first send happens before that, so a working connection is visible right
+   after boot. Long enough for the DHT22 and at least one RuuviTag to produce a
+   reading.
+*/
+static const unsigned long FIRST_SEND_DELAY_MS = 30000;
+
+/*
+   After a failed send, retry sooner than the normal interval. On NB-IoT joining
+   the network takes a while after boot, so the first attempt failing is not
+   exceptional.
+*/
+static const unsigned long RETRY_INTERVAL_MS = 60000;
+
+/*
+   Receiving server.
+
+   Defaults to the public demo server r.pakast.in. You are welcome to use it,
+   but it comes with no guarantees whatsoever: it may be down and the database
+   may be wiped at any time. For data you care about, run your own server — see
+   the README.
+
+   Given as an IP address rather than a name because DNS resolution in the
+   SIM7028's AT+CIPSEND depends on the module firmware. Over WiFi the name
+   "r.pakast.in" works too.
+*/
+static const char SERVER_HOST[] = "77.42.75.251";
+static const uint16_t SERVER_PORT = 5555;
+
+/* ==========================================================================
+   Transport
+
+   TRANSPORT_AUTO   detect the NB-IoT modem at boot and use it if it answers,
+                    otherwise WiFi. Compiles both in.
+   TRANSPORT_WIFI   WiFi only
+   TRANSPORT_NBIOT  NB-IoT only
+
+   A fixed choice saves flash and removes a few seconds of detection delay from
+   boot, but AUTO is easier to get running.
+   ========================================================================== */
+#define TRANSPORT_AUTO
+//#define TRANSPORT_WIFI
+//#define TRANSPORT_NBIOT
+
+// Derived flags that the actual code is conditioned on.
+#if defined(TRANSPORT_AUTO)
+#define USE_WIFI
+#define USE_NBIOT
+#elif defined(TRANSPORT_WIFI)
+#define USE_WIFI
+#elif defined(TRANSPORT_NBIOT)
+#define USE_NBIOT
+#else
+#error "Pick TRANSPORT_AUTO, TRANSPORT_WIFI or TRANSPORT_NBIOT"
+#endif
+
+#ifdef USE_WIFI
+static const char WIFI_SSID[] = "your-network";
+static const char WIFI_PASSWORD[] = "your-password";
+// How long a connection is waited for at boot and on reconnect.
+static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
+#endif
+
+#ifdef USE_NBIOT
+/*
+   Operator's NB-IoT APN. Telia Finland: "internet".
+
+   With an empty value AT+CGDCONT is not sent at all, leaving the attach to the
+   operator's automatics.
+
+   The APN is always set with the radio off (AT+CFUN=0 -> CGDCONT -> CFUN=1),
+   because it does not take effect mid-attach.
+*/
+static const char NBIOT_APN[] = "";
+
+/*
+   Band lock, for example "20". Empty = the modem scans every band it supports.
+
+   Locking speeds up the scan considerably, but a wrong band prevents attaching
+   entirely — leave it empty unless you know for sure. In Finland NB-IoT is
+   mostly on band 20 (800 MHz).
+*/
+static const char NBIOT_BAND[] = "";
+
+// UART speed. The SIM7028 default is 115200.
+static const unsigned long NBIOT_BAUD = 115200;
+
+/*
+   Modem detection for TRANSPORT_AUTO: how many times AT is attempted and how
+   long each response is waited for. These multiply into boot delay when no
+   modem is present, so keep them short — a modem that is there answers the
+   first or second attempt.
+*/
+static const uint8_t NBIOT_PROBE_ATTEMPTS = 3;
+static const unsigned long NBIOT_PROBE_TIMEOUT_MS = 700;
+
+/*
+   Local port for the UDP socket. The modem requires one: a UDP socket is opened
+   as AT+CIPOPEN=<link>,"UDP",,,<localPort> with no remote address. The value
+   does not matter as long as it is free.
+*/
+static const uint16_t NBIOT_LOCAL_PORT = 5555;
+
+/*
+   How long to wait for the PDP context to activate after AT+NETOPEN. The manual
+   allows a response time of up to 120 s.
+*/
+static const unsigned long NBIOT_NETOPEN_TIMEOUT_MS = 120000;
+
+/*
+   SIM card PIN. Empty if the card does not ask for one.
+
+   Note: the PIN has no effect on whether the modem answers AT commands. If AT
+   gets no answer the problem is the UART wiring or the power supply, not the
+   SIM.
+*/
+static const char NBIOT_SIM_PIN[] = "";
+
+/*
+   Print all AT traffic to the serial console. Worth keeping on until the
+   connection has been proven to work.
+*/
+#define NBIOT_DEBUG
+
+/*
+   Bridge mode for tracking down UART problems: the Pico forwards between the
+   serial console and the modem in both directions, so AT commands can be typed
+   straight to the modem from the Arduino serial monitor.
+
+   This tests exactly the wiring you actually use, unlike testing through the
+   modem's own USB-C.
+
+   Set the serial monitor line ending to "Both NL & CR". In this mode setup()
+   never returns, so measuring, the display and BLE do not run.
+*/
+//#define NBIOT_SERIAL_BRIDGE
+#endif
+
+/* ==========================================================================
+   Sensors
+   ========================================================================== */
+
+/*
+   DHT22. If no sensor is wired, leave ENABLE_DHT22 on: the sketch notices the
+   missing sensor from a few failed reads, stops reading it, and leaves it out
+   of the display and the packet.
+
+   Comment it out only if you want to skip the sensor for certain — that also
+   saves a few seconds of boot time.
+*/
+#define ENABLE_DHT22
+
+/*
+   How many consecutive failed reads are needed before the sensor is considered
+   missing. This only applies while the sensor has never produced a reading: one
+   that has worked keeps being retried forever, because then the problem is
+   interference rather than absent hardware.
+*/
+static const uint8_t DHT_FAILURES_BEFORE_ABSENT = 4;
+
+/*
+   The chip's own temperature sensor.
+
+   Reported as its own sensor so it can be followed in the web UI like any other.
+   It is not a room thermometer: the sensor is on the same die as the CPU and the
+   radio, so it reads well above the air around it and moves with the load. Worth
+   watching, not worth trusting.
+
+   Comment it out to leave it out of the packet — that also saves 8 bytes per
+   transmission, which is the only reason it might matter on a metered NB-IoT SIM.
+*/
+#define ENABLE_INTERNAL_TEMPERATURE
+
+/*
+   The identifier the chip temperature is reported under. At most 3 characters,
+   like every sensor id, and distinct from any RuuviTag label.
+*/
+#define INTERNAL_SENSOR_ID "CPU"
+

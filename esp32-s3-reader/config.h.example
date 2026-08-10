@@ -1,0 +1,90 @@
+#pragma once
+
+/*
+  TEMPLATE — copy this to config.h and edit that copy:
+
+      cp config.h.example config.h
+
+  config.h is git-ignored because it holds your WiFi password. This template is
+  tracked, so keep placeholders here and real values only in your own copy.
+
+  Only DEVICE_ID, WIFI_SSID and WIFI_PASSWORD need changing. Everything else has
+  a working default, including the server address, which points at the public
+  demo server.
+*/
+
+/*
+   Device identifier, exactly 4 ASCII characters. Goes into the packet header and
+   is shown as is in the server UI, so pick something readable. Give every device
+   its own — including your Pico devices, if you run both.
+*/
+static const char DEVICE_ID[5] = "ABCD";
+
+static const char WIFI_SSID[] = "your-network";
+static const char WIFI_PASSWORD[] = "your-password";
+// How long a connection is waited for at boot and on reconnect.
+static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
+
+/*
+   Receiving server.
+
+   Defaults to the public demo server r.pakast.in. You are welcome to use it, but
+   it comes with no guarantees: it may be down and the database may be wiped at
+   any time. For data you care about, run your own server — see the README.
+
+   Unlike the Pico firmware this may be a host name, since only WiFi is used and
+   there is no AT-command DNS to worry about.
+*/
+static const char SERVER_HOST[] = "r.pakast.in";
+static const uint16_t SERVER_PORT = 5555;
+
+// Send interval. Default 5 min.
+static const unsigned long SEND_INTERVAL_MS = 5UL * 60UL * 1000UL;
+
+/*
+   The first send happens before that, so a working connection is visible right
+   after boot. Long enough for at least one RuuviTag to be heard.
+*/
+static const unsigned long FIRST_SEND_DELAY_MS = 30000;
+
+// After a failed send, retry sooner than the normal interval.
+static const unsigned long RETRY_INTERVAL_MS = 60000;
+
+// How often the readings are printed to the serial console.
+static const unsigned long PRINT_INTERVAL_MS = 5000;
+
+/* ==========================================================================
+   RuuviTags
+   ========================================================================== */
+
+// How many distinct tags are kept in memory at once.
+static const uint8_t MAX_RUUVI_TAGS = 8;
+
+/*
+   A tag broadcasts every ~1285 ms, so a reading older than this means the tag is
+   out of range or its battery is dead. Stale readings are left out of the packet.
+*/
+static const unsigned long RUUVI_STALE_MS = 60000;
+
+/*
+   Scan window and interval in milliseconds. Equal values mean effectively
+   continuous scanning, which is what a tag broadcasting only every ~1285 ms
+   needs — NimBLE's defaults would miss most advertisements.
+
+   Note these are milliseconds. The Pico firmware passes BTstack raw 0.625 ms
+   units for the same thing.
+*/
+static const uint16_t SCAN_INTERVAL_MS = 30;
+static const uint16_t SCAN_WINDOW_MS = 30;
+
+/* ==========================================================================
+   Status LED
+
+   The ESP32-S3-Zero has no plain LED, only a WS2812 addressable RGB LED on
+   GPIO21. Check your own board if it differs.
+
+   Brightness is kept low on purpose: a WS2812 at full output is unpleasantly
+   bright indoors and wastes current for no benefit.
+   ========================================================================== */
+static const uint8_t RGB_LED_PIN = 21;
+static const uint8_t RGB_LED_BRIGHTNESS = 24;
