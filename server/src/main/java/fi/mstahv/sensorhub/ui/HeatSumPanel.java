@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -91,15 +92,20 @@ class HeatSumPanel extends VerticalLayout {
                 if (sum.reached(target)) {
                     return "Ready";
                 }
-                return sum.remaining(target)
-                        .map(remaining -> "About %s left, done %s".formatted(
-                                Elapsed.approximate(remaining), completion(remaining)))
-                        /*
-                           No forecast when nothing is accumulating: below zero the
-                           meat is not tenderising at all, and "in 4000 days" would be
-                           worse than saying so.
-                        */
-                        .orElse("Not accumulating — below freezing");
+                Optional<Duration> remaining = sum.remaining(target);
+                if (remaining.isPresent()) {
+                    return "About %s left, done %s".formatted(
+                            Elapsed.approximate(remaining.get()), completion(remaining.get()));
+                }
+                /*
+                   Two different reasons for having no forecast, and saying the wrong
+                   one is how this read "below freezing" in a warm room: an empty rate
+                   means no readings yet, a rate of zero means the shed is frozen.
+                */
+                if (sum.recentRate().isEmpty()) {
+                    return "Waiting for the first reading";
+                }
+                return "Not accumulating — below freezing";
             }
 
             private static String completion(Duration remaining) {

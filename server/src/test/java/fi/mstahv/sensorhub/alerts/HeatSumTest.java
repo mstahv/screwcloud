@@ -58,11 +58,60 @@ class HeatSumTest {
         assertEquals(12.0, HeatSum.of(history).degreeDays(), 0.1);
     }
 
+    /*
+       A counter started a moment ago has one reading and no elapsed time, so
+       nothing has accumulated — but the temperature right now is a perfectly good
+       estimate of the rate, and without it the card has nothing to say but
+       "waiting".
+    */
     @Test
-    void aSingleReadingHasAccumulatedNothing() {
-        HeatSum sum = HeatSum.of(List.of(new HistoryPoint(START, 6.0, 40.0)));
+    void aSingleReadingAccumulatesNothingButStillGivesARate() {
+        HeatSum sum = HeatSum.of(List.of(new HistoryPoint(START, 23.0, 40.0)));
 
         assertEquals(0.0, sum.degreeDays());
+        assertEquals(23.0, sum.recentRate().orElseThrow(), 0.001);
+    }
+
+    /*
+       The bug this was found by: a counter started in a warm room reported "not
+       accumulating — below freezing", because a missing rate was being read as
+       frozen.
+    */
+    @Test
+    void aFreshCounterInARoomForecastsFromTheCurrentTemperature() {
+        HeatSum sum = HeatSum.of(List.of(new HistoryPoint(START, 23.0, 40.0)));
+
+        Duration remaining = sum.remaining(40).orElseThrow();
+
+        // 40 degree-days at 23 °C is a day and 18 hours.
+        assertEquals(42, remaining.toHours(), 1);
+        assertTrue(sum.forecast(40, START).isPresent());
+    }
+
+    @Test
+    void aSingleReadingBelowFreezingIsStillNotAccumulating() {
+        HeatSum sum = HeatSum.of(List.of(new HistoryPoint(START, -4.0, 40.0)));
+
+        assertEquals(0.0, sum.recentRate().orElseThrow(), 0.001);
+        assertTrue(sum.remaining(40).isEmpty());
+    }
+
+    /*
+       No readings at all is a different thing from a frozen shed, and the two have
+       to stay distinguishable — the UI says something different about each.
+    */
+    @Test
+    void noReadingsMeansNoRateAtAll() {
+        HeatSum sum = HeatSum.of(List.of());
+
+        assertTrue(sum.recentRate().isEmpty());
+        assertEquals(0.0, sum.degreeDays());
+    }
+
+    @Test
+    void aReadingWithoutATemperatureIsNotAReading() {
+        HeatSum sum = HeatSum.of(List.of(new HistoryPoint(START, null, 40.0)));
+
         assertTrue(sum.recentRate().isEmpty());
     }
 

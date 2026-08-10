@@ -1366,8 +1366,16 @@ About 2 d left, done Thu 09:15
 
 The rate is the recent average temperature over six hours — degree-days per day and
 degrees Celsius are the same number — long enough to ride out a warm afternoon,
-short enough to follow a cold front. Below freezing there is no completion date at
-all, and the card says so rather than forecasting decades.
+short enough to follow a cold front. A counter started a moment ago has only one
+reading and no elapsed time, so its rate is simply the temperature right now;
+without that the card could say nothing but "waiting" until the second packet
+arrived.
+
+Below freezing there is no completion date at all, and the card says so rather than
+forecasting decades. **No readings and a rate of zero are different things**, and
+they read differently: "Waiting for the first reading" against "Not accumulating —
+below freezing". Conflating them is what once made a counter in a 23 °C room report
+that it was frozen.
 
 **Several counters per sensor**, each with a short comment: two carcasses hung on
 different days are two counters on one thermometer. That is why they are a table of

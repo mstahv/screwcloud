@@ -31,7 +31,10 @@ import fi.mstahv.sensorhub.store.HistoryPoint;
  * @param degreeDays what has accumulated so far
  * @param measuredOver how much time the samples actually span
  * @param recentRate the current speed in degree-days per day, which is simply the
- *        recent average temperature; empty when there is too little to tell
+ *        recent average temperature — or the current one when there is only a single
+ *        reading. Empty only when there are no readings at all, which is a different
+ *        thing from a rate of zero: no data is not the same as a frozen shed, and
+ *        what is shown to the reader differs.
  */
 public record HeatSum(double degreeDays, Duration measuredOver, Optional<Double> recentRate) {
 
@@ -59,9 +62,18 @@ public record HeatSum(double degreeDays, Duration measuredOver, Optional<Double>
         List<HistoryPoint> measured = history.stream()
                 .filter(point -> point.temperature() != null)
                 .toList();
-        if (measured.size() < 2) {
-            // One reading has no duration, so nothing has accumulated yet.
+        if (measured.isEmpty()) {
             return none();
+        }
+        if (measured.size() == 1) {
+            /*
+               A counter started a moment ago: no elapsed time, so nothing has
+               accumulated — but the temperature right now is a perfectly good
+               estimate of the rate, and the alternative is a card that can only say
+               "waiting" until the second packet arrives five minutes later.
+            */
+            return new HeatSum(0, Duration.ZERO,
+                    Optional.of(Math.max(0, measured.getFirst().temperature())));
         }
 
         double degreeHours = 0;
