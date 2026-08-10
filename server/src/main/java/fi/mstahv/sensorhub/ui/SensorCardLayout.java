@@ -16,6 +16,7 @@ import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
 import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
+import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
 
@@ -47,9 +48,11 @@ class SensorCardLayout extends FlexLayout {
     private String shownDeviceId;
 
     SensorCardLayout(MeasurementStore store, SensorSettingsStore settings,
-                     AlertSubscriptionStore alerts, WebPushService webPush) {
+                     AlertSubscriptionStore alerts, HeatSumCounterStore heatSums,
+                     WebPushService webPush) {
         this.store = store;
-        this.context = new SensorCardContext(settings, store, alerts, webPush, () -> clientId);
+        this.context =
+                new SensorCardContext(settings, store, alerts, heatSums, webPush, () -> clientId);
         setFlexWrap(FlexWrap.WRAP);
         setWidthFull();
         getStyle().setGap("var(--vaadin-gap-m)");

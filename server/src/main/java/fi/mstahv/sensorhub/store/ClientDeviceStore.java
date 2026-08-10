@@ -86,6 +86,22 @@ public class ClientDeviceStore {
                         Collectors.mapping(ClientDevice::getClientId, Collectors.toList())));
     }
 
+    /**
+     * Every browser that has this device on its list.
+     *
+     * <p>The audience for anything that is a fact about the device rather than a
+     * personal setting — a degree-day counter reaching its target, for instance.
+     * Whether a notification actually arrives still depends on that browser having
+     * notifications switched on.
+     */
+    @Transactional(readOnly = true)
+    public List<String> clientsWith(String deviceId) {
+        return repository.findByDeviceId(normalise(deviceId)).stream()
+                .map(ClientDevice::getClientId)
+                .distinct()
+                .toList();
+    }
+
     @Transactional
     public void remove(String clientId, String deviceId) {
         repository.deleteByClientIdAndDeviceId(clientId, normalise(deviceId));

@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
+import fi.mstahv.sensorhub.alerts.HeatSumAlerts;
 import fi.mstahv.sensorhub.alerts.TemperatureAlerts;
 import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
 import fi.mstahv.sensorhub.protocol.PacketDecoder;
@@ -34,16 +35,18 @@ public class UdpReceiver implements SmartLifecycle {
 
     private final MeasurementStore store;
     private final TemperatureAlerts alerts;
+    private final HeatSumAlerts heatSums;
     private final int port;
 
     private volatile boolean running;
     private DatagramSocket socket;
     private Thread thread;
 
-    UdpReceiver(MeasurementStore store, TemperatureAlerts alerts,
+    UdpReceiver(MeasurementStore store, TemperatureAlerts alerts, HeatSumAlerts heatSums,
                 @Value("${sensorhub.udp.port}") int port) {
         this.store = store;
         this.alerts = alerts;
+        this.heatSums = heatSums;
         this.port = port;
     }
 
@@ -103,6 +106,7 @@ public class UdpReceiver implements SmartLifecycle {
                    packet.
                 */
                 alerts.evaluate(measurement);
+                heatSums.evaluate(measurement.deviceId());
             } catch (RuntimeException e) {
                 // Any junk can arrive on the port, so this is not exceptional.
                 log.warn("Invalid packet from {}: {}", packet.getAddress(), e.getMessage());

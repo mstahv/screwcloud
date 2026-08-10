@@ -13,6 +13,8 @@ public interface ClientDeviceRepository extends JpaRepository<ClientDevice, Long
 
     List<ClientDevice> findByAlertOnSilenceTrue();
 
+    List<ClientDevice> findByDeviceId(String deviceId);
+
     boolean existsByClientIdAndDeviceId(String clientId, String deviceId);
 
     void deleteByClientIdAndDeviceId(String clientId, String deviceId);

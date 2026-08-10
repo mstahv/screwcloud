@@ -25,6 +25,7 @@ import fi.mstahv.sensorhub.alerts.DeviceActivity;
 import fi.mstahv.sensorhub.alerts.Elapsed;
 import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
+import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
 
@@ -62,11 +63,11 @@ public class DashboardView extends VerticalLayout
     private Instant renderedReceivedAt;
 
     public DashboardView(MeasurementStore store, SensorSettingsStore settings,
-                         AlertSubscriptionStore alerts, WebPushService webPush,
-                         ConnectionMonitor connections) {
+                         AlertSubscriptionStore alerts, HeatSumCounterStore heatSums,
+                         WebPushService webPush, ConnectionMonitor connections) {
         this.store = store;
         this.connections = connections;
-        this.cards = new SensorCardLayout(store, settings, alerts, webPush);
+        this.cards = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
         offline.addThemeVariants(BadgeVariant.ERROR);
         offline.setVisible(false);
         setSizeFull();

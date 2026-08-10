@@ -2,6 +2,7 @@ package fi.mstahv.sensorhub.ui;
 
 import java.util.function.Consumer;
 
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
@@ -25,6 +26,10 @@ import fi.mstahv.sensorhub.store.SensorThresholds;
  * <p>The four limits are entered as two ranges, which reads more naturally than
  * four independent thresholds: the OK band, and the points beyond which it is an
  * alert. Warning is what falls between the two.
+ *
+ * <p>The degree-day counters are managed here as well. They are not settings in the
+ * same sense — a counter is a thing that is running — but they answer the same
+ * question as the rest of this form: what is this thermometer being used for.
  */
 class SensorSettingsForm extends VerticalLayout {
 
@@ -63,8 +68,12 @@ class SensorSettingsForm extends VerticalLayout {
         }
     }
 
+    /**
+     * @param counters the degree-day counter management, built by the caller because
+     *        it needs the store; null leaves the section out
+     */
     SensorSettingsForm(String sensorId, String currentName, SensorThresholds currentThresholds,
-                       AlertOptions alertOptions, Consumer<Values> onSave) {
+                       AlertOptions alertOptions, Component counters, Consumer<Values> onSave) {
         setPadding(false);
         setSpacing(false);
         setWidth("20rem");
@@ -96,6 +105,9 @@ class SensorSettingsForm extends VerticalLayout {
                         + "Warning is what falls between the OK and alert limits."));
         if (alerts != null) {
             add(new SectionLabel("Notify this browser when"), alerts);
+        }
+        if (counters != null) {
+            add(new SectionLabel("Degree-day counters"), counters);
         }
         add(save);
     }

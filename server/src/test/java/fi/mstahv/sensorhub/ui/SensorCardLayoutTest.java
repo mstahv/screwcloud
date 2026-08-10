@@ -19,6 +19,7 @@ import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
 import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
+import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
 
@@ -29,7 +30,7 @@ import fi.mstahv.sensorhub.store.SensorSettingsStore;
  */
 @DatabaseTest
 @Import({TestDatabase.class, MeasurementStore.class, SensorSettingsStore.class,
-        AlertSubscriptionStore.class})
+        AlertSubscriptionStore.class, HeatSumCounterStore.class})
 class SensorCardLayoutTest {
 
     /*
@@ -51,11 +52,14 @@ class SensorCardLayoutTest {
     @Autowired
     private AlertSubscriptionStore alerts;
 
+    @Autowired
+    private HeatSumCounterStore heatSums;
+
     private SensorCardLayout layout;
 
     @BeforeEach
     void setUp() {
-        layout = new SensorCardLayout(store, settings, alerts, webPush);
+        layout = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
     }
 
     @Test

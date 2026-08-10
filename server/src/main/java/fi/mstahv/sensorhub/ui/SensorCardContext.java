@@ -4,6 +4,7 @@ import java.util.function.Supplier;
 
 import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
+import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
 
@@ -23,6 +24,7 @@ record SensorCardContext(
         SensorSettingsStore settings,
         MeasurementStore measurements,
         AlertSubscriptionStore alerts,
+        HeatSumCounterStore heatSums,
         WebPushService webPush,
         Supplier<String> clientId) {
 }

@@ -872,8 +872,9 @@ server/
     store/      MeasurementSample, SensorSettings, ClientDevice,
                 PushSubscription, AlertSubscription (JPA), repositories
                 and their stores
-    alerts/     WebPushService, TemperatureAlerts, ConnectionMonitor —
-                band changes and silent devices to notifications
+    alerts/     WebPushService, TemperatureAlerts, ConnectionMonitor,
+                HeatSum, HeatSumAlerts — derived judgements and the
+                notifications that follow from them
     ui/         DeviceListView, DeviceLinkCard, DashboardView,
                 SensorCardLayout, SensorCard, TemperatureSparkLine,
                 SensorSettingsForm, ClientId, Ages
@@ -1011,6 +1012,7 @@ The migrations live in `src/main/resources/db/migration/`:
 | `V2__sensor_thresholds.sql` | the gauge's temperature band columns on `sensor_settings` |
 | `V3__push_notifications.sql` | `push_subscription` and `alert_subscription` for web push |
 | `V4__device_silence_alerts.sql` | `alert_on_silence` on `client_device` |
+| `V5__heat_sum_counters.sql` | `heat_sum_counter` for the degree-day counters |
 
 `ddl-auto=update` would quietly bend in the wrong directions without reporting
 what it did, so Hibernate is no longer allowed to modify the database. The flip
@@ -1325,6 +1327,71 @@ Both settings are stored in the `sensor_settings` table keyed by device + sensor
 because sensor identifiers are only unique within a device. The form is rebuilt
 on every open, so the fields always show the stored values and no state has to be
 synchronised separately.
+
+#### Degree-day counters
+
+For hanging game. The practice is measured in **vuorokausiastetta** — degree-days,
+temperature multiplied by time — with forty as the general guideline: +8 °C for five
+days and +5 °C for eight days are the same thing, and some prefer sixty for more
+flavour. The ideal hanging temperature is 2–7 °C, and above 10 °C bacteria grow
+faster than the meat matures.
+([hirvikota.wordpress.com](https://hirvikota.wordpress.com/kaadon-jalkeen/riistan-riiputus/))
+
+Two rules from that practice shape the arithmetic in `HeatSum`:
+
+- **"Jäätynyt liha ei mureudu"** — frozen meat does not tenderise. Time below zero
+  contributes nothing, and it does not subtract either: what has already happened
+  does not un-happen.
+- Everything above zero counts at its own value, which is why the reference table
+  runs all the way down to 1 °C for 40 days.
+
+The sum is a **trapezoidal integral** of the readings from the counter's start: each
+pair of samples contributes the average of the two temperatures over the time
+between them, both clamped at zero first. Gaps are interpolated rather than skipped
+— a shed's temperature moves slowly, so the average across a two-hour outage is a
+better guess than pretending those hours did not happen, and pretending would
+under-count and mean hanging longer than the meat needs.
+
+`HeatSumTest` checks the arithmetic against the guideline's own examples: +8 °C for
+five days and +5 °C for eight both come out at 40.
+
+**The forecast is the useful part.** The sum alone does not answer "should I be
+there on Saturday", so the card shows when it will be done:
+
+```
+hirvi · 27.4 / 40 °Cd
+[============-----]
+About 2 d left, done Thu 09:15
+```
+
+The rate is the recent average temperature over six hours — degree-days per day and
+degrees Celsius are the same number — long enough to ride out a warm afternoon,
+short enough to follow a cold front. Below freezing there is no completion date at
+all, and the card says so rather than forecasting decades.
+
+**Several counters per sensor**, each with a short comment: two carcasses hung on
+different days are two counters on one thermometer. That is why they are a table of
+their own (V5) rather than more columns on `sensor_settings`.
+
+Unlike the alert subscriptions, a counter is **not per browser**. What hangs in the
+shed is a fact, not a preference, so everyone watching that sensor sees the same
+counters — only whether a notification arrives is personal, and that follows the push
+subscription each browser already has.
+
+**Alerts default to on**, both of them: a day before the target and when it is
+reached. A counter nobody is told about is a calendar reminder with extra steps. "A
+day before" is judged from the forecast rather than from a margin in degree-days,
+because a day is two degree-days at 2 °C and eight at 8 °C — a fixed margin would
+give a day's notice at exactly one temperature.
+
+Each notification is sent once, and the "once" is a column on the counter rather
+than a field in memory: a counter runs for weeks, and a restart should not announce a
+target passed last Tuesday all over again. Raising the target clears those flags —
+the reader has decided the meat needs longer and should hear about the new target;
+lowering it does not, since the old one was already announced.
+
+Counters are evaluated when a packet arrives, not on a timer. Unlike a silent
+device, a counter cannot cross its target while nothing is happening.
 
 #### Push notifications
 

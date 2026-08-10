@@ -15,6 +15,7 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.dom.Style;
 
 import fi.mstahv.sensorhub.protocol.SensorMeasurement;
+import fi.mstahv.sensorhub.alerts.HeatSum;
 import fi.mstahv.sensorhub.store.HistoryPoint;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
 
@@ -55,6 +56,13 @@ class SensorCard extends Card {
 
     /** The open grid, or null when the section is closed. */
     private MeasurementGrid openMeasurements;
+
+    /**
+     * The degree-day counters. Replaced rather than updated in place: the number of
+     * counters changes, and a handful of spans is nothing next to the grid this card
+     * already avoids rebuilding.
+     */
+    private HeatSumPanel heatSums = new HeatSumPanel(List.of());
 
     private final String deviceId;
     private final String sensorId;
@@ -98,7 +106,7 @@ class SensorCard extends Card {
             }
         });
 
-        add(noTemperature, humidity, sparkLine, measurements);
+        add(noTemperature, humidity, sparkLine, heatSums, measurements);
     }
 
     /*
@@ -112,7 +120,52 @@ class SensorCard extends Card {
                 settings.nameFor(deviceId, sensorId),
                 settings.thresholdsFor(deviceId, sensorId),
                 alertOptions(clientId),
+                createCounterForm(),
                 values -> save(clientId, values));
+    }
+
+    /*
+       Rebuilt on every change so it always shows what was stored, in the same
+       spirit as the settings form itself. Cheap: the popover is open, the reader is
+       looking at a handful of rows.
+    */
+    private Component createCounterForm() {
+        return new HeatSumCounterForm(
+                context.heatSums().countersFor(deviceId, sensorId),
+                started -> {
+                    try {
+                        context.heatSums().start(deviceId, sensorId, started.comment(),
+                                started.target(), started.startedAt());
+                    } catch (IllegalArgumentException e) {
+                        Notification.show(e.getMessage());
+                        return;
+                    }
+                    afterCounterChange();
+                },
+                changed -> {
+                    try {
+                        context.heatSums().update(changed.id(), changed.comment(), changed.target(),
+                                changed.alertBeforeTarget(), changed.alertAtTarget());
+                    } catch (IllegalArgumentException e) {
+                        Notification.show(e.getMessage());
+                        return;
+                    }
+                    showHeatSums();
+                },
+                id -> {
+                    context.heatSums().stop(id);
+                    afterCounterChange();
+                });
+    }
+
+    /*
+       Closing the popover is what refreshes it: its content is built on open, so
+       reopening shows the new list. Reaching into the open popover to patch it would
+       be more code for the same result.
+    */
+    private void afterCounterChange() {
+        showHeatSums();
+        settingsButton.close();
     }
 
     /*
@@ -173,6 +226,7 @@ class SensorCard extends Card {
 
         humidity.setText(Readings.format(sensor.humidity(), "%.1f %% RH"));
         sparkLine.setHistory(history);
+        showHeatSums();
 
         /*
            A section left open has to keep up, otherwise it silently stays at the
@@ -183,6 +237,24 @@ class SensorCard extends Card {
         if (openMeasurements != null) {
             openMeasurements.refresh();
         }
+    }
+
+    /*
+       Each counter's sum is integrated from its own start, which may be weeks back,
+       so this runs only when a new packet has arrived — the view skips the update
+       entirely when nothing has changed.
+    */
+    private void showHeatSums() {
+        List<HeatSumPanel.CounterProgress> progress =
+                context.heatSums().countersFor(deviceId, sensorId).stream()
+                        .map(counter -> new HeatSumPanel.CounterProgress(counter,
+                                HeatSum.of(context.measurements().history(
+                                        deviceId, sensorId, counter.getStartedAt()))))
+                        .toList();
+
+        HeatSumPanel replacement = new HeatSumPanel(progress);
+        replace(heatSums, replacement);
+        heatSums = replacement;
     }
 
     private Component createMeasurementGrid() {

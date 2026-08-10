@@ -1,0 +1,115 @@
+package fi.mstahv.sensorhub.ui;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
+
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.progressbar.ProgressBar;
+
+import fi.mstahv.sensorhub.alerts.HeatSum;
+import fi.mstahv.sensorhub.alerts.Elapsed;
+import fi.mstahv.sensorhub.store.HeatSumCounter;
+
+/**
+ * The degree-day counters running on one sensor, on its card.
+ *
+ * <p>Visible rather than behind a section, because a counter that has to be opened
+ * to be seen is a counter nobody checks. Hidden entirely when there are none, so a
+ * sensor that is just measuring a room stays as plain as it was.
+ *
+ * <p>Each counter shows what it is, how far it has come, and when it will be done.
+ * The forecast is the interesting part — the sum alone does not answer "should I be
+ * there on Saturday".
+ */
+class HeatSumPanel extends VerticalLayout {
+
+    /**
+     * How the progress and the forecast are worked out for one counter. Kept as a
+     * record so the card can be built from data rather than from a store.
+     *
+     * @param counter what is being counted
+     * @param sum where it has got to
+     */
+    record CounterProgress(HeatSumCounter counter, HeatSum sum) {
+    }
+
+    HeatSumPanel(List<CounterProgress> counters) {
+        setPadding(false);
+        setSpacing(false);
+        setWidthFull();
+        getStyle().setMarginTop("var(--vaadin-gap-s)");
+
+        setVisible(!counters.isEmpty());
+        counters.forEach(progress -> add(new CounterRow(progress)));
+    }
+
+    private static class CounterRow extends VerticalLayout {
+
+        CounterRow(CounterProgress progress) {
+            setPadding(false);
+            setSpacing(false);
+            setWidthFull();
+            getStyle().setMarginBottom("var(--vaadin-gap-xs)");
+
+            HeatSumCounter counter = progress.counter();
+            HeatSum sum = progress.sum();
+
+            add(new Label("%s · %s / %s °Cd".formatted(
+                    counter.describe(), format(sum.degreeDays()), format(counter.getTarget()))));
+
+            ProgressBar bar = new ProgressBar(0, counter.getTarget(),
+                    Math.min(sum.degreeDays(), counter.getTarget()));
+            bar.getStyle().setMarginTop("0.125rem");
+            bar.getStyle().setMarginBottom("0.125rem");
+            add(bar);
+
+            add(new Forecast(sum, counter.getTarget()));
+        }
+
+        private static class Label extends Span {
+            Label(String text) {
+                super(text);
+                getStyle().setFontSize("0.8125rem");
+            }
+        }
+
+        /**
+         * What is left, in the terms the reader thinks in: a date and time when it
+         * will be done, not a number of degree-days.
+         */
+        private static class Forecast extends Span {
+            Forecast(HeatSum sum, double target) {
+                super(describe(sum, target));
+                getStyle().setFontSize("0.75rem");
+                getStyle().setColor("var(--vaadin-text-color-secondary)");
+            }
+
+            private static String describe(HeatSum sum, double target) {
+                if (sum.reached(target)) {
+                    return "Ready";
+                }
+                return sum.remaining(target)
+                        .map(remaining -> "About %s left, done %s".formatted(
+                                Elapsed.approximate(remaining), completion(remaining)))
+                        /*
+                           No forecast when nothing is accumulating: below zero the
+                           meat is not tenderising at all, and "in 4000 days" would be
+                           worse than saying so.
+                        */
+                        .orElse("Not accumulating — below freezing");
+            }
+
+            private static String completion(Duration remaining) {
+                Instant done = Instant.now().plus(remaining);
+                return TimeText.dayAndTime(done);
+            }
+        }
+    }
+
+    private static String format(double degreeDays) {
+        return String.format(Locale.ROOT, "%.1f", degreeDays);
+    }
+}
