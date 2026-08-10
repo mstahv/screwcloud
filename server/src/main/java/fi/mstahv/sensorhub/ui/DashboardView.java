@@ -5,6 +5,8 @@ import java.time.Instant;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.badge.Badge;
+import com.vaadin.flow.component.badge.BadgeVariant;
 import com.vaadin.flow.component.dependency.StyleSheet;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
@@ -18,6 +20,9 @@ import com.vaadin.flow.router.RouterLink;
 import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.theme.aura.Aura;
 
+import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
+import fi.mstahv.sensorhub.alerts.DeviceActivity;
+import fi.mstahv.sensorhub.alerts.Elapsed;
 import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
@@ -42,9 +47,12 @@ public class DashboardView extends VerticalLayout
     private static final int POLL_INTERVAL_MS = 5000;
 
     private final MeasurementStore store;
+    private final ConnectionMonitor connections;
     private final SensorCardLayout cards;
     private final H2 heading = new H2();
     private final Span deviceStatus = new Span();
+    /** Shown only when the device is late; see DeviceActivity for what late means. */
+    private final Badge offline = new Badge();
     private final Span emptyState = new Span();
 
     private Registration pollRegistration;
@@ -54,15 +62,19 @@ public class DashboardView extends VerticalLayout
     private Instant renderedReceivedAt;
 
     public DashboardView(MeasurementStore store, SensorSettingsStore settings,
-                         AlertSubscriptionStore alerts, WebPushService webPush) {
+                         AlertSubscriptionStore alerts, WebPushService webPush,
+                         ConnectionMonitor connections) {
         this.store = store;
+        this.connections = connections;
         this.cards = new SensorCardLayout(store, settings, alerts, webPush);
+        offline.addThemeVariants(BadgeVariant.ERROR);
+        offline.setVisible(false);
         setSizeFull();
 
         deviceStatus.getStyle().setColor("var(--vaadin-text-color-secondary)");
 
         add(new RouterLink("← Devices", DeviceListView.class),
-                heading, deviceStatus, emptyState, cards);
+                heading, deviceStatus, offline, emptyState, cards);
     }
 
     /*
@@ -127,11 +139,26 @@ public class DashboardView extends VerticalLayout
             deviceStatus.setText("Updated %s · sequence %d"
                     .formatted(Ages.format(device.receivedAt()), device.sequence()));
 
+            /*
+               The same judgement the notifications use, so the page and the phone
+               never say different things. Refreshed on every poll rather than only
+               on a new packet: going offline is precisely the case where no packet
+               arrives to trigger anything.
+            */
+            DeviceActivity activity = connections.activityOf(deviceId);
+            offline.setVisible(activity.silent());
+            if (activity.silent()) {
+                offline.setText("Offline · nothing for %s, expected every %s".formatted(
+                        Elapsed.approximate(activity.sinceLast()),
+                        activity.expectedInterval().map(Elapsed::approximate).orElse("?")));
+            }
+
             if (!device.receivedAt().equals(renderedReceivedAt)) {
                 cards.show(device);
                 renderedReceivedAt = device.receivedAt();
             }
         }, () -> {
+            offline.setVisible(false);
             emptyState.setText("No measurements from %s yet.".formatted(deviceId));
             emptyState.setVisible(true);
             deviceStatus.setText("");

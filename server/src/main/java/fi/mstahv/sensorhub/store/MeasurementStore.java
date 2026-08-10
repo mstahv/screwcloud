@@ -120,6 +120,17 @@ public class MeasurementStore {
                 .toList();
     }
 
+    /**
+     * When a device's recent packets arrived, newest first. Used to work out how
+     * often it normally reports, and therefore whether it has stopped.
+     *
+     * @param limit how many arrivals to look at
+     */
+    @Transactional(readOnly = true)
+    public List<Instant> recentArrivals(String deviceId, int limit) {
+        return repository.findRecentArrivals(deviceId, PageRequest.of(0, limit));
+    }
+
     private static HistoryPoint toHistoryPoint(MeasurementSample sample) {
         return new HistoryPoint(
                 sample.getReceivedAt(), sample.getTemperature(), sample.getHumidity());

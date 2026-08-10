@@ -20,8 +20,10 @@ import jakarta.persistence.UniqueConstraint;
  * knows the device identifier. That is a deliberate choice here — the point is
  * only to remember a browser's choices without user accounts.
  *
- * <p>This same table is the natural place to hang web push subscriptions on
- * later: they belong to a browser, just like this list does.
+ * <p>The row also carries whether this browser wants to be told when the device
+ * stops reporting. That belongs here rather than in its own table: silence is a
+ * property of a device, not of a sensor, and this is already the list of devices
+ * one browser cares about.
  */
 @Entity
 @Table(name = "client_device",
@@ -44,6 +46,13 @@ public class ClientDevice {
     @Column(nullable = false)
     private Instant addedAt;
 
+    /**
+     * Whether this browser wants a notification when the device stops reporting.
+     * Defaults to false, so adding a device does not sign anyone up for anything.
+     */
+    @Column(nullable = false)
+    private boolean alertOnSilence;
+
     /** JPA requires a default constructor. */
     protected ClientDevice() {
     }
@@ -64,5 +73,13 @@ public class ClientDevice {
 
     public Instant getAddedAt() {
         return addedAt;
+    }
+
+    public boolean isAlertOnSilence() {
+        return alertOnSilence;
+    }
+
+    public void setAlertOnSilence(boolean alertOnSilence) {
+        this.alertOnSilence = alertOnSilence;
     }
 }

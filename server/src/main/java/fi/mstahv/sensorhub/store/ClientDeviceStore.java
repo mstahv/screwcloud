@@ -3,6 +3,8 @@ package fi.mstahv.sensorhub.store;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +45,45 @@ public class ClientDeviceStore {
             repository.save(new ClientDevice(clientId, normalised, Instant.now()));
         }
         return normalised;
+    }
+
+    /**
+     * Whether this browser has asked to be told when the device goes quiet.
+     */
+    @Transactional(readOnly = true)
+    public boolean isSilenceAlertEnabled(String clientId, String deviceId) {
+        return repository.findByClientIdAndDeviceId(clientId, normalise(deviceId))
+                .map(ClientDevice::isAlertOnSilence)
+                .orElse(false);
+    }
+
+    /**
+     * Subscribes or unsubscribes this browser from silence alerts for one device.
+     * Does nothing for a device that is not on the browser's list — there would be
+     * nothing to attach the choice to.
+     */
+    @Transactional
+    public void setSilenceAlert(String clientId, String deviceId, boolean enabled) {
+        repository.findByClientIdAndDeviceId(clientId, normalise(deviceId))
+                .ifPresent(device -> {
+                    device.setAlertOnSilence(enabled);
+                    repository.save(device);
+                });
+    }
+
+    /**
+     * Every device someone is watching, and who is watching it.
+     *
+     * <p>The sweep that looks for silent devices starts from this rather than from
+     * every device that ever sent a packet: a device nobody subscribed to needs no
+     * checking, and one that was decommissioned months ago should not be
+     * rediscovered as "offline" on every server start.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, List<String>> clientsWatchingForSilence() {
+        return repository.findByAlertOnSilenceTrue().stream()
+                .collect(Collectors.groupingBy(ClientDevice::getDeviceId,
+                        Collectors.mapping(ClientDevice::getClientId, Collectors.toList())));
     }
 
     @Transactional

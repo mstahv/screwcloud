@@ -3,9 +3,14 @@ package fi.mstahv.sensorhub.ui;
 import java.time.Duration;
 import java.time.Instant;
 
+import fi.mstahv.sensorhub.alerts.Elapsed;
+
 /**
  * Renders an arrival time as elapsed time. The devices have no clock, so an
  * absolute time would mislead — what matters is whether a reading is fresh.
+ *
+ * <p>The wording comes from {@link Elapsed}, which the notifications share. Beyond
+ * two days it now says "3 d" rather than "76 h".
  */
 final class Ages {
 
@@ -13,13 +18,6 @@ final class Ages {
     }
 
     static String format(Instant instant) {
-        long seconds = Duration.between(instant, Instant.now()).toSeconds();
-        if (seconds < 60) {
-            return seconds + " s ago";
-        }
-        if (seconds < 3600) {
-            return (seconds / 60) + " min ago";
-        }
-        return (seconds / 3600) + " h ago";
+        return Elapsed.approximate(Duration.between(instant, Instant.now())) + " ago";
     }
 }

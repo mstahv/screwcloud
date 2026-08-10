@@ -535,11 +535,66 @@ reading.
 
 With three sensors the packet is 32 bytes. **There is no point optimising below
 that:** the IP and UDP headers already take 28 bytes, so halving the payload
-would save barely a tenth of the total traffic. At five-minute intervals this is
-roughly 0.5 MB per month.
+would save barely a tenth of the total traffic.
 
 The format is extended by bumping the version byte, not by quietly adding
 fields. The server rejects an unknown version rather than misinterpreting it.
+
+#### What that costs on a metered SIM
+
+Worth doing the arithmetic once, because it decides whether the whole NB-IoT idea
+is affordable. With the defaults — a five-minute interval and three sensors —
+there are 288 sends a day of 60 bytes each on the IP layer:
+
+| Traffic | Amount |
+|---|---|
+| per day | **17.3 kB** |
+| per month | 0.52 MB |
+| per year | 6.3 MB |
+| time to reach 1 MB | 58 days |
+
+Nothing else is on the wire: UDP means the server never answers, and
+`SERVER_HOST` is an IP address so there are no DNS lookups. Operator signalling —
+attach, tracking area updates — is normally not billed as data, though that is
+worth confirming with yours.
+
+At the Telia Prepaid rate this project uses, **0.01 €/MB with a 0.99 €/day cap**,
+that is 0.017 cents a day, or **about 6 cents a year**. The daily cap is
+unreachable: hitting it would take 99 MB a day, a packet every 52 ms. Even the
+worst failure mode stays far below it — if the link breaks and `RETRY_INTERVAL_MS`
+takes over at one minute, the day's traffic is 86 kB.
+
+**Rounding matters far more than the bytes do.** At these volumes, whatever
+minimum unit the operator meters in dominates the bill:
+
+| If billing rounds up | per day | per year |
+|---|---|---|
+| actual bytes | 0.00017 € | 0.06 € |
+| to 100 kB per day | 0.001 € | 0.36 € |
+| to 1 MB per day | 0.01 € | 3.65 € |
+
+So a rounded megabyte per day costs 58 times the actual traffic — and it is still
+under four euros a year. Prepaid SIMs usually also require periodic top-ups to
+stay valid, which at this consumption will cost more than the data ever does.
+
+The send interval is the only real lever; the number of sensors barely registers,
+because with three sensors 47 % of every packet is already IP and UDP headers:
+
+| Interval | Per day | Per month |
+|---|---|---|
+| 1 min | 86.4 kB | 2.59 MB |
+| **5 min (default)** | **17.3 kB** | **0.52 MB** |
+| 15 min | 5.8 kB | 0.17 MB |
+| 60 min | 1.4 kB | 0.04 MB |
+
+| Sensors | Packet | Per day |
+|---|---|---|
+| 2 | 24 B | 15.0 kB |
+| 3 | 32 B | 17.3 kB |
+| 8 (the maximum) | 72 B | 28.8 kB |
+
+Which is the argument for sending several measurements in one packet rather than
+shrinking the payload, if data ever needs saving in earnest.
 
 **The packet is unauthenticated.** A UDP sender address is trivial to spoof, so
 the server's data should not be trusted for anything beyond display. If this ever
@@ -817,8 +872,8 @@ server/
     store/      MeasurementSample, SensorSettings, ClientDevice,
                 PushSubscription, AlertSubscription (JPA), repositories
                 and their stores
-    alerts/     WebPushService, TemperatureAlerts — band changes to
-                notifications
+    alerts/     WebPushService, TemperatureAlerts, ConnectionMonitor —
+                band changes and silent devices to notifications
     ui/         DeviceListView, DeviceLinkCard, DashboardView,
                 SensorCardLayout, SensorCard, TemperatureSparkLine,
                 SensorSettingsForm, ClientId, Ages
@@ -955,6 +1010,7 @@ The migrations live in `src/main/resources/db/migration/`:
 | `V1__initial_schema.sql` | the baseline: measurements, sensor settings, client device lists |
 | `V2__sensor_thresholds.sql` | the gauge's temperature band columns on `sensor_settings` |
 | `V3__push_notifications.sql` | `push_subscription` and `alert_subscription` for web push |
+| `V4__device_silence_alerts.sql` | `alert_on_silence` on `client_device` |
 
 `ddl-auto=update` would quietly bend in the wrong directions without reporting
 what it did, so Hibernate is no longer allowed to modify the database. The flip
@@ -1403,6 +1459,64 @@ changes and nothing for the two unchanged readings. The send itself was attempte
 against a deliberately unreachable endpoint and failed with a warning rather than
 taking down the receiver. **Delivery to a real browser has not been tested** — that
 needs a browser and a public HTTPS host.
+
+#### Connection lost
+
+The one failure the rest of the system cannot see. Every other alert is triggered
+by an arriving packet — a device whose power is out or whose network has dropped
+sends nothing at all, and the last reading it managed sits in the UI looking
+perfectly fine. So this check is driven by a clock instead: a `@Scheduled` sweep
+once a minute, which is the only thing scheduling is enabled for.
+
+**The interval is learned, not configured.** Nothing tells the server how often a
+device sends — that lives in the firmware's `config.h` and can be anything — so
+`DeviceActivity` takes the **median** gap between the last dozen arrivals. The
+median rather than the mean, because one missed send is exactly what a lost UDP
+packet looks like and it must not teach the server that the device is slow.
+
+A device counts as silent after **3.5 learned intervals**: three missed reports,
+because one is normal and two could be a bad few minutes, plus half an interval of
+slack so a device whose timing drifts is not declared dead the moment the third
+report is theoretically due. For a five-minute device that is 17.5 minutes; for an
+hourly one, 3.5 hours. Below four arrivals there is no median worth trusting and
+nothing is ever declared silent — a device that was just set up should not be
+reported offline before it has established a rhythm.
+
+**The same rule drives the badge and the notification**, so the page and the phone
+cannot disagree about what offline means. The device list shows a red badge on the
+card, the dashboard one under the status line, and both say how long the silence
+has lasted next to what the rhythm was:
+
+```
+Offline · nothing for 34 min, expected every 5 min
+```
+
+Only the exceptional state is shown. A green "online" badge on every card would be
+noise.
+
+**Subscribing is a checkbox on the device card**, stored as `alert_on_silence` on
+`client_device` rather than in a table of its own — that table is already keyed by
+exactly the right pair, one browser and one device, and it is already the list of
+devices someone cares about. Removing the device takes the subscription with it.
+
+The sweep starts from the subscriptions, not from every device that ever sent a
+packet: a device nobody watches needs no checking, and one decommissioned months
+ago should not be rediscovered as "offline" on every server start.
+
+Notified once per outage, and once again when reports resume. The recovery message
+measures the outage from **the last packet that arrived**, not from when the sweep
+noticed — otherwise every outage would be reported as three and a half intervals
+shorter than it was. That state is in memory rather than in the database: a restart
+forgets an ongoing outage and mentions it once more, which is a reasonable thing to
+be told after a restart, and much less machinery than a table whose only purpose is
+to suppress it.
+
+`ConnectionMonitorTest` covers the interesting parts with a movable clock and mock
+stores: announced once and not on every sweep, recovery only for an outage that was
+actually reported, nothing without a subscription, nothing when push is
+unconfigured, and a sweep that swallows its own failures — a scheduled task that
+throws is never run again, which would silently end all connection alerts for the
+lifetime of the server.
 
 #### Branding and PWA
 

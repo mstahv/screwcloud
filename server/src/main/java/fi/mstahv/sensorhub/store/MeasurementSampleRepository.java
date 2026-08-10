@@ -28,4 +28,13 @@ public interface MeasurementSampleRepository extends JpaRepository<MeasurementSa
     List<MeasurementSample> findByDeviceIdAndSensorId(String deviceId, String sensorId, Pageable pageable);
 
     long countByDeviceIdAndSensorId(String deviceId, String sensorId);
+
+    /*
+       Distinct, because one packet becomes one row per sensor and it is the
+       packets whose rhythm matters. Paged rather than capped in the query, so the
+       caller decides how much history a median is worth computing from.
+    */
+    @Query("select distinct s.receivedAt from MeasurementSample s"
+            + " where s.deviceId = :deviceId order by s.receivedAt desc")
+    List<Instant> findRecentArrivals(String deviceId, Pageable pageable);
 }

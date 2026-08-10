@@ -1,10 +1,12 @@
 package fi.mstahv.sensorhub.store;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -80,6 +82,79 @@ class ClientDeviceStoreTest {
         assertThrows(IllegalArgumentException.class, () -> store.add(ALICE, "   "));
         assertThrows(IllegalArgumentException.class, () -> store.add(ALICE, null));
         assertThrows(IllegalArgumentException.class, () -> store.add(ALICE, "LIIANPITKA"));
+    }
+
+    @Test
+    void silenceAlertsAreOffUntilAskedFor() {
+        store.add(ALICE, "LAHT");
+
+        assertFalse(store.isSilenceAlertEnabled(ALICE, "LAHT"));
+        assertTrue(store.clientsWatchingForSilence().isEmpty());
+    }
+
+    @Test
+    void silenceAlertsArePerBrowserAndPerDevice() {
+        store.add(ALICE, "LAHT");
+        store.add(ALICE, "TALO");
+        store.add(BOB, "LAHT");
+
+        store.setSilenceAlert(ALICE, "LAHT", true);
+
+        assertTrue(store.isSilenceAlertEnabled(ALICE, "LAHT"));
+        assertFalse(store.isSilenceAlertEnabled(ALICE, "TALO"));
+        assertFalse(store.isSilenceAlertEnabled(BOB, "LAHT"));
+        assertEquals(Map.of("LAHT", List.of(ALICE)), store.clientsWatchingForSilence());
+    }
+
+    /*
+       The sweep needs every watcher of a device in one lookup, because one
+       notification goes to all of them.
+    */
+    @Test
+    void allWatchersOfADeviceAreFoundTogether() {
+        store.add(ALICE, "LAHT");
+        store.add(BOB, "LAHT");
+        store.setSilenceAlert(ALICE, "LAHT", true);
+        store.setSilenceAlert(BOB, "LAHT", true);
+
+        List<String> watchers = store.clientsWatchingForSilence().get("LAHT");
+
+        assertEquals(2, watchers.size());
+        assertTrue(watchers.containsAll(List.of(ALICE, BOB)));
+    }
+
+    @Test
+    void silenceAlertsCanBeTurnedBackOff() {
+        store.add(ALICE, "LAHT");
+        store.setSilenceAlert(ALICE, "LAHT", true);
+
+        store.setSilenceAlert(ALICE, "LAHT", false);
+
+        assertFalse(store.isSilenceAlertEnabled(ALICE, "LAHT"));
+        assertTrue(store.clientsWatchingForSilence().isEmpty());
+    }
+
+    /*
+       The choice hangs off the row in the browser's list, so there is nowhere to
+       put it for a device that is not on that list. Silently doing nothing beats
+       creating a half a row.
+    */
+    @Test
+    void subscribingToADeviceNotOnTheListDoesNothing() {
+        store.setSilenceAlert(ALICE, "EIOO", true);
+
+        assertFalse(store.isSilenceAlertEnabled(ALICE, "EIOO"));
+        assertTrue(store.devicesFor(ALICE).isEmpty());
+    }
+
+    @Test
+    void removingADeviceTakesItsSilenceAlertWithIt() {
+        store.add(ALICE, "LAHT");
+        store.setSilenceAlert(ALICE, "LAHT", true);
+
+        store.remove(ALICE, "LAHT");
+
+        assertTrue(store.clientsWatchingForSilence().isEmpty());
     }
 
     @Test

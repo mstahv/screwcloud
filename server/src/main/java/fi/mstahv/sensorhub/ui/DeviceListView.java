@@ -16,6 +16,7 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.aura.Aura;
 
+import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
 import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.store.ClientDeviceStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
@@ -37,6 +38,7 @@ public class DeviceListView extends VerticalLayout {
 
     private final MeasurementStore measurements;
     private final ClientDeviceStore clientDevices;
+    private final ConnectionMonitor connections;
 
     private final NotificationSwitch notifications;
     private final FlexLayout deviceCards = new FlexLayout();
@@ -46,9 +48,10 @@ public class DeviceListView extends VerticalLayout {
     private String clientId;
 
     public DeviceListView(MeasurementStore measurements, ClientDeviceStore clientDevices,
-                          WebPushService webPush) {
+                          WebPushService webPush, ConnectionMonitor connections) {
         this.measurements = measurements;
         this.clientDevices = clientDevices;
+        this.connections = connections;
         this.notifications = new NotificationSwitch(webPush, () -> clientId);
 
         setSizeFull();
@@ -117,6 +120,14 @@ public class DeviceListView extends VerticalLayout {
         devices.forEach(deviceId -> deviceCards.add(new DeviceLinkCard(
                 deviceId,
                 measurements.findLatest(deviceId),
+                connections.activityOf(deviceId),
+                clientDevices.isSilenceAlertEnabled(clientId, deviceId),
+                enabled -> {
+                    clientDevices.setSilenceAlert(clientId, deviceId, enabled);
+                    Notification.show(enabled
+                            ? "You will be notified if %s stops reporting".formatted(deviceId)
+                            : "Silence alerts for %s are off".formatted(deviceId));
+                },
                 () -> {
                     clientDevices.remove(clientId, deviceId);
                     refresh();
