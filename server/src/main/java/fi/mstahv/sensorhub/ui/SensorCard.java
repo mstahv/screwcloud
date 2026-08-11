@@ -18,6 +18,7 @@ import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.alerts.HeatSum;
 import fi.mstahv.sensorhub.store.HistoryPoint;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
+import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * One sensor's readings and its temperature curve. The temperature is the gauge
@@ -41,8 +42,8 @@ class SensorCard extends Card {
        exists would be the same number twice — and at 2rem it competed with the
        gauge for the same job.
     */
-    private final Reading noTemperature = new Reading("0.875rem", "var(--vaadin-text-color-secondary)");
-    private final Reading humidity = new Reading("0.875rem", "var(--vaadin-text-color-secondary)");
+    private final Reading noTemperature = new Reading();
+    private final Reading humidity = new Reading();
     private final TemperatureSparkLine sparkLine = new TemperatureSparkLine();
 
     /*
@@ -271,12 +272,14 @@ class SensorCard extends Card {
         return openMeasurements;
     }
 
+    /**
+     * One line of secondary text in the card. Block display because these are spans
+     * and each belongs on its own line; the size is the theme's.
+     */
     private static class Reading extends Span {
-        Reading(String fontSize, String color) {
-            Style style = getStyle();
-            style.setFontSize(fontSize);
-            style.setColor(color);
-            style.setDisplay(Style.Display.BLOCK);
+        Reading() {
+            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
+            getStyle().setDisplay(Style.Display.BLOCK);
         }
     }
 }

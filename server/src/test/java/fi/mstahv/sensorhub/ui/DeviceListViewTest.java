@@ -19,7 +19,44 @@ import org.springframework.beans.factory.annotation.Autowired;
 @UiTest
 class DeviceListViewTest {
 
-    private static final String EMPTY_STATE = "No devices yet. Add one by its identifier.";
+    private static final String EMPTY_STATE = "No devices yet — add one below.";
+
+    /*
+       The reading order is the point of the layout, so it is asserted rather than
+       left to whoever edits the constructor next: the devices, then adding one,
+       then this browser's settings. It was once heading, form, switch, devices —
+       a heading over a form, and a per-browser setting in the middle of content.
+    */
+    @Test
+    void thePageReadsAsContentThenActionThenSettings(@Autowired BrowserlessUIContext ui) {
+        openFrontPage(ui);
+
+        List<String> regions = ((com.vaadin.flow.component.Component) ui.getCurrentView())
+                .getChildren()
+                .map(child -> child.getClass().getSimpleName())
+                .toList();
+
+        assertEquals(List.of("BrandHeader", "Devices", "AddDevice", "BrowserSettings"), regions);
+    }
+
+    /* The heading has to sit with the devices it names, not with a form. */
+    @Test
+    void theHeadingAndTheDevicesAreOneRegion(@Autowired BrowserlessUIContext ui) {
+        openFrontPage(ui);
+        add(ui, "LAHT");
+
+        var devicesRegion = ((com.vaadin.flow.component.Component) ui.getCurrentView())
+                .getChildren()
+                .filter(child -> child.getClass().getSimpleName().equals("Devices"))
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(Slots.deepFind(devicesRegion, DeviceLinkCard.class).isPresent(),
+                "The devices belong under their own heading");
+        assertTrue(devicesRegion.getChildren()
+                        .anyMatch(child -> child instanceof com.vaadin.flow.component.html.H2),
+                "and that heading belongs in the same region");
+    }
 
     @Test
     void aDeviceCanBeAddedAndIsThenListed(@Autowired BrowserlessUIContext ui) {
@@ -94,7 +131,7 @@ class DeviceListViewTest {
             @Autowired BrowserlessUIContext ui) {
         openFrontPage(ui);
 
-        var toggle = ui.findCheckbox().withLabel("Temperature alerts on this browser");
+        var toggle = ui.findCheckbox().withLabel("Notifications on this browser");
 
         assertTrue(toggle.exists(), "The switch should be visible even when unconfigured");
         assertFalse(toggle.component().isEnabled(), "It cannot be used without VAPID keys");

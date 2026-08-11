@@ -9,6 +9,7 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import fi.mstahv.sensorhub.alerts.WebPushService;
+import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * One switch for all notifications to this browser.
@@ -27,7 +28,13 @@ class NotificationSwitch extends VerticalLayout {
 
     private final WebPushService webPush;
     private final Supplier<String> clientId;
-    private final Checkbox toggle = new Checkbox("Temperature alerts on this browser");
+    /*
+       "Notifications", not "Temperature alerts": this switch removes the browser's
+       push subscription, which stops every kind — band changes, a device going
+       silent, and a degree-day counter reaching its target. The old label named one
+       of the three.
+    */
+    private final Checkbox toggle = new Checkbox("Notifications on this browser");
     private final Span hint = new Span();
 
     NotificationSwitch(WebPushService webPush, Supplier<String> clientId) {
@@ -35,10 +42,8 @@ class NotificationSwitch extends VerticalLayout {
         this.clientId = clientId;
 
         setPadding(false);
-        setSpacing(false);
 
-        hint.getStyle().setFontSize("0.75rem");
-        hint.getStyle().setColor("var(--vaadin-text-color-secondary)");
+        hint.getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
 
         /*
            isFromClient() matters: reading the state back from the browser sets

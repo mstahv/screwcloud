@@ -16,6 +16,7 @@ import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 
 import fi.mstahv.sensorhub.store.HeatSumCounter;
+import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * Starting, adjusting and stopping the degree-day counters on one sensor.
@@ -62,9 +63,7 @@ class HeatSumCounterForm extends VerticalLayout {
         ExistingCounter(HeatSumCounter counter, Consumer<ChangedCounter> onChange,
                         Consumer<Long> onStop) {
             setPadding(false);
-            setSpacing(false);
             setWidthFull();
-            getStyle().setMarginBottom("var(--vaadin-gap-xs)");
 
             TextField comment = new TextField();
             comment.setValue(counter.getComment() == null ? "" : counter.getComment());
@@ -156,28 +155,32 @@ class HeatSumCounterForm extends VerticalLayout {
         }
     }
 
-    private static class Started extends Span {
+    /**
+     * Secondary text: the colour says it is secondary, and the theme decides the
+     * size. Three classes rather than one because they name what they are.
+     */
+    private static class Started extends Secondary {
         Started(Instant startedAt) {
             super("Started " + Ages.format(startedAt));
-            getStyle().setFontSize("0.75rem");
-            getStyle().setColor("var(--vaadin-text-color-secondary)");
         }
     }
 
-    private static class Caption extends Span {
+    private static class Caption extends Secondary {
         Caption(String text) {
             super(text);
-            getStyle().setFontSize("0.75rem");
-            getStyle().setColor("var(--vaadin-text-color-secondary)");
         }
     }
 
-    private static class Hint extends Span {
+    private static class Hint extends Secondary {
         Hint(String text) {
             super(text);
-            getStyle().setFontSize("0.75rem");
-            getStyle().setColor("var(--vaadin-text-color-secondary)");
-            getStyle().setMarginTop("var(--vaadin-gap-xs)");
+        }
+    }
+
+    private static class Secondary extends Span {
+        Secondary(String text) {
+            super(text);
+            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
         }
     }
 

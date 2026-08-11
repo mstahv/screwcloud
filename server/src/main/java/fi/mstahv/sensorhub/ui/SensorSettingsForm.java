@@ -14,6 +14,7 @@ import com.vaadin.flow.component.textfield.TextField;
 
 import fi.mstahv.sensorhub.store.AlertPreferences;
 import fi.mstahv.sensorhub.store.SensorThresholds;
+import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * Settings for one sensor: the display name, the gauge's temperature bands, and
@@ -74,9 +75,7 @@ class SensorSettingsForm extends VerticalLayout {
      */
     SensorSettingsForm(String sensorId, String currentName, SensorThresholds currentThresholds,
                        AlertOptions alertOptions, Component counters, Consumer<Values> onSave) {
-        setPadding(false);
-        setSpacing(false);
-        setWidth("20rem");
+        setWidth("23rem");
 
         TextField name = new TextField("Name");
         name.setPlaceholder(sensorId);
@@ -101,7 +100,6 @@ class SensorSettingsForm extends VerticalLayout {
                 new Values(name.getValue(), readThresholds(),
                         alerts == null ? null : alerts.getPreferences())));
         save.addThemeVariants(ButtonVariant.PRIMARY);
-        save.getStyle().setMarginTop("var(--vaadin-gap-s)");
 
         add(name,
                 new SectionLabel("Temperature bands (°C)"),
@@ -179,12 +177,15 @@ class SensorSettingsForm extends VerticalLayout {
         }
     }
 
+    /**
+     * The form's own structure. Bold and in the normal text colour, because in the
+     * secondary colour at hint size these three read as more hints rather than as the
+     * headings that separate the sections.
+     */
     private static class SectionLabel extends Span {
         SectionLabel(String text) {
             super(text);
-            getStyle().setMarginTop("var(--vaadin-gap-m)");
-            getStyle().setFontSize("0.875rem");
-            getStyle().setColor("var(--vaadin-text-color-secondary)");
+            getStyle().setFontWeight(com.vaadin.flow.dom.Style.FontWeight.BOLD);
         }
     }
 
@@ -200,7 +201,7 @@ class SensorSettingsForm extends VerticalLayout {
             setWidthFull();
 
             Span caption = new Span(label);
-            caption.getStyle().setFontSize("0.8125rem");
+            // Kept: the two rows' fields line up only if the captions share a width.
             caption.getStyle().setMinWidth("9rem");
 
             add(caption, low, new RangeSeparator(), high);
@@ -210,16 +211,14 @@ class SensorSettingsForm extends VerticalLayout {
     private static class RangeSeparator extends Span {
         RangeSeparator() {
             super("–");
-            getStyle().setColor("var(--vaadin-text-color-secondary)");
+            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
         }
     }
 
     private static class Hint extends Span {
         Hint(String text) {
             super(text);
-            getStyle().setFontSize("0.75rem");
-            getStyle().setColor("var(--vaadin-text-color-secondary)");
-            getStyle().setMarginTop("var(--vaadin-gap-xs)");
+            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
         }
     }
 }

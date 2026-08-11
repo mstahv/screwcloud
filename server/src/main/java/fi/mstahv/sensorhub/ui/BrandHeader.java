@@ -7,6 +7,7 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.dom.Style;
+import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * The ScrewCloud mark: logo, name, tagline and a link to the source.
@@ -49,9 +50,6 @@ class BrandHeader extends HorizontalLayout {
         SourceLink() {
             super(SOURCE_URL, "Source and documentation on GitHub");
             setTarget("_blank");
-            Style style = getStyle();
-            style.setFontSize("0.8125rem");
-            style.setMarginTop("var(--vaadin-gap-xs)");
         }
     }
 
@@ -61,14 +59,14 @@ class BrandHeader extends HorizontalLayout {
             setPadding(false);
 
             H1 name = new H1("ScrewCloud");
-            Style nameStyle = name.getStyle();
-            nameStyle.setMargin("0");
-            nameStyle.setFontSize("1.75rem");
+            // An H1's default margins would push the logo out of line with it.
+            name.getStyle().setMargin("0");
 
             Span tagline = new Span(TAGLINE);
             Style taglineStyle = tagline.getStyle();
-            taglineStyle.setColor("var(--vaadin-text-color-secondary)");
-            taglineStyle.setFontSize("0.875rem");
+            taglineStyle.setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
+            // A sentence this long needs a line length, or it runs the width of a
+            // desktop window.
             taglineStyle.setMaxWidth("34rem");
 
             add(name, tagline, new SourceLink());

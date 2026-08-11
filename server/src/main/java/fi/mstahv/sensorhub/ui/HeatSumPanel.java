@@ -13,6 +13,7 @@ import com.vaadin.flow.component.progressbar.ProgressBar;
 import fi.mstahv.sensorhub.alerts.HeatSum;
 import fi.mstahv.sensorhub.alerts.Elapsed;
 import fi.mstahv.sensorhub.store.HeatSumCounter;
+import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * The degree-day counters running on one sensor, on its card.
@@ -39,9 +40,7 @@ class HeatSumPanel extends VerticalLayout {
 
     HeatSumPanel(List<CounterProgress> counters) {
         setPadding(false);
-        setSpacing(false);
         setWidthFull();
-        getStyle().setMarginTop("var(--vaadin-gap-s)");
 
         setVisible(!counters.isEmpty());
         counters.forEach(progress -> add(new CounterRow(progress)));
@@ -51,9 +50,7 @@ class HeatSumPanel extends VerticalLayout {
 
         CounterRow(CounterProgress progress) {
             setPadding(false);
-            setSpacing(false);
             setWidthFull();
-            getStyle().setMarginBottom("var(--vaadin-gap-xs)");
 
             HeatSumCounter counter = progress.counter();
             HeatSum sum = progress.sum();
@@ -61,11 +58,8 @@ class HeatSumPanel extends VerticalLayout {
             add(new Label("%s · %s / %s °Cd".formatted(
                     counter.describe(), format(sum.degreeDays()), format(counter.getTarget()))));
 
-            ProgressBar bar = new ProgressBar(0, counter.getTarget(),
-                    Math.min(sum.degreeDays(), counter.getTarget()));
-            bar.getStyle().setMarginTop("0.125rem");
-            bar.getStyle().setMarginBottom("0.125rem");
-            add(bar);
+            add(new ProgressBar(0, counter.getTarget(),
+                    Math.min(sum.degreeDays(), counter.getTarget())));
 
             add(new Forecast(sum, counter.getTarget()));
         }
@@ -73,7 +67,6 @@ class HeatSumPanel extends VerticalLayout {
         private static class Label extends Span {
             Label(String text) {
                 super(text);
-                getStyle().setFontSize("0.8125rem");
             }
         }
 
@@ -84,8 +77,7 @@ class HeatSumPanel extends VerticalLayout {
         private static class Forecast extends Span {
             Forecast(HeatSum sum, double target) {
                 super(describe(sum, target));
-                getStyle().setFontSize("0.75rem");
-                getStyle().setColor("var(--vaadin-text-color-secondary)");
+                getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
             }
 
             private static String describe(HeatSum sum, double target) {

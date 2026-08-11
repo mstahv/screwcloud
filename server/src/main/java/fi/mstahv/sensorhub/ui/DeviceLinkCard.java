@@ -45,9 +45,7 @@ class DeviceLinkCard extends Card {
         remove.setAriaLabel("Remove device from the list");
         setHeaderSuffix(remove);
 
-        add(new Span(latest
-                .map(measurement -> measurement.sensors().size() + " sensors")
-                .orElse("—")));
+        add(new Span(latest.map(DeviceLinkCard::sensorCount).orElse("—")));
 
         if (activity.silent()) {
             add(new OfflineBadge(activity));
@@ -70,13 +68,17 @@ class DeviceLinkCard extends Card {
         SilenceAlertToggle(boolean enabled, Consumer<Boolean> onChanged) {
             super("Notify if it stops reporting");
             setValue(enabled);
-            getStyle().setFontSize("0.8125rem");
             addValueChangeListener(event -> {
                 if (event.isFromClient()) {
                     onChanged.accept(event.getValue());
                 }
             });
         }
+    }
+
+    private static String sensorCount(DeviceMeasurement measurement) {
+        int count = measurement.sensors().size();
+        return count == 1 ? "1 sensor" : count + " sensors";
     }
 
     private static String describe(DeviceMeasurement measurement) {

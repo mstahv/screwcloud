@@ -19,6 +19,7 @@ import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
 import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
+import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * The selected device's sensor cards, wrapping to the available width.
@@ -55,7 +56,7 @@ class SensorCardLayout extends FlexLayout {
                 new SensorCardContext(settings, store, alerts, heatSums, webPush, () -> clientId);
         setFlexWrap(FlexWrap.WRAP);
         setWidthFull();
-        getStyle().setGap("var(--vaadin-gap-m)");
+        getStyle().setGap(VaadinCssProps.GAP_M.var());
     }
 
     void show(DeviceMeasurement device) {

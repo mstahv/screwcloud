@@ -28,6 +28,7 @@ import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
 import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
+import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * One device's latest readings. The device comes from a URL parameter, for
@@ -72,7 +73,7 @@ public class DashboardView extends VerticalLayout
         offline.setVisible(false);
         setSizeFull();
 
-        deviceStatus.getStyle().setColor("var(--vaadin-text-color-secondary)");
+        deviceStatus.getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
 
         add(new RouterLink("← Devices", DeviceListView.class),
                 heading, deviceStatus, offline, emptyState, cards);

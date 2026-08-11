@@ -19,12 +19,14 @@ server:
 The server is a Spring Boot + Vaadin application that stores the measurements and
 shows them in a browser.
 
-![A device's sensor cards, with one sensor's settings open](screenshot.png)
+![A device's sensor cards with one sensor's settings open, showing temperature
+bands on the gauge and a degree-day counter](screenshot.png)
 
 Each sensor gets a card with a gauge, the last 24 hours as a curve, and every
 reading behind a collapsed section. The settings open from the cog: a name,
-temperature bands for the gauge, and which of that sensor's alerts this browser
-wants as push notifications.
+temperature bands that colour the gauge, which of that sensor's alerts this browser
+wants as push notifications, and the degree-day counters — the one above reads
+`hirvi · 11.1 / 40.0 °Cd` with the forecast underneath.
 
 ## Quick start (Pico 2 W)
 
