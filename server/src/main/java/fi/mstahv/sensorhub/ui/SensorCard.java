@@ -77,7 +77,8 @@ class SensorCard extends Card {
         this.settings = context.settings();
 
         addThemeVariants(CardVariant.OUTLINED);
-        setWidth("15rem");
+        setMaxWidth("35rem");
+        setWidthFull();
         applyName();
 
         settingsButton = new PopoverButton(this::createSettingsForm);

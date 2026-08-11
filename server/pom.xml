@@ -170,6 +170,20 @@
         </dependency>
 
         <!--
+            Browserless UI tests: drives the real views and components in the JVM,
+            no browser and no frontend build. Comes from the Vaadin archetype, and
+            the version comes from the platform BOM — do not pin it here.
+
+            Apache 2 licensed, unlike TestBench's browser-driven part, so it needs
+            no subscription.
+        -->
+        <dependency>
+            <groupId>com.vaadin</groupId>
+            <artifactId>browserless-test-spring</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
             Testcontainers: a real PostgreSQL for both the tests and the local
             development run (see TestServer). Docker is therefore required to run
             the tests. That is a deliberate trade: the alternative is testing

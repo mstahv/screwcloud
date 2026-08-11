@@ -73,6 +73,7 @@ class HeatSumCounterForm extends VerticalLayout {
             comment.setWidthFull();
 
             NumberField target = new NumberField();
+            target.setAriaLabel("Target in degree-days");
             target.setValue(counter.getTarget());
             target.setStep(5);
             target.setMin(1);
@@ -128,6 +129,7 @@ class HeatSumCounterForm extends VerticalLayout {
             comment.setWidthFull();
 
             NumberField target = new NumberField();
+            target.setAriaLabel("Target in degree-days");
             target.setValue(HeatSumCounter.DEFAULT_TARGET);
             target.setStep(5);
             target.setMin(1);

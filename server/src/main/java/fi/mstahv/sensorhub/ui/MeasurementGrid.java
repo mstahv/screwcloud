@@ -32,8 +32,8 @@ class MeasurementGrid extends Grid<HistoryPoint> {
 
     /*
        Only the time of day in the cell: consecutive rows are minutes apart, so
-       the date repeats, and the card is 15rem wide. The full timestamp, seconds
-       included, is a tooltip away.
+       the date would repeat on nearly every one of them. The full timestamp,
+       seconds included, is a tooltip away.
     */
     private static final DateTimeFormatter CLOCK =
             DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT);

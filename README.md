@@ -883,6 +883,9 @@ server/
     DevVapidKeys    a cached development key pair, so push works locally
     TestDatabase    the container the tests share
     DatabaseTest    @DataJpaTest against the real migrated schema
+    ui/UiTest       browserless tests driving the real views
+    ui/Slots        reads Card slots, which the locators cannot see
+    ui/Browser      answers the localStorage round trip
   tools/send-test-packet.py
 ```
 
@@ -1735,6 +1738,91 @@ wrong version and a truncated packet. `MeasurementStoreTest` covers the time
 window and ordering, `ClientDeviceStoreTest` the per-browser device lists and
 identifier normalisation, and `SensorCardLayoutTest` the component reuse.
 
+### Browserless UI tests
+
+The use cases are tested through the views themselves — adding a device, renaming a
+sensor, setting bands, starting a counter, seeing a device marked offline — with
+Vaadin's **browserless testing**, which runs the real components and routes in the
+JVM. No browser, no frontend build, and every Spring bean is the real one against
+the container database.
+
+The dependency comes with the Vaadin archetype and its version from the platform
+BOM, so it is declared without one:
+
+```xml
+<dependency>
+    <groupId>com.vaadin</groupId>
+    <artifactId>browserless-test-spring</artifactId>
+    <scope>test</scope>
+</dependency>
+```
+
+It is Apache 2 licensed, unlike TestBench's browser-driven half, so it needs no
+subscription. `BrowserlessSetup` and `@UiTest` follow the archetype's own example,
+with the [Playwright-like
+API](https://vaadin.com/blog/a-more-playwright-like-api-for-vaadin-browserless-tests):
+
+```java
+ui.navigate(DashboardView.class, "LAHT");
+ui.findTextField().withLabel("Name").setValue("Cold room");
+ui.findButton().withText("Save").click();
+```
+
+Four things about this project made the difference between tests that work and tests
+that mislead, and all four cost a debugging round to find:
+
+**`Component.getChildren()` is not what is actually there.** This is the general
+lesson and it cost a debugging round: `findRouterLink().withText("LAHT")` finds
+nothing while the reader is looking straight at that link, because a `Card`'s title
+is slotted. The slotted link *is* a real element child carrying `slot="title"`, and
+its `getParent()` points back at the card — but **`Card` overrides `getChildren()`**
+to return only its content: five element children, two component children. The
+locators walk the component hierarchy, so they stop there. A hand-rolled tree dump
+over `getChildren()` has exactly the same blind spot, which is a good way to confirm
+a wrong diagnosis.
+
+**`ComponentUtil.getAllChildren(Component)`** (since 25.2) is the one to use instead:
+it traverses the element tree and descends into virtual children, so an override
+cannot hide anything from it. `Slots.require(card, Button.class)` is built on it, and
+the tests no longer need to know that a cog lives in a slot.
+
+The behaviour is the same in **1.1.2**, the newest release at the time of writing, so
+this is worth knowing rather than waiting out. For diagnosing it, the library has its
+own dump — the one its error messages use:
+
+```java
+com.vaadin.browserless.internal.PrettyPrintTreeKt.toPrettyTree(component)
+```
+
+Note the `internal` package.
+
+**One window per test, not one per class.** The archetype's example has a single
+test method and a singleton `BrowserlessUIContext`; with several methods that means
+a shared session and a growing component tree, where an earlier test's hidden
+empty-state answers this test's query. The bean is prototype scoped for that reason.
+
+**The tests are `@Transactional`.** They drive the real stores, so the first run
+committed rows into the container the slice tests share and broke six store tests
+that had nothing to do with the UI. Rolled back, they are repeatable.
+
+**The browser has to be impersonated once.** `ClientId` identifies a browser by a
+token in localStorage, and reading it is a round trip that nothing answers when there
+is no browser: the callback never fires, and the device list stays empty for reasons
+unrelated to the code under test. `Browser.answerAsFirstVisit` completes the pending
+script with what localStorage would have returned. Only the subscribed *read* is
+answered — completing a fire-and-forget script throws, because there is no success
+handler waiting for a value.
+
+Two of these tests exist because the faults they cover shipped: a notification switch
+that was invisible without VAPID keys, and a fresh degree-day counter that reported
+itself frozen in a warm room. Both were found by hand in a browser, and both are one
+assertion here.
+
+Writing them also turned up an accessibility gap: the four temperature limit inputs
+had no labels of their own — the caption belongs to the row — so nothing could name
+them, a screen reader included. They now carry aria labels, which is what the tests
+address them by.
+
 ### Notes
 
 The UI refreshes by polling every five seconds. The devices send every five
@@ -1761,3 +1849,62 @@ The source is at <https://github.com/mstahv/screwcloud>.
 - [ ] Calibrating the sensors against each other. The DHT22 and the RuuviTag
       differ by about 0.7 °C, which is within both tolerances — a reference would
       need either a RuuviTag Pro or a TMP117 breakout on I2C0 (GP4/GP5)
+- [ ] **Measuring the meat rather than the air, with two RuuviTag Pros.** The
+      degree-day counters integrate air temperature, but tenderising depends on the
+      temperature of the meat — and a fresh carcass is at 35–38 °C and takes a day
+      or more to cool. The current model therefore under-counts the very phase in
+      which the most happens. The idea: one sensor against or inside the carcass,
+      one loose in the same room, and read the difference.
+
+      Why **Pro** and not the standard tag: the Pro uses a TMP117 at **±0.1 °C**
+      with 0.01 °C resolution and no calibration, against ±0.2 °C for the standard
+      tag. The difference between two sensors is the whole measurement here, so the
+      tolerance of a standard pair is the same size as the signal.
+
+      No custom hardware needed for the probe: Ruuvi sells an **External
+      Temperature Sensor** on a 1 m cable, built on the same TMP117, which is the
+      needle-to-the-spine part of the idea off the shelf.
+
+      A trade-off to decide first, though: the **Pro 2in1 is IP68 and IP69K** and
+      belongs on the meat side, where the air is wet and condensing — but it has no
+      humidity sensor. The **3in1 has humidity and is IP67, explicitly for
+      non-condensing locations**, so it belongs in the ambient position. Which means
+      the humidity difference and a condensation-proof enclosure against the meat
+      cannot both be had.
+
+      What the difference should show:
+
+      - the **cooling curve** of the carcass, whose time constant says something
+        about mass and airflow — and which is what would correct the counter's
+        early phase
+      - **evaporative cooling**: a drying surface reads *below* ambient, so a
+        negative difference is a proxy for active moisture loss, and the gap
+        closing means the surface has formed its protective crust. Poor man's
+        weight loss, without a scale
+      - a **persistent positive difference** after everything has equilibrated is a
+        warning rather than a curiosity: something is generating heat, meaning
+        microbial activity or too little airflow
+
+      Cross-calibrate the pair side by side for a few hours before trusting any of
+      it, and record the offset — otherwise unit-to-unit variation masquerades as
+      signal. That lesson is already in this project once, in the DHT22 versus
+      RuuviTag comparison above.
+
+      Do not leave an inserted probe in for a whole hang: the puncture is a channel
+      that carries surface bacteria into the warm interior, which is why core
+      temperature is normally measured briefly. Either probe only during the
+      cooling phase, when the benefit is largest anyway, or put it somewhere that
+      gets trimmed off.
+
+      What the software would need, none of it large:
+
+      - nothing at all to start: counters are already per sensor, so a counter can
+        be run on the meat-side sensor today
+      - a **reference sensor** setting per sensor, so a card can show the
+        difference in temperature and humidity with its own sparkline — that curve
+        is where the cooling time constant and the drying slowdown are legible
+      - an **offset field** in the sensor settings, so the cross-calibration lives
+        in the database instead of on a scrap of paper
+      - and, if the meat-side reading turns out to be the better input, an option
+        for a counter to integrate that sensor while falling back to air
+        temperature when the probe is pulled out

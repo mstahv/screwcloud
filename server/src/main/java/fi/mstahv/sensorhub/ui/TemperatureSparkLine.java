@@ -24,8 +24,8 @@ import fi.mstahv.sensorhub.store.HistoryPoint;
  */
 class TemperatureSparkLine extends SvgSparkLine {
 
-    private static final int WIDTH = 200;
-    private static final int HEIGHT = 80;
+    private static final int WIDTH = 400;
+    private static final int HEIGHT = 100;
 
     private static final DateTimeFormatter CLOCK =
             DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT);
@@ -34,6 +34,7 @@ class TemperatureSparkLine extends SvgSparkLine {
 
     TemperatureSparkLine() {
         super(WIDTH, HEIGHT);
+        setWidthFull();
     }
 
     void setHistory(List<HistoryPoint> history) {
@@ -87,7 +88,7 @@ class TemperatureSparkLine extends SvgSparkLine {
         /*
            The date is shown only when the two ends fall on different days.
            Within one day it is noise, and the labels are drawn at font size 10
-           in a 200 unit wide viewBox — there is room for a clock time at each
+           in a 400 unit wide viewBox — there is room for a clock time at each
            end, not for much more.
         */
         DateTimeFormatter format = localDate(first, zone).equals(localDate(last, zone))

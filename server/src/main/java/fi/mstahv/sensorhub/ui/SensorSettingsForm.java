@@ -85,10 +85,16 @@ class SensorSettingsForm extends VerticalLayout {
         name.setWidthFull();
         name.setMaxLength(64);
 
-        okLow = new TemperatureField(currentThresholds.okLow());
-        okHigh = new TemperatureField(currentThresholds.okHigh());
-        alertLow = new TemperatureField(currentThresholds.alertLow());
-        alertHigh = new TemperatureField(currentThresholds.alertHigh());
+        /*
+           The visible caption belongs to the row, not to either field, so each
+           field carries its own aria label. Without one the four inputs are
+           distinguishable only by position — to a screen reader as much as to a
+           test.
+        */
+        okLow = new TemperatureField("OK low", currentThresholds.okLow());
+        okHigh = new TemperatureField("OK high", currentThresholds.okHigh());
+        alertLow = new TemperatureField("Alert low", currentThresholds.alertLow());
+        alertHigh = new TemperatureField("Alert high", currentThresholds.alertHigh());
         alerts = alertOptions.available() ? new AlertChoices(alertOptions) : null;
 
         Button save = new Button("Save", event -> onSave.accept(
@@ -123,7 +129,8 @@ class SensorSettingsForm extends VerticalLayout {
      * half-degree step offers.
      */
     private static class TemperatureField extends NumberField {
-        TemperatureField(Double value) {
+        TemperatureField(String ariaLabel, Double value) {
+            setAriaLabel(ariaLabel);
             setStep(0.5);
             setWidth("4em");
             // null clears the field, which is how "no band configured" is entered.
