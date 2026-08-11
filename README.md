@@ -121,7 +121,7 @@ the choice and avoid both.
 | `temperature-reader/` | Full firmware for the Raspberry Pi Pico 2 W: RuuviTags, DHT22, OLED, WiFi or NB-IoT |
 | `esp32-s3-reader/` | Minimal firmware for the ESP32-S3: RuuviTags and WiFi only |
 | `server/` | Spring Boot + Vaadin: receives the UDP packets and shows the latest readings |
-| `tools/` | `CheckProtocolSync.java`, which verifies the two firmwares agree on the wire format, and `generate-vapid-keys.java` for web push |
+| `tools/` | `generate-vapid-keys.java`, which generates a key pair for web push |
 
 Both firmwares speak the same protocol to the same server, so a single server
 can collect from a mix of Pico and ESP32 devices.
@@ -458,22 +458,30 @@ nothing sent yet.
 ### What is shared, and why by copy
 
 `Protocol.h` is **byte identical** in both sketches, and the Ruuvi Data Format 5
-constants and scaling factors match. `tools/CheckProtocolSync.java` verifies
-both:
+constants and scaling factors match. `ProtocolSyncTest` in the server module
+verifies both, so it runs with the normal test suite rather than waiting to be
+remembered:
 
 ```bash
-tools/CheckProtocolSync.java
+cd server && mvn test -Dtest=ProtocolSyncTest
 ```
 
-It runs as a script through [jbang](https://www.jbang.dev/), which the shebang
-line invokes, and can be started from anywhere in the repository. The checks
-compare the two sketches against **each other** rather than against expected
-values written into the checker, so changing the protocol in both firmwares needs
-no edit here, and reformatting a line is not reported as a divergence. On a
-mismatch both values are printed:
+It reads the two sketches straight from the firmware directories — the server
+module reaching outside itself, on the grounds that the repository is checked out
+as a whole. No Spring context, so it costs under a tenth of a second.
+
+The checks compare the two sketches against **each other** rather than against
+expected values written into the test, so changing the protocol in both firmwares
+needs no edit there, and reformatting a line is not a divergence. A failure names
+both values:
 
 ```
-FAIL  humidity scaling       pico=rawHumidity * 0.0025f but esp32=rawHumidity * 0.025f
+humidity scaling differs between the two firmwares
+  ==> expected: <rawHumidity * 0.0025f> but was: <rawHumidity * 0.025f>
+
+Protocol.h has diverged at line 32.
+  pico: static const uint8_t PROTOCOL_SENSOR_SIZE = 8;
+  esp32: static const uint8_t PROTOCOL_SENSOR_SIZE = 9;
 ```
 
 Beyond the named checks, every `static const` and `#define` the two sketches
