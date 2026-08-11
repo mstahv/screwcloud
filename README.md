@@ -121,7 +121,7 @@ the choice and avoid both.
 | `temperature-reader/` | Full firmware for the Raspberry Pi Pico 2 W: RuuviTags, DHT22, OLED, WiFi or NB-IoT |
 | `esp32-s3-reader/` | Minimal firmware for the ESP32-S3: RuuviTags and WiFi only |
 | `server/` | Spring Boot + Vaadin: receives the UDP packets and shows the latest readings |
-| `tools/` | `check-protocol-sync.sh`, which verifies the two firmwares agree on the wire format, and `generate-vapid-keys.java` for web push |
+| `tools/` | `CheckProtocolSync.java`, which verifies the two firmwares agree on the wire format, and `generate-vapid-keys.java` for web push |
 
 Both firmwares speak the same protocol to the same server, so a single server
 can collect from a mix of Pico and ESP32 devices.
@@ -458,12 +458,27 @@ nothing sent yet.
 ### What is shared, and why by copy
 
 `Protocol.h` is **byte identical** in both sketches, and the Ruuvi Data Format 5
-constants and scaling factors match. `tools/check-protocol-sync.sh` verifies
+constants and scaling factors match. `tools/CheckProtocolSync.java` verifies
 both:
 
 ```bash
-tools/check-protocol-sync.sh
+tools/CheckProtocolSync.java
 ```
+
+It runs as a script through [jbang](https://www.jbang.dev/), which the shebang
+line invokes, and can be started from anywhere in the repository. The checks
+compare the two sketches against **each other** rather than against expected
+values written into the checker, so changing the protocol in both firmwares needs
+no edit here, and reformatting a line is not reported as a divergence. On a
+mismatch both values are printed:
+
+```
+FAIL  humidity scaling       pico=rawHumidity * 0.0025f but esp32=rawHumidity * 0.025f
+```
+
+Beyond the named checks, every `static const` and `#define` the two sketches
+happen to share is compared as well, so a constant added to both is covered
+without anyone remembering to list it.
 
 It is a copy rather than a shared file because the Arduino build does not
 reliably resolve includes reaching outside a sketch folder — arduino-cli copies
