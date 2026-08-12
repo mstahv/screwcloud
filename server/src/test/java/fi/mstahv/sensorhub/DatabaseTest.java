@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -28,6 +29,10 @@ import org.springframework.test.context.TestPropertySource;
  * <li>{@code ddl-auto=validate} means every test class also checks that the
  * entities still match what the migrations produce. Hibernate creating the
  * schema instead would defeat the point of testing against PostgreSQL.
+ * <li>Validation is imported for the same reason as Flyway: the slice does not
+ * bring it. Without it the stores' {@code @Validated} would be an annotation with
+ * nothing behind it, and every test asserting that a bad value is refused would
+ * fail — while the application, which does auto-configure it, refused them.
  * </ul>
  *
  * <p>Each test runs in a transaction that is rolled back, so tests do not see
@@ -41,7 +46,7 @@ import org.springframework.test.context.TestPropertySource;
 @Retention(RetentionPolicy.RUNTIME)
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@ImportAutoConfiguration(FlywayAutoConfiguration.class)
+@ImportAutoConfiguration({FlywayAutoConfiguration.class, ValidationAutoConfiguration.class})
 @TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")
 public @interface DatabaseTest {
 }

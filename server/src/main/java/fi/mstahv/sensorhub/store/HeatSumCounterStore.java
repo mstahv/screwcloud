@@ -6,11 +6,26 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+
+import fi.mstahv.sensorhub.validation.DeviceId;
+import fi.mstahv.sensorhub.validation.SensorId;
 
 /**
  * The degree-day counters running on the sensors.
+ *
+ * <p>What a counter may look like is stated once, on {@link HeatSumCounter}. The
+ * parameters here repeat it only where a value cannot reach that entity to be
+ * judged — a rejected target should not have created a counter first.
  */
 @Service
+@Validated
 public class HeatSumCounterStore {
 
     private final HeatSumCounterRepository repository;
@@ -38,31 +53,27 @@ public class HeatSumCounterStore {
      *        guideline
      * @param startedAt when to count from, which may be in the past for something
      *        that has already been hanging
-     * @throws IllegalArgumentException if the target is not positive or the comment
-     *         is too long
+     * @throws jakarta.validation.ConstraintViolationException if the target is not
+     *         positive or the comment is too long
      */
     @Transactional
-    public HeatSumCounter start(String deviceId, String sensorId, String comment, double target,
-                               Instant startedAt) {
-        if (target <= 0) {
-            throw new IllegalArgumentException("The target has to be more than zero degree-days");
-        }
+    public HeatSumCounter start(@NotBlank @DeviceId String deviceId,
+                                @NotNull @SensorId String sensorId,
+                                @Size(max = HeatSumCounter.MAX_COMMENT_LENGTH) String comment,
+                                @Positive(message = "The target has to be more than zero degree-days")
+                                double target,
+                                @NotNull @PastOrPresent Instant startedAt) {
         String cleaned = comment == null ? null : comment.strip();
-        if (cleaned != null && cleaned.length() > HeatSumCounter.MAX_COMMENT_LENGTH) {
-            throw new IllegalArgumentException(
-                    "A comment is at most " + HeatSumCounter.MAX_COMMENT_LENGTH + " characters");
-        }
         return repository.save(new HeatSumCounter(deviceId, sensorId,
                 cleaned == null || cleaned.isEmpty() ? null : cleaned, target, startedAt));
     }
 
     @Transactional
-    public void update(long id, String comment, double target,
+    public void update(long id, @Size(max = HeatSumCounter.MAX_COMMENT_LENGTH) String comment,
+                       @Positive(message = "The target has to be more than zero degree-days")
+                       double target,
                        boolean alertBeforeTarget, boolean alertAtTarget) {
         repository.findById(id).ifPresent(counter -> {
-            if (target <= 0) {
-                throw new IllegalArgumentException("The target has to be more than zero degree-days");
-            }
             /*
                A raised target un-notifies: the reader has decided the meat needs
                longer, and they should hear about the new target when it arrives

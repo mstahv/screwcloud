@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import jakarta.validation.ConstraintViolationException;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -70,7 +72,7 @@ class SensorSettingsStoreTest {
     */
     @Test
     void invalidBandsAreRejectedBeforeStoring() {
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(ConstraintViolationException.class,
                 () -> store.setThresholds("LAHT", "DHT", new SensorThresholds(-5.0, 8.0, 2.0, 15.0)));
 
         assertFalse(store.thresholdsFor("LAHT", "DHT").isConfigured());

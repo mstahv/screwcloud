@@ -1,10 +1,9 @@
 package fi.mstahv.sensorhub.ui;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -12,8 +11,13 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 
+import jakarta.validation.constraints.Size;
+
 import fi.mstahv.sensorhub.store.AlertPreferences;
 import fi.mstahv.sensorhub.store.SensorThresholds;
+import fi.mstahv.sensorhub.validation.IncreasingBands;
+import fi.mstahv.sensorhub.validation.TemperatureBands;
+import org.vaadin.firitin.form.BeanValidationForm;
 import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
@@ -31,22 +35,41 @@ import org.vaadin.firitin.util.style.VaadinCssProps;
  * <p>The degree-day counters are managed here as well. They are not settings in the
  * same sense — a counter is a thing that is running — but they answer the same
  * question as the rest of this form: what is this thermometer being used for.
+ *
+ * <p>Bound with Viritin's {@link BeanValidationForm}, which is what ties the fields
+ * to {@link Values} and its constraints: the fields are matched to the record's
+ * components <b>by name</b>, every change is validated, and Save stays disabled
+ * while anything is wrong. That is why a set of limits in the wrong order no longer
+ * reaches the store and comes back as a toast — the reader is told where they are
+ * standing, before they press anything.
  */
-class SensorSettingsForm extends VerticalLayout {
-
-    private final TemperatureField alertLow;
-    private final TemperatureField okLow;
-    private final TemperatureField okHigh;
-    private final TemperatureField alertHigh;
-    private final AlertChoices alerts;
+class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
 
     /**
-     * Everything the form collected.
+     * Everything the form collects, and the rules about it.
      *
-     * @param alerts null when the alert section was not shown, which is not the
-     *        same as "subscribed to nothing" and must not overwrite stored choices
+     * <p>Flat rather than nested, because the binder matches fields to properties
+     * by name and a nested record would have no field of its own to match. The two
+     * domain values are assembled on the way out instead.
+     *
+     * <p>{@link IncreasingBands} is the same class level constraint that
+     * {@link SensorThresholds} carries, reached through the shared
+     * {@link TemperatureBands} interface — one rule, checked here while it is being
+     * typed and again in the store before it is written.
      */
-    record Values(String name, SensorThresholds thresholds, AlertPreferences alerts) {
+    @IncreasingBands
+    record Values(@Size(max = 64) String name,
+                  Double alertLow, Double okLow, Double okHigh, Double alertHigh,
+                  boolean onAlert, boolean onWarning, boolean onRecovery)
+            implements TemperatureBands {
+
+        SensorThresholds toThresholds() {
+            return new SensorThresholds(alertLow, okLow, okHigh, alertHigh);
+        }
+
+        AlertPreferences toAlerts() {
+            return new AlertPreferences(onAlert, onWarning, onRecovery);
+        }
     }
 
     /**
@@ -69,111 +92,140 @@ class SensorSettingsForm extends VerticalLayout {
         }
     }
 
+    /*
+       The bound fields. They are declared here, in the form class itself, rather
+       than inside the little layout classes below: FormBinder finds the editors by
+       reflecting over this class's own fields, and a field tucked into a nested
+       layout would simply not be bound. Their names are the record's component
+       names — that is the binding.
+    */
+    private final TextField name = new TextField("Name");
+    private final NumberField okLow = new TemperatureField("OK low");
+    private final NumberField okHigh = new TemperatureField("OK high");
+    private final NumberField alertLow = new TemperatureField("Alert low");
+    private final NumberField alertHigh = new TemperatureField("Alert high");
+    private final Checkbox onAlert = new Checkbox("it goes into an alert band");
+    private final Checkbox onWarning = new Checkbox("it goes into a warning band");
+    private final Checkbox onRecovery = new Checkbox("it comes back to OK");
+
+    private final AlertOptions alertOptions;
+    private final Component counters;
+
     /**
      * @param counters the degree-day counter management, built by the caller because
      *        it needs the store; null leaves the section out
      */
     SensorSettingsForm(String sensorId, String currentName, SensorThresholds currentThresholds,
                        AlertOptions alertOptions, Component counters, Consumer<Values> onSave) {
-        setWidth("23rem");
+        super(Values.class);
+        this.alertOptions = alertOptions;
+        this.counters = counters;
+        /*
+           The form is a Composite over a Div, and that Div is size full by
+           default. In a popover, which sizes itself to its content, a full height
+           child is a child with no height at all.
+        */
+        getContent().setSizeUndefined();
 
-        TextField name = new TextField("Name");
         name.setPlaceholder(sensorId);
-        name.setValue(currentName != null ? currentName : "");
         name.setHelperText("Empty = show the identifier " + sensorId);
         name.setWidthFull();
         name.setMaxLength(64);
 
+        setSaveCaption("Save");
+        setSavedHandler(onSave::accept);
+
         /*
-           The visible caption belongs to the row, not to either field, so each
-           field carries its own aria label. Without one the four inputs are
-           distinguishable only by position — to a screen reader as much as to a
-           test.
+           Enabled from the start rather than only after a change: what is on screen
+           is what was stored, so it is already a valid thing to save, and a Save
+           button that ignores the first click is its own kind of puzzle. It still
+           greys out the moment the values stop making sense.
         */
-        okLow = new TemperatureField("OK low", currentThresholds.okLow());
-        okHigh = new TemperatureField("OK high", currentThresholds.okHigh());
-        alertLow = new TemperatureField("Alert low", currentThresholds.alertLow());
-        alertHigh = new TemperatureField("Alert high", currentThresholds.alertHigh());
-        alerts = alertOptions.available() ? new AlertChoices(alertOptions) : null;
+        setEntityWithEnabledSave(new Values(currentName,
+                currentThresholds.alertLow(), currentThresholds.okLow(),
+                currentThresholds.okHigh(), currentThresholds.alertHigh(),
+                alertOptions.preferences().onAlert(),
+                alertOptions.preferences().onWarning(),
+                alertOptions.preferences().onRecovery()));
+    }
 
-        Button save = new Button("Save", event -> onSave.accept(
-                new Values(name.getValue(), readThresholds(),
-                        alerts == null ? null : alerts.getPreferences())));
-        save.addThemeVariants(ButtonVariant.PRIMARY);
+    @Override
+    protected Component createContent() {
+        VerticalLayout layout = new VerticalLayout();
+        layout.setPadding(false);
+        layout.setWidth("23rem");
 
-        add(name,
+        layout.add(name,
                 new SectionLabel("Temperature bands (°C)"),
                 new LimitRow("OK between", okLow, okHigh),
                 new LimitRow("Alert below / above", alertLow, alertHigh),
                 new Hint("Leave all four empty for the default gauge. "
                         + "Warning is what falls between the OK and alert limits."));
-        if (alerts != null) {
-            add(new SectionLabel("Notify this browser when"), alerts);
+        /*
+           The one violation that belongs to no single field — the four limits as a
+           set — is shown here, right under them, rather than wherever the form
+           happens to end.
+        */
+        layout.add(getClassLevelViolationsDisplay());
+
+        if (alertOptions.available()) {
+            layout.add(new SectionLabel("Notify this browser when"), alertChoices());
         }
         if (counters != null) {
-            add(new SectionLabel("Degree-day counters"), counters);
+            layout.add(new SectionLabel("Degree-day counters"), counters);
         }
-        add(save);
-    }
-
-    private SensorThresholds readThresholds() {
-        return new SensorThresholds(alertLow.getValue(), okLow.getValue(),
-                okHigh.getValue(), alertHigh.getValue());
+        layout.add(getSaveButton());
+        return layout;
     }
 
     /**
-     * A temperature limit input. Narrow on purpose: the values are a handful of
-     * degrees, and a full width field would suggest more precision than a
-     * half-degree step offers.
+     * Unused: {@link #createContent()} is overridden, since these fields do not go
+     * into a form layout one after another — two of them share a row.
      */
-    private static class TemperatureField extends NumberField {
-        TemperatureField(String ariaLabel, Double value) {
-            setAriaLabel(ariaLabel);
-            setStep(0.5);
-            setWidth("4em");
-            // null clears the field, which is how "no band configured" is entered.
-            setValue(value);
-        }
+    @Override
+    protected List<Component> getFormComponents() {
+        return List.of();
     }
 
     /**
      * The three transitions that can be subscribed to, phrased as what happens
      * rather than as the name of a band.
      */
-    private static class AlertChoices extends VerticalLayout {
+    private Component alertChoices() {
+        VerticalLayout choices = new VerticalLayout(onAlert, onWarning, onRecovery);
+        choices.setPadding(false);
+        choices.setSpacing(false);
+        choices.setWidthFull();
 
-        private final Checkbox onAlert = new Checkbox("it goes into an alert band");
-        private final Checkbox onWarning = new Checkbox("it goes into a warning band");
-        private final Checkbox onRecovery = new Checkbox("it comes back to OK");
-
-        AlertChoices(AlertOptions options) {
-            setPadding(false);
-            setSpacing(false);
-            setWidthFull();
-
-            onAlert.setValue(options.preferences().onAlert());
-            onWarning.setValue(options.preferences().onWarning());
-            onRecovery.setValue(options.preferences().onRecovery());
-
-            add(onAlert, onWarning, onRecovery);
-
-            /*
-               Two things can silently make these do nothing, and both are worth
-               saying out loud here rather than leaving the reader to wonder why no
-               notification ever arrives.
-            */
-            if (!options.pushSubscribed()) {
-                add(new Hint("Notifications are switched off for this browser. "
-                        + "Turn them on from the front page — these choices are kept "
-                        + "in the meantime."));
-            }
-            add(new Hint("Alerts need the temperature bands above: without limits "
-                    + "there is nothing to leave or return to."));
+        /*
+           Two things can silently make these do nothing, and both are worth saying
+           out loud here rather than leaving the reader to wonder why no notification
+           ever arrives.
+        */
+        if (!alertOptions.pushSubscribed()) {
+            choices.add(new Hint("Notifications are switched off for this browser. "
+                    + "Turn them on from the front page — these choices are kept "
+                    + "in the meantime."));
         }
+        choices.add(new Hint("Alerts need the temperature bands above: without limits "
+                + "there is nothing to leave or return to."));
+        return choices;
+    }
 
-        AlertPreferences getPreferences() {
-            return new AlertPreferences(
-                    onAlert.getValue(), onWarning.getValue(), onRecovery.getValue());
+    /**
+     * A temperature limit input. Narrow on purpose: the values are a handful of
+     * degrees, and a full width field would suggest more precision than a
+     * half-degree step offers.
+     *
+     * <p>The visible caption belongs to the row, not to either field, so each field
+     * carries its own aria label. Without one the four inputs are distinguishable
+     * only by position — to a screen reader as much as to a test.
+     */
+    private static class TemperatureField extends NumberField {
+        TemperatureField(String ariaLabel) {
+            setAriaLabel(ariaLabel);
+            setStep(0.5);
+            setWidth("4em");
         }
     }
 

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import jakarta.validation.ConstraintViolationException;
+
 import java.util.List;
 import java.util.Map;
 
@@ -79,9 +81,9 @@ class ClientDeviceStoreTest {
 
     @Test
     void rejectsEmptyAndOverlongDeviceIds() {
-        assertThrows(IllegalArgumentException.class, () -> store.add(ALICE, "   "));
-        assertThrows(IllegalArgumentException.class, () -> store.add(ALICE, null));
-        assertThrows(IllegalArgumentException.class, () -> store.add(ALICE, "LIIANPITKA"));
+        assertThrows(ConstraintViolationException.class, () -> store.add(ALICE, "   "));
+        assertThrows(ConstraintViolationException.class, () -> store.add(ALICE, null));
+        assertThrows(ConstraintViolationException.class, () -> store.add(ALICE, "LIIANPITKA"));
     }
 
     @Test

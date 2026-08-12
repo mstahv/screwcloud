@@ -10,6 +10,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+import jakarta.validation.ConstraintViolationException;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -95,8 +97,8 @@ class HeatSumCounterStoreTest {
 
     @Test
     void anImpossibleTargetIsRejected() {
-        assertThrows(IllegalArgumentException.class, () -> store.start("LAHT", "DHT", "x", 0, NOW));
-        assertThrows(IllegalArgumentException.class, () -> store.start("LAHT", "DHT", "x", -5, NOW));
+        assertThrows(ConstraintViolationException.class, () -> store.start("LAHT", "DHT", "x", 0, NOW));
+        assertThrows(ConstraintViolationException.class, () -> store.start("LAHT", "DHT", "x", -5, NOW));
         assertTrue(store.countersFor("LAHT", "DHT").isEmpty());
     }
 
@@ -104,7 +106,7 @@ class HeatSumCounterStoreTest {
     void anOverlongCommentIsRejected() {
         String tooLong = "x".repeat(HeatSumCounter.MAX_COMMENT_LENGTH + 1);
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(ConstraintViolationException.class,
                 () -> store.start("LAHT", "DHT", tooLong, 40, NOW));
     }
 

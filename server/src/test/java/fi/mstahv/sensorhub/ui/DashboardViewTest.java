@@ -2,6 +2,7 @@ package fi.mstahv.sensorhub.ui;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
@@ -71,27 +72,46 @@ class DashboardViewTest {
     }
 
     /*
-       The bands are saved before the name on purpose, so a refused set of limits
-       cannot rename the sensor as a side effect. That ordering is invisible from
-       anywhere but here.
+       A set of limits that does not hold together is refused in the form itself:
+       the four values are one rule, and the reader is told which way it is broken
+       while they are still looking at the fields. Nothing is saved, so the name
+       they typed in the same visit is not saved either.
     */
     @Test
-    void refusedLimitsDoNotRenameTheSensor(@Autowired BrowserlessUIContext ui) {
+    void refusedLimitsAreExplainedAndNothingIsSaved(@Autowired BrowserlessUIContext ui) {
         store("DDDD", Instant.now(), 6.5, 21.0);
         ui.navigate(DashboardView.class, "DDDD");
 
         openSettings(ui, "DHT");
         ui.findTextField().withLabel("Name").setValue("Should not stick");
-        // OK high below OK low: out of order, and the store refuses the set.
+        // OK high below OK low: out of order, and no single field is wrong on its own.
         ui.findNumberField().withAriaLabel("OK low").setValue(8.0);
         ui.findNumberField().withAriaLabel("OK high").setValue(2.0);
         ui.findNumberField().withAriaLabel("Alert low").setValue(-5.0);
         ui.findNumberField().withAriaLabel("Alert high").setValue(15.0);
-        ui.findButton().withText("Save").click();
 
-        assertTrue(ui.findNotification().exists(), "The reader should be told why nothing was saved");
+        assertTrue(ui.findParagraph().withTextContaining("The limits must increase").exists(),
+                "The reader should be told which way the set is wrong");
+        assertFalse(ui.findButton().withText("Save").component().isEnabled(),
+                "and Save should not offer to store it");
         assertEquals(null, settings.nameFor("DDDD", "DHT"),
-                "A refused save must not have renamed the sensor");
+                "A form that cannot be saved must not have renamed the sensor");
+    }
+
+    /*
+       Half a set is the other way to get it wrong, and it needs its own sentence:
+       "not in order" is no help to someone who has filled in three fields of four.
+    */
+    @Test
+    void halfFilledLimitsSayWhatIsMissing(@Autowired BrowserlessUIContext ui) {
+        store("JJJJ", Instant.now(), 6.5, 21.0);
+        ui.navigate(DashboardView.class, "JJJJ");
+
+        openSettings(ui, "DHT");
+        ui.findNumberField().withAriaLabel("OK low").setValue(2.0);
+
+        assertTrue(ui.findParagraph().withTextContaining("Give all four temperature limits").exists());
+        assertFalse(ui.findButton().withText("Save").component().isEnabled());
     }
 
     @Test
@@ -148,6 +168,64 @@ class DashboardViewTest {
                 "A provisional forecast should say where it came from");
         assertFalse(ui.findSpan().withTextContaining("below freezing").exists(),
                 "23 degrees is not below freezing");
+    }
+
+    /*
+       A running counter's row has no save button of its own — the popover already
+       has one — so it saves as the values change. That it does, and that the card
+       keeps up, is the whole contract of that row.
+    */
+    @Test
+    void aRunningCounterIsRetargetedFromItsRow(@Autowired BrowserlessUIContext ui) {
+        store("KKKK", Instant.now(), 6.5, 21.0);
+        ui.navigate(DashboardView.class, "KKKK");
+
+        openSettings(ui, "DHT");
+        ui.findTextField().withPlaceholder("What is hanging").setValue("hirvi");
+        ui.findButton().withText("Start").click();
+
+        // The popover rebuilds its content on open, so the counter is now a row in it.
+        openSettings(ui, "DHT");
+        targetOfTheRunningCounter(ui).setValue(60.0);
+
+        assertTrue(ui.findSpan().withTextContaining("/ 60.0 °Cd").exists(),
+                "The card should show the new target");
+    }
+
+    /*
+       The row saves on every change, which is one keystroke away from saving a
+       half-typed value — emptying the field is what happens on the way to typing a
+       new number. It cannot: the target is @NotNull, and the binder turns that into
+       a required field, which then refuses to be emptied at all. The store's own
+       constraint stays behind it for callers that are not a form.
+    */
+    @Test
+    void aCounterCannotBeLeftWithoutATarget(@Autowired BrowserlessUIContext ui) {
+        store("LLLL", Instant.now(), 6.5, 21.0);
+        ui.navigate(DashboardView.class, "LLLL");
+
+        openSettings(ui, "DHT");
+        ui.findTextField().withPlaceholder("What is hanging").setValue("hirvi");
+        ui.findButton().withText("Start").click();
+
+        openSettings(ui, "DHT");
+
+        assertTrue(targetOfTheRunningCounter(ui).component().isRequiredIndicatorVisible(),
+                "The constraint should have reached the field");
+        assertThrows(IllegalArgumentException.class,
+                () -> targetOfTheRunningCounter(ui).setValue(null),
+                "and a required field should refuse to be emptied");
+        assertTrue(ui.findSpan().withTextContaining("/ 40.0 °Cd").exists());
+    }
+
+    /*
+       The running counter's row comes before the one that starts a new counter, and
+       both have a target field. Index rather than a test id: the order is the
+       reading order, and it is what a reader picks by too. The index is one based.
+    */
+    private static com.vaadin.flow.component.textfield.NumberFieldLocator
+            targetOfTheRunningCounter(BrowserlessUIContext ui) {
+        return ui.findNumberField().withAriaLabel("Target in degree-days").atIndex(1);
     }
 
     /*

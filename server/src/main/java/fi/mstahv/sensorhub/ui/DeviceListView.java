@@ -1,9 +1,9 @@
 package fi.mstahv.sensorhub.ui;
 
+import java.util.List;
+
 import com.vaadin.flow.component.AttachEvent;
-import com.vaadin.flow.component.Key;
-import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.dependency.StyleSheet;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
@@ -12,15 +12,18 @@ import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.dom.Style;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.aura.Aura;
+
+import jakarta.validation.constraints.NotBlank;
 
 import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
 import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.store.ClientDeviceStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
+import fi.mstahv.sensorhub.validation.DeviceId;
+import org.vaadin.firitin.form.BeanValidationForm;
 import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
@@ -49,9 +52,19 @@ public class DeviceListView extends VerticalLayout {
     private final NotificationSwitch notifications;
     private final FlexLayout deviceCards = new FlexLayout();
     private final Span emptyState = new Span("No devices yet — add one below.");
-    private final TextField deviceIdField = new TextField();
 
     private String clientId;
+
+    /**
+     * The only thing this page asks for, and the rules about it.
+     *
+     * <p>{@link DeviceId} is the same constraint the store's {@code add} and every
+     * table holding an identifier carry. Written here as well not to repeat the rule
+     * but to reach it: this is what lets the field say "1 to 4 letters or digits"
+     * while it is being typed, instead of the store saying it afterwards.
+     */
+    record NewDevice(@NotBlank(message = "Give the device identifier") @DeviceId String deviceId) {
+    }
 
     public DeviceListView(MeasurementStore measurements, ClientDeviceStore clientDevices,
                           WebPushService webPush, ConnectionMonitor connections) {
@@ -104,21 +117,54 @@ public class DeviceListView extends VerticalLayout {
     /**
      * The occasional action, below the list it adds to. It is the only thing to do
      * on a first visit, which is what the empty state points at.
+     *
+     * <p>A bound form rather than a field and a click listener. The difference the
+     * reader sees: an identifier that cannot exist is refused at the field, while
+     * they are typing it and with the reason under it, instead of being accepted by
+     * a button that then produces a toast.
      */
-    private class AddDevice extends VerticalLayout {
+    private class AddDevice extends BeanValidationForm<NewDevice> {
+
+        /*
+           Named after the record's component, which is how FormBinder finds it. It
+           lives here rather than on the view for the same reason: the binder
+           reflects over the fields of the component it is given.
+        */
+        private final TextField deviceId = new TextField();
+
         AddDevice() {
-            setPadding(false);
-            setWidthFull();
+            super(NewDevice.class);
+            /*
+               One section of the page, not the page: the Div a Composite wraps is
+               size full by default, and a full height section here would push the
+               ones below it off the screen.
+            */
+            getContent().setWidthFull();
+            getContent().setHeight(null);
 
-            deviceIdField.setPlaceholder("Device ID");
-            deviceIdField.setMaxLength(ClientDeviceStore.MAX_DEVICE_ID_LENGTH);
-            deviceIdField.setWidth("10rem");
+            deviceId.setPlaceholder("Device ID");
+            deviceId.setMaxLength(DeviceId.MAX_LENGTH);
+            deviceId.setWidth("10rem");
 
-            Button add = new Button("Add", event -> addDevice());
-            add.addThemeVariants(ButtonVariant.PRIMARY);
-            add.addClickShortcut(Key.ENTER);
+            setSaveCaption("Add");
+            setSavedHandler(this::add);
+            setEntity(new NewDevice(""));
+        }
 
-            HorizontalLayout form = new HorizontalLayout(deviceIdField, add);
+        private void add(NewDevice device) {
+            if (clientId == null) {
+                return;  // the token has not come back from the browser yet
+            }
+            String added = clientDevices.add(clientId, device.deviceId());
+            // Ready for the next one, and the Add button disabled until there is one.
+            setEntity(new NewDevice(""));
+            Notification.show("Device %s added".formatted(added));
+            refresh();
+        }
+
+        @Override
+        protected Component createContent() {
+            HorizontalLayout form = new HorizontalLayout(deviceId, getSaveButton());
             form.setAlignItems(Alignment.BASELINE);
             form.setPadding(false);
 
@@ -127,8 +173,16 @@ public class DeviceListView extends VerticalLayout {
                text, which is as wide as the field and broke the sentence across two
                lines mid-phrase.
             */
-            add(new SectionHeading("Add a device"), form,
+            VerticalLayout layout = new VerticalLayout(new SectionHeading("Add a device"), form,
                     new Hint("The same 4 characters as DEVICE_ID in config.h"));
+            layout.setPadding(false);
+            layout.setWidthFull();
+            return layout;
+        }
+
+        @Override
+        protected List<Component> getFormComponents() {
+            return List.of();
         }
     }
 
@@ -185,20 +239,6 @@ public class DeviceListView extends VerticalLayout {
             // subscription rather than trusting this server's table.
             notifications.refresh(attachEvent.getUI());
         });
-    }
-
-    private void addDevice() {
-        if (clientId == null) {
-            return;  // the token has not come back from the browser yet
-        }
-        try {
-            String added = clientDevices.add(clientId, deviceIdField.getValue());
-            deviceIdField.clear();
-            Notification.show("Device %s added".formatted(added));
-            refresh();
-        } catch (IllegalArgumentException e) {
-            Notification.show(e.getMessage());
-        }
     }
 
     /*

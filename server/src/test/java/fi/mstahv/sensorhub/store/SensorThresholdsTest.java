@@ -1,21 +1,34 @@
 package fi.mstahv.sensorhub.store;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+import java.util.Set;
+
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 
 import org.junit.jupiter.api.Test;
 
 /**
  * Pure validation rules, no database needed.
+ *
+ * <p>Driven through a plain {@link Validator} rather than through a store, because
+ * that is what everything else does with these: Hibernate before an insert, the
+ * store before it saves, and the settings form on every keystroke. If the rule holds
+ * here it holds in all three.
  */
 class SensorThresholdsTest {
 
+    private static final Validator VALIDATOR =
+            Validation.buildDefaultValidatorFactory().getValidator();
+
     @Test
     void emptyIsValidAndMeansNoBands() {
-        assertDoesNotThrow(SensorThresholds.NONE::validate);
+        assertTrue(messages(SensorThresholds.NONE).isEmpty());
         assertFalse(SensorThresholds.NONE.isConfigured());
     }
 
@@ -23,35 +36,38 @@ class SensorThresholdsTest {
     void increasingLimitsAreValid() {
         SensorThresholds bands = new SensorThresholds(-5.0, 2.0, 8.0, 15.0);
 
-        assertDoesNotThrow(bands::validate);
+        assertTrue(messages(bands).isEmpty());
         assertTrue(bands.isConfigured());
     }
 
     @Test
     void negativeLimitsAreFine() {
         // A freezer: OK well below zero.
-        assertDoesNotThrow(new SensorThresholds(-30.0, -25.0, -18.0, -12.0)::validate);
+        assertTrue(messages(new SensorThresholds(-30.0, -25.0, -18.0, -12.0)).isEmpty());
     }
 
+    /*
+       The message matters as much as the refusal: "not in order" is no help to
+       someone who has filled in three fields of four.
+    */
     @Test
     void partiallyFilledIsRejected() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new SensorThresholds(-5.0, 2.0, 8.0, null).validate());
-        assertThrows(IllegalArgumentException.class,
-                () -> new SensorThresholds(null, 2.0, null, null).validate());
+        assertEquals(List.of("Give all four temperature limits, or leave them all empty"),
+                messages(new SensorThresholds(-5.0, 2.0, 8.0, null)));
+        assertEquals(List.of("Give all four temperature limits, or leave them all empty"),
+                messages(new SensorThresholds(null, 2.0, null, null)));
     }
 
     @Test
     void outOfOrderIsRejected() {
         // OK band inverted
-        assertThrows(IllegalArgumentException.class,
-                () -> new SensorThresholds(-5.0, 8.0, 2.0, 15.0).validate());
+        assertEquals(
+                List.of("The limits must increase: alert low < OK low < OK high < alert high"),
+                messages(new SensorThresholds(-5.0, 8.0, 2.0, 15.0)));
         // alert low above the OK band
-        assertThrows(IllegalArgumentException.class,
-                () -> new SensorThresholds(5.0, 2.0, 8.0, 15.0).validate());
+        assertFalse(messages(new SensorThresholds(5.0, 2.0, 8.0, 15.0)).isEmpty());
         // alert high below the OK band
-        assertThrows(IllegalArgumentException.class,
-                () -> new SensorThresholds(-5.0, 2.0, 8.0, 6.0).validate());
+        assertFalse(messages(new SensorThresholds(-5.0, 2.0, 8.0, 6.0)).isEmpty());
     }
 
     /*
@@ -109,9 +125,13 @@ class SensorThresholdsTest {
     */
     @Test
     void equalLimitsAreRejected() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new SensorThresholds(-5.0, 2.0, 2.0, 15.0).validate());
-        assertThrows(IllegalArgumentException.class,
-                () -> new SensorThresholds(2.0, 2.0, 8.0, 15.0).validate());
+        assertFalse(messages(new SensorThresholds(-5.0, 2.0, 2.0, 15.0)).isEmpty());
+        assertFalse(messages(new SensorThresholds(2.0, 2.0, 8.0, 15.0)).isEmpty());
+    }
+
+    /** What a reader would be shown, which is the point of a class level constraint. */
+    private static List<String> messages(SensorThresholds bands) {
+        Set<ConstraintViolation<SensorThresholds>> violations = VALIDATOR.validate(bands);
+        return violations.stream().map(ConstraintViolation::getMessage).sorted().toList();
     }
 }

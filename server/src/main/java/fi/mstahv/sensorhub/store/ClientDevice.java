@@ -10,6 +10,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+import fi.mstahv.sensorhub.validation.DeviceId;
 
 /**
  * A device added by a browser: which devices one browser wants to see.
@@ -37,12 +42,17 @@ public class ClientDevice {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank
+    @Size(max = 64)
     @Column(nullable = false, length = 64)
     private String clientId;
 
+    @NotBlank
+    @DeviceId
     @Column(nullable = false, length = 8)
     private String deviceId;
 
+    @NotNull
     @Column(nullable = false)
     private Instant addedAt;
 

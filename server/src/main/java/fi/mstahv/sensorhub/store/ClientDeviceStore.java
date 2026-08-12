@@ -8,15 +8,24 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+import fi.mstahv.sensorhub.validation.DeviceId;
 
 /**
  * Per-browser device lists.
+ *
+ * <p>{@code @Validated} makes the constraints on the parameters below run before
+ * the method does, so the rules hold no matter who calls — the form is where a
+ * reader is told about them, not where they are enforced. A violation is a
+ * {@link jakarta.validation.ConstraintViolationException}.
  */
 @Service
+@Validated
 public class ClientDeviceStore {
-
-    /** A device identifier is 4 ASCII characters in the protocol. */
-    public static final int MAX_DEVICE_ID_LENGTH = 4;
 
     private final ClientDeviceRepository repository;
 
@@ -36,10 +45,13 @@ public class ClientDeviceStore {
      * no-op.
      *
      * @return the normalised device identifier
-     * @throws IllegalArgumentException if the identifier is empty or too long
+     * @throws jakarta.validation.ConstraintViolationException if the identifier is
+     *         missing or not a device identifier
      */
     @Transactional
-    public String add(String clientId, String deviceId) {
+    public String add(@NotBlank @Size(max = 64) String clientId,
+                      @NotBlank(message = "Give the device identifier")
+                      @DeviceId String deviceId) {
         String normalised = normalise(deviceId);
         if (!repository.existsByClientIdAndDeviceId(clientId, normalised)) {
             repository.save(new ClientDevice(clientId, normalised, Instant.now()));
@@ -63,7 +75,8 @@ public class ClientDeviceStore {
      * nothing to attach the choice to.
      */
     @Transactional
-    public void setSilenceAlert(String clientId, String deviceId, boolean enabled) {
+    public void setSilenceAlert(@NotBlank String clientId, @NotBlank @DeviceId String deviceId,
+                                boolean enabled) {
         repository.findByClientIdAndDeviceId(clientId, normalise(deviceId))
                 .ifPresent(device -> {
                     device.setAlertOnSilence(enabled);
@@ -103,7 +116,7 @@ public class ClientDeviceStore {
     }
 
     @Transactional
-    public void remove(String clientId, String deviceId) {
+    public void remove(@NotBlank String clientId, @NotBlank @DeviceId String deviceId) {
         repository.deleteByClientIdAndDeviceId(clientId, normalise(deviceId));
     }
 
@@ -111,16 +124,14 @@ public class ClientDeviceStore {
        The device sends the identifier in upper case and the decoder trims the
        space padding, so user input is normalised the same way. Otherwise "laht"
        and "LAHT" would be different devices.
+
+       Nothing is rejected here any more: @DeviceId has already had its say on
+       every method that takes an identifier from outside, and it deliberately
+       judges the value as this leaves it — stripped, and regardless of case.
+       The queries below tolerate a null the same way they tolerate an unknown
+       identifier, by finding nothing.
     */
     private static String normalise(String deviceId) {
-        String cleaned = deviceId == null ? "" : deviceId.strip().toUpperCase(Locale.ROOT);
-        if (cleaned.isEmpty()) {
-            throw new IllegalArgumentException("Device identifier is missing");
-        }
-        if (cleaned.length() > MAX_DEVICE_ID_LENGTH) {
-            throw new IllegalArgumentException(
-                    "A device identifier is at most " + MAX_DEVICE_ID_LENGTH + " characters");
-        }
-        return cleaned;
+        return deviceId == null ? "" : deviceId.strip().toUpperCase(Locale.ROOT);
     }
 }

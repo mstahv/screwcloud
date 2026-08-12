@@ -9,6 +9,14 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+
+import fi.mstahv.sensorhub.validation.DeviceId;
+import fi.mstahv.sensorhub.validation.SensorId;
 
 /**
  * A degree-day counter running on one sensor.
@@ -38,24 +46,38 @@ public class HeatSumCounter {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank
+    @DeviceId
     @Column(nullable = false, length = 8)
     private String deviceId;
 
+    @NotNull
+    @SensorId
     @Column(nullable = false, length = 8)
     private String sensorId;
 
     /** What is hanging: "hirvi", "kauris", a date, whatever the reader needs. */
+    @Size(max = MAX_COMMENT_LENGTH)
     @Column(length = MAX_COMMENT_LENGTH)
     private String comment;
 
+    /**
+     * Degree-days to reach. No upper limit: forty is the guideline, sixty is a
+     * preference, and a counter someone is using as a slow thermometer is their
+     * business. Zero and below are not a target at all.
+     */
+    @Positive(message = "The target has to be more than zero degree-days")
     @Column(nullable = false)
     private double target;
 
     /**
      * When the counter began. Everything the sensor recorded from here on counts,
      * which means a counter can be started for something already hanging by setting
-     * this in the past.
+     * this in the past — but not in the future, where there are no readings to
+     * integrate and the counter would sit at zero looking broken.
      */
+    @NotNull
+    @PastOrPresent(message = "A counter cannot start in the future")
     @Column(nullable = false)
     private Instant startedAt;
 

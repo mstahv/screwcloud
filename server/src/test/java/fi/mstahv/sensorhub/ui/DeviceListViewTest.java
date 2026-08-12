@@ -80,17 +80,21 @@ class DeviceListViewTest {
     }
 
     /*
-       The identifier is four characters in the protocol and the store refuses
-       anything longer. The reader should be told, not left with a button that did
-       nothing.
+       The identifier is four characters in the protocol, and the same constraint
+       that says so on every table says it here. The reader finds that out at the
+       field rather than from a toast after pressing Add — which is also why Add is
+       not offered at all while the field cannot be used.
     */
     @Test
-    void anImpossibleIdentifierIsRefusedWithAnExplanation(@Autowired BrowserlessUIContext ui) {
+    void anImpossibleIdentifierIsRefusedAtTheField(@Autowired BrowserlessUIContext ui) {
         openFrontPage(ui);
 
-        add(ui, "TOOLONG");
+        ui.findTextField().withPlaceholder("Device ID").setValue("TOOLONG");
 
-        assertTrue(ui.findNotification().exists(), "Expected a notification explaining the refusal");
+        var field = ui.findTextField().withPlaceholder("Device ID").component();
+        assertTrue(field.isInvalid(), "The field should say the identifier cannot exist");
+        assertEquals("A device identifier is 1 to 4 letters or digits", field.getErrorMessage());
+        assertFalse(ui.findButton().withText("Add").component().isEnabled());
         assertTrue(listedDevices(ui).isEmpty());
     }
 

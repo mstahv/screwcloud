@@ -2,12 +2,15 @@ package fi.mstahv.sensorhub.store;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+
+import jakarta.validation.ConstraintViolationException;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -173,6 +176,43 @@ class MeasurementStoreTest {
         assertEquals(2, store.countMeasurements("LAHT", "DHT"));
         assertEquals(List.of(20.0, 5.0),
                 temperatures(store.measurements("LAHT", "DHT", PageRequest.of(0, 10))));
+    }
+
+    /*
+       The other side of the port. A UDP packet is unauthenticated and the decoder
+       checks the frame, not what the fields say — it trims an identifier rather
+       than judging it. What stops junk from reaching the table is the constraints
+       on the entity, which Hibernate runs before the insert; the receiver logs the
+       refusal as an invalid packet and carries on.
+    */
+    @Test
+    void aPacketWithAnUnusableIdentifierIsRefused() {
+        assertThrows(ConstraintViolationException.class,
+                () -> store.store(packet("LI!AN PITKA", 1, NOW, 20.0)));
+        assertThrows(ConstraintViolationException.class, () -> store.store(
+                new DeviceMeasurement("LAHT", 1, NOW, List.of(
+                        new SensorMeasurement("DH", 20.0, 40.0)))));
+    }
+
+    /*
+       Only the impossible, though. A shed at -40 is a reading worth keeping, and a
+       sensor that saturates above 100 %RH is telling the truth as it sees it — a
+       row refused here would take the rest of its packet with it.
+    */
+    @Test
+    void implausibleButPossibleReadingsAreKept() {
+        store.store(new DeviceMeasurement("LAHT", 1, NOW, List.of(
+                new SensorMeasurement("DHT", -40.0, 100.0))));
+
+        assertEquals(-40.0,
+                store.findLatest("LAHT").orElseThrow().sensors().getFirst().temperature(), 0.0001);
+    }
+
+    @Test
+    void aTemperatureBelowAbsoluteZeroIsNotAMeasurement() {
+        assertThrows(ConstraintViolationException.class, () -> store.store(
+                new DeviceMeasurement("LAHT", 1, NOW, List.of(
+                        new SensorMeasurement("DHT", -327.68, 40.0)))));
     }
 
     private static List<Double> temperatures(List<HistoryPoint> points) {

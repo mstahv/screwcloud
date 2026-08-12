@@ -10,6 +10,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
+import fi.mstahv.sensorhub.validation.PushEndpoint;
 
 /**
  * One browser's web push subscription: where the push service will deliver a
@@ -40,24 +46,43 @@ public class PushSubscription {
     */
     static final int MAX_ENDPOINT_LENGTH = 512;
 
+    /*
+       The keys are base64url as the Push API hands them over. Constraining the
+       alphabet is not cosmetic: these strings are decoded and fed to the crypto
+       layer, and the only thing standing behind them is that a browser said so.
+    */
+    private static final String BASE64URL = "[A-Za-z0-9_=-]+";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank
+    @Size(max = 64)
     @Column(nullable = false, length = 64)
     private String clientId;
 
+    @NotBlank
+    @PushEndpoint
+    @Size(max = MAX_ENDPOINT_LENGTH)
     @Column(nullable = false, length = MAX_ENDPOINT_LENGTH)
     private String endpoint;
 
     /** The browser's public key for encrypting the payload. */
+    @NotBlank
+    @Pattern(regexp = BASE64URL, message = "The push key is not base64url")
+    @Size(max = 255)
     @Column(nullable = false, length = 255)
     private String p256dh;
 
     /** The browser's authentication secret. */
+    @NotBlank
+    @Pattern(regexp = BASE64URL, message = "The push secret is not base64url")
+    @Size(max = 255)
     @Column(nullable = false, length = 255)
     private String auth;
 
+    @NotNull
     @Column(nullable = false)
     private Instant createdAt;
 

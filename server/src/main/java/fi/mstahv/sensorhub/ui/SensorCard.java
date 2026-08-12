@@ -1,5 +1,6 @@
 package fi.mstahv.sensorhub.ui;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.vaadin.firitin.components.details.VDetails;
@@ -11,13 +12,13 @@ import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.card.CardVariant;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.dom.Style;
 
 import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.alerts.HeatSum;
 import fi.mstahv.sensorhub.store.HistoryPoint;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
+import fi.mstahv.sensorhub.store.SensorThresholds;
 import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
@@ -117,13 +118,14 @@ class SensorCard extends Card {
     */
     private Component createSettingsForm() {
         String clientId = context.clientId().get();
+        SensorSettingsForm.AlertOptions alerts = alertOptions(clientId);
         return new SensorSettingsForm(
                 sensorId,
                 settings.nameFor(deviceId, sensorId),
                 settings.thresholdsFor(deviceId, sensorId),
-                alertOptions(clientId),
+                alerts,
                 createCounterForm(),
-                values -> save(clientId, values));
+                values -> save(clientId, alerts, values));
     }
 
     /*
@@ -140,24 +142,20 @@ class SensorCard extends Card {
     private Component createCounterForm() {
         return new HeatSumCounterForm(
                 context.heatSums().countersFor(deviceId, sensorId),
+                /*
+                   The store's constraints have already been checked in the form, so
+                   a violation here would be a programming error rather than
+                   something to explain to the reader — it is left to surface.
+                   Counting starts now: the counter begins when the meat goes up.
+                */
                 started -> {
-                    try {
-                        context.heatSums().start(deviceId, sensorId, started.comment(),
-                                started.target(), started.startedAt());
-                    } catch (IllegalArgumentException e) {
-                        Notification.show(e.getMessage());
-                        return;
-                    }
+                    context.heatSums().start(deviceId, sensorId, started.comment(),
+                            started.target(), Instant.now());
                     afterCounterChange();
                 },
                 changed -> {
-                    try {
-                        context.heatSums().update(changed.id(), changed.comment(), changed.target(),
-                                changed.alertBeforeTarget(), changed.alertAtTarget());
-                    } catch (IllegalArgumentException e) {
-                        Notification.show(e.getMessage());
-                        return;
-                    }
+                    context.heatSums().update(changed.id(), changed.comment(), changed.target(),
+                            changed.alertBeforeTarget(), changed.alertAtTarget());
                     showHeatSums(lastTemperature);
                 },
                 id -> {
@@ -191,24 +189,28 @@ class SensorCard extends Card {
                 context.alerts().hasPushSubscription(clientId));
     }
 
-    private void save(String clientId, SensorSettingsForm.Values values) {
-        /*
-           The bands are saved first: they are the ones that can be rejected, and
-           a rejected save should not have renamed the sensor as a side effect.
-        */
-        try {
-            settings.setThresholds(deviceId, sensorId, values.thresholds());
-        } catch (IllegalArgumentException e) {
-            Notification.show(e.getMessage());
-            return;
-        }
+    /*
+       Nothing is caught here any more. The form will not offer to save a set of
+       limits that does not hold together — the button is disabled and the reason is
+       on screen — so reaching the store with one is not something a reader can do.
+       The store still refuses it, which is what makes that true for every other
+       caller as well.
+    */
+    private void save(String clientId, SensorSettingsForm.AlertOptions alerts,
+                      SensorSettingsForm.Values values) {
+        SensorThresholds thresholds = values.toThresholds();
+        settings.setThresholds(deviceId, sensorId, thresholds);
         settings.rename(deviceId, sensorId, values.name());
-        if (values.alerts() != null && clientId != null) {
-            context.alerts().setPreferences(clientId, deviceId, sensorId, values.alerts());
+        /*
+           Only when the section was shown: it being absent is not the same as
+           "subscribed to nothing", and must not overwrite stored choices.
+        */
+        if (alerts.available() && clientId != null) {
+            context.alerts().setPreferences(clientId, deviceId, sensorId, values.toAlerts());
         }
 
         applyName();
-        gauge.setThresholds(values.thresholds());
+        gauge.setThresholds(thresholds);
         settingsButton.close();
     }
 

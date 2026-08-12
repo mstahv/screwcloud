@@ -900,6 +900,8 @@ server/
     alerts/     WebPushService, TemperatureAlerts, ConnectionMonitor,
                 HeatSum, HeatSumAlerts — derived judgements and the
                 notifications that follow from them
+    validation/ @DeviceId, @SensorId, @PushEndpoint, @IncreasingBands —
+                the rules the entities and the forms share
     ui/         DeviceListView, DeviceLinkCard, DashboardView,
                 SensorCardLayout, SensorCard, TemperatureSparkLine,
                 SensorSettingsForm, ClientId, Ages
@@ -1096,6 +1098,55 @@ The database grows without bound: three sensors every five minutes is about 860
 rows per day per device. PostgreSQL will not notice that for years, but at some
 point pruning old rows is worth adding. There is deliberately no automatic deletion —
 discarding data is the user's decision.
+
+### Validation
+
+The rules about what a value may be are written once, as Bean Validation
+constraints, and read by both ends: Hibernate runs them before every insert and
+update, and the forms read the same annotations to mark a field required, to keep
+Save disabled and to say what is wrong.
+
+They live in `validation/`, and there are two kinds. `@SensorId` is *composed* —
+no validator of its own, just a size and a pattern stacked on one annotation with
+one message. `@DeviceId`, `@PushEndpoint` and `@IncreasingBands` have validators,
+because each needs something no annotation can state:
+
+| Constraint | What it needs a validator for |
+|---|---|
+| `@DeviceId` | checks the value as the store will save it: stripped, and regardless of case, so a reader may type `laht` while the database keeps only `LAHT` |
+| `@PushEndpoint` | parses the URL and requires `https` — the server later makes a request to that address, and `http` would send the notification in the clear |
+| `@IncreasingBands` | the four temperature limits are a set: either all given or all empty, and increasing. No single field is wrong on its own when the OK band is upside down |
+
+`@IncreasingBands` is the one that pays for the whole arrangement. It is a *class
+level* constraint on the `TemperatureBands` interface, which both the stored
+`SensorThresholds` and the settings form's own record implement — so the same
+rule that refuses the write is what greys out the Save button, and the reader is
+told *which* way the set is broken rather than being handed the annotation's
+generic message.
+
+Where the checking happens:
+
+- **Entities** carry the constraints, so nothing reaches the database that should
+  not. This is what stands between the UDP port and the `measurement_sample`
+  table: a packet is unauthenticated, and the decoder checks the frame rather than
+  what the fields say. A refused row makes the receiver log an invalid packet and
+  carry on.
+- **Stores** are `@Validated`, with the constraints on the parameters. A rejected
+  target should not have created a counter first, and the rule should hold for
+  callers that are not a form.
+- **Forms** bind with Viritin's `FormBinder` / `BeanValidationForm`, which is
+  where the constraints become visible: a required indicator, an error under the
+  field as it is typed, and a disabled Save.
+
+Only the impossible is refused, never the improbable. A shed at -40 °C and a
+sensor saturating above 100 %RH are both telling the truth as they see it; below
+absolute zero, or a negative humidity, is not a measurement. A reading dropped at
+the insert would take the rest of its packet with it.
+
+`spring-boot-starter-validation` is in the pom even though Hibernate Validator
+already arrives transitively: the starter brings an Expression Language
+implementation, without which building a `ValidatorFactory` fails outright, and
+the auto-configuration that makes `@Validated` more than an annotation.
 
 ### User interface
 

@@ -2,6 +2,9 @@ package fi.mstahv.sensorhub.store;
 
 import java.util.Optional;
 
+import fi.mstahv.sensorhub.validation.IncreasingBands;
+import fi.mstahv.sensorhub.validation.TemperatureBands;
+
 /**
  * Temperature bands for one sensor, from cold to hot:
  *
@@ -13,14 +16,18 @@ import java.util.Optional;
  *
  * <p>All four values are null when the sensor has no bands configured, in which
  * case the gauge keeps its stock range and colours. Partially filled bands are
- * rejected when saving, so a set is either complete or empty.
+ * rejected when saving, so a set is either complete or empty — that is what
+ * {@link IncreasingBands} states, and the store refuses a set that does not
+ * satisfy it.
  *
  * @param alertLow below this it is an alert
  * @param okLow start of the OK band
  * @param okHigh end of the OK band
  * @param alertHigh above this it is an alert
  */
-public record SensorThresholds(Double alertLow, Double okLow, Double okHigh, Double alertHigh) {
+@IncreasingBands
+public record SensorThresholds(Double alertLow, Double okLow, Double okHigh, Double alertHigh)
+        implements TemperatureBands {
 
     public static final SensorThresholds NONE = new SensorThresholds(null, null, null, null);
 
@@ -54,34 +61,5 @@ public record SensorThresholds(Double alertLow, Double okLow, Double okHigh, Dou
             return Optional.of(TemperatureZone.WARNING_HIGH);
         }
         return Optional.of(TemperatureZone.ALERT_HIGH);
-    }
-
-    /**
-     * @throws IllegalArgumentException if the values are partially filled or out
-     *         of order
-     */
-    public void validate() {
-        int given = 0;
-        for (Double value : new Double[] {alertLow, okLow, okHigh, alertHigh}) {
-            if (value != null) {
-                given++;
-            }
-        }
-        if (given == 0) {
-            return;
-        }
-        if (given < 4) {
-            throw new IllegalArgumentException(
-                    "Give all four temperature limits, or leave them all empty");
-        }
-        /*
-           Strictly increasing rather than merely non-decreasing: an empty band
-           would render as a zero-width arc, which looks like a rendering bug
-           rather than a configuration choice.
-        */
-        if (!(alertLow < okLow && okLow < okHigh && okHigh < alertHigh)) {
-            throw new IllegalArgumentException(
-                    "The limits must increase: alert low < OK low < OK high < alert high");
-        }
     }
 }

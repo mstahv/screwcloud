@@ -7,6 +7,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+import fi.mstahv.sensorhub.validation.DeviceId;
+import fi.mstahv.sensorhub.validation.SensorId;
 
 /**
  * User-provided settings for one sensor.
@@ -31,18 +38,23 @@ public class SensorSettings {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank
+    @DeviceId
     @Column(nullable = false, length = 8)
     private String deviceId;
 
+    @NotNull
+    @SensorId
     @Column(nullable = false, length = 8)
     private String sensorId;
 
+    @Size(max = 64)
     @Column(length = 64)
     private String name;
 
     /*
-       Temperature bands for the gauge. Either all four are set or none are;
-       SensorThresholds.validate() enforces that before saving.
+       Temperature bands for the gauge. Either all four are set or none are; see
+       the @Valid on getThresholds() below, which is where that rule is checked.
     */
     private Double alertLow;
     private Double okLow;
@@ -74,6 +86,15 @@ public class SensorSettings {
         this.name = name;
     }
 
+    /**
+     * The four limits as one value.
+     *
+     * <p>{@code @Valid} rather than four annotations on four columns: the rule is
+     * about the set, and this is what carries it into Hibernate's check before an
+     * insert or an update. The entity uses field access, so JPA ignores this
+     * accessor entirely — it exists for the reader and for the validator.
+     */
+    @Valid
     public SensorThresholds getThresholds() {
         return new SensorThresholds(alertLow, okLow, okHigh, alertHigh);
     }

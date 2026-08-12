@@ -8,6 +8,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+import fi.mstahv.sensorhub.validation.DeviceId;
+import fi.mstahv.sensorhub.validation.SensorId;
 
 /**
  * Which of one sensor's alerts a browser wants to be notified about.
@@ -34,12 +40,18 @@ public class AlertSubscription {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank
+    @Size(max = 64)
     @Column(nullable = false, length = 64)
     private String clientId;
 
+    @NotBlank
+    @DeviceId
     @Column(nullable = false, length = 8)
     private String deviceId;
 
+    @NotNull
+    @SensorId
     @Column(nullable = false, length = 8)
     private String sensorId;
 

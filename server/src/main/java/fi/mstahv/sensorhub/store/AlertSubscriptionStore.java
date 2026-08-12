@@ -5,6 +5,15 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+import fi.mstahv.sensorhub.validation.DeviceId;
+import fi.mstahv.sensorhub.validation.PushEndpoint;
+import fi.mstahv.sensorhub.validation.SensorId;
 
 /**
  * Who has subscribed to what: the browsers' push endpoints and their per-sensor
@@ -13,8 +22,14 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Both live here because they are always used together — deciding whether to
  * send a notification means asking "who wants this sensor's alerts" and "where do
  * I reach them".
+ *
+ * <p>The push subscription comes from the browser, which makes it the one thing
+ * here that arrives from outside. It is checked on the way in rather than only in
+ * the entity, so a bad endpoint is refused before anything is deleted to make room
+ * for it.
  */
 @Service
+@Validated
 public class AlertSubscriptionStore {
 
     private final PushSubscriptionRepository pushSubscriptions;
@@ -36,7 +51,9 @@ public class AlertSubscriptionStore {
      * that.
      */
     @Transactional
-    public void subscribeToPush(String clientId, String endpoint, String p256dh, String auth) {
+    public void subscribeToPush(@NotBlank @Size(max = 64) String clientId,
+                                @NotBlank @PushEndpoint String endpoint,
+                                @NotBlank String p256dh, @NotBlank String auth) {
         /*
            Deleting by endpoint as well as by client: the same endpoint could in
            principle already belong to another client token, for instance after
@@ -90,8 +107,10 @@ public class AlertSubscriptionStore {
      * the row rather than keeping one that would never match anything.
      */
     @Transactional
-    public void setPreferences(String clientId, String deviceId, String sensorId,
-                               AlertPreferences preferences) {
+    public void setPreferences(@NotBlank @Size(max = 64) String clientId,
+                               @NotBlank @DeviceId String deviceId,
+                               @NotNull @SensorId String sensorId,
+                               @NotNull AlertPreferences preferences) {
         AlertSubscription subscription = alertSubscriptions
                 .findByClientIdAndDeviceIdAndSensorId(clientId, deviceId, sensorId)
                 .orElseGet(() -> new AlertSubscription(clientId, deviceId, sensorId));
