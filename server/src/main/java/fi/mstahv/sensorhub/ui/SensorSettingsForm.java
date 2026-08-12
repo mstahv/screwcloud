@@ -130,7 +130,7 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
         name.setPlaceholder(sensorId);
         name.setHelperText("Empty = show the identifier " + sensorId);
         name.setWidthFull();
-        name.setMaxLength(64);
+        // The length limit comes from Values.name's @Size, via the binder.
 
         setSaveCaption("Save");
         setSavedHandler(onSave::accept);

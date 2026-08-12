@@ -99,6 +99,22 @@ class DashboardViewTest {
     }
 
     /*
+       The constraint reaches the widget: nothing in this form sets a length limit,
+       the @Size on the bound record does. Worth pinning down, because the field
+       stopping the reader at 64 characters is the difference between a rule that is
+       enforced and one that is merely checked afterwards.
+    */
+    @Test
+    void theNameFieldCarriesTheLengthLimitFromItsConstraint(@Autowired BrowserlessUIContext ui) {
+        store("MMMM", Instant.now(), 6.5, 21.0);
+        ui.navigate(DashboardView.class, "MMMM");
+
+        openSettings(ui, "DHT");
+
+        assertEquals(64, ui.findTextField().withLabel("Name").component().getMaxLength());
+    }
+
+    /*
        Half a set is the other way to get it wrong, and it needs its own sentence:
        "not in order" is no help to someone who has filled in three fields of four.
     */

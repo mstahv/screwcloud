@@ -108,8 +108,8 @@ class HeatSumCounterForm extends VerticalLayout {
             this.counter = counter;
             this.onStop = onStop;
 
+            // The length limit comes from the record's @Size, via the binder.
             comment.setPlaceholder("What is hanging");
-            comment.setMaxLength(HeatSumCounter.MAX_COMMENT_LENGTH);
             comment.setWidthFull();
 
             setEntity(new ChangedCounter(counter.getId(), counter.getComment(),
@@ -173,8 +173,8 @@ class HeatSumCounterForm extends VerticalLayout {
             getContent().setWidthFull();
             getContent().setHeight(null);
 
+            // The length limit comes from the record's @Size, via the binder.
             comment.setPlaceholder("What is hanging");
-            comment.setMaxLength(HeatSumCounter.MAX_COMMENT_LENGTH);
             comment.setWidthFull();
 
             setSaveCaption("Start");
@@ -236,6 +236,12 @@ class HeatSumCounterForm extends VerticalLayout {
         TargetField() {
             setAriaLabel("Target in degree-days");
             setStep(5);
+            /*
+               Kept by hand: the constraint is @Positive, which the binder does not
+               pass on to a field because a field's minimum is inclusive and
+               "greater than zero" is not. A whole degree-day is the smallest target
+               worth typing anyway.
+            */
             setMin(1);
             setWidth("5em");
             setSuffixComponent(new Span("°Cd"));

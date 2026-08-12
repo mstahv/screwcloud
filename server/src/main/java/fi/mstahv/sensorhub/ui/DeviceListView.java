@@ -143,6 +143,13 @@ public class DeviceListView extends VerticalLayout {
             getContent().setHeight(null);
 
             deviceId.setPlaceholder("Device ID");
+            /*
+               By hand, unlike the other forms here: @DeviceId is a constraint of
+               this application's own, and the binder only passes on the ones whose
+               meaning a field can state exactly. @Size would say it — but that same
+               annotation sizes the columns these identifiers are stored in, which
+               are wider.
+            */
             deviceId.setMaxLength(DeviceId.MAX_LENGTH);
             deviceId.setWidth("10rem");
 
