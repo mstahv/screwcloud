@@ -50,17 +50,17 @@ class HeatSumCounterForm extends VerticalLayout {
     }
 
     /**
-     * What a running counter's row hands back. Without the identifier: it has no
-     * field to be edited in, and the row that owns it knows it anyway.
+     * A running counter as its row edits it, identifier included.
+     *
+     * <p>The identifier has no field and needs none: the binder keeps the value it
+     * was given for a component nothing edits. That is what lets one record be both
+     * what the form binds and what it hands back — the alternative was two records
+     * and a hand written copy from one to the other.
      */
-    record CounterEdit(@Size(max = HeatSumCounter.MAX_COMMENT_LENGTH) String comment,
-                       @NotNull @Positive(message = "The target has to be more than zero degree-days")
-                       Double target,
-                       boolean alertBeforeTarget, boolean alertAtTarget) {
-    }
-
-    /** What the form hands back when an existing counter is changed. */
-    record ChangedCounter(long id, String comment, double target,
+    record ChangedCounter(long id,
+                          @Size(max = HeatSumCounter.MAX_COMMENT_LENGTH) String comment,
+                          @NotNull @Positive(message = "The target has to be more than zero degree-days")
+                          Double target,
                           boolean alertBeforeTarget, boolean alertAtTarget) {
     }
 
@@ -89,7 +89,7 @@ class HeatSumCounterForm extends VerticalLayout {
      * particular keystroke is refused before it gets here; the check stays because
      * the next constraint may not have a widget to enforce it.
      */
-    private static class ExistingCounter extends BeanValidationForm<CounterEdit> {
+    private static class ExistingCounter extends BeanValidationForm<ChangedCounter> {
 
         private final TextField comment = new TextField();
         private final NumberField target = new TargetField();
@@ -101,7 +101,7 @@ class HeatSumCounterForm extends VerticalLayout {
 
         ExistingCounter(HeatSumCounter counter, Consumer<ChangedCounter> onChange,
                         Consumer<Long> onStop) {
-            super(CounterEdit.class);
+            super(ChangedCounter.class);
             // A row, not a page: the wrapping Div is size full by default.
             getContent().setWidthFull();
             getContent().setHeight(null);
@@ -112,8 +112,9 @@ class HeatSumCounterForm extends VerticalLayout {
             comment.setMaxLength(HeatSumCounter.MAX_COMMENT_LENGTH);
             comment.setWidthFull();
 
-            setEntity(new CounterEdit(counter.getComment(), counter.getTarget(),
-                    counter.isAlertBeforeTarget(), counter.isAlertAtTarget()));
+            setEntity(new ChangedCounter(counter.getId(), counter.getComment(),
+                    counter.getTarget(), counter.isAlertBeforeTarget(),
+                    counter.isAlertAtTarget()));
 
             /*
                Added after setEntity, so it runs after the form's own listener has
@@ -122,9 +123,7 @@ class HeatSumCounterForm extends VerticalLayout {
             */
             getBinder().addValueChangeListener(event -> {
                 if (event.isFromClient() && isValid()) {
-                    CounterEdit edited = getEntity();
-                    onChange.accept(new ChangedCounter(counter.getId(), edited.comment(),
-                            edited.target(), edited.alertBeforeTarget(), edited.alertAtTarget()));
+                    onChange.accept(getEntity());
                 }
             });
         }
