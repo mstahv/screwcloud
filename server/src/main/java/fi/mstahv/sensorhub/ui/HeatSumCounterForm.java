@@ -117,9 +117,11 @@ class HeatSumCounterForm extends VerticalLayout {
                     counter.isAlertAtTarget()));
 
             /*
-               Added after setEntity, so it runs after the form's own listener has
-               validated the change and marked the fields. isValid() therefore
-               answers about the value that was just typed.
+               Saving is the binder's value change, filtered: what the reader typed,
+               and only when the form holds together afterwards. isValid() answers
+               about that change rather than the one before it, because the form's
+               own listener — the one that validates — is registered when the binder
+               is first asked for, which is before this line can run.
             */
             getBinder().addValueChangeListener(event -> {
                 if (event.isFromClient() && isValid()) {
