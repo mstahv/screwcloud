@@ -198,7 +198,7 @@ class SensorCard extends Card {
     */
     private void save(String clientId, SensorSettingsForm.AlertOptions alerts,
                       SensorSettingsForm.Values values) {
-        SensorThresholds thresholds = values.toThresholds();
+        SensorThresholds thresholds = values.thresholds();
         settings.setThresholds(deviceId, sensorId, thresholds);
         settings.rename(deviceId, sensorId, values.name());
         /*
@@ -206,7 +206,7 @@ class SensorCard extends Card {
            "subscribed to nothing", and must not overwrite stored choices.
         */
         if (alerts.available() && clientId != null) {
-            context.alerts().setPreferences(clientId, deviceId, sensorId, values.toAlerts());
+            context.alerts().setPreferences(clientId, deviceId, sensorId, values.alerts());
         }
 
         applyName();

@@ -90,8 +90,9 @@ class DashboardViewTest {
         ui.findNumberField().withAriaLabel("Alert low").setValue(-5.0);
         ui.findNumberField().withAriaLabel("Alert high").setValue(15.0);
 
-        assertTrue(ui.findParagraph().withTextContaining("The limits must increase").exists(),
-                "The reader should be told which way the set is wrong");
+        assertTrue(bands(ui).isInvalid(), "The set of limits should be marked wrong");
+        assertTrue(bands(ui).getErrorMessage().contains("The limits must increase"),
+                "The reader should be told which way: " + bands(ui).getErrorMessage());
         assertFalse(ui.findButton().withText("Save").component().isEnabled(),
                 "and Save should not offer to store it");
         assertEquals(null, settings.nameFor("DDDD", "DHT"),
@@ -126,7 +127,8 @@ class DashboardViewTest {
         openSettings(ui, "DHT");
         ui.findNumberField().withAriaLabel("OK low").setValue(2.0);
 
-        assertTrue(ui.findParagraph().withTextContaining("Give all four temperature limits").exists());
+        assertTrue(bands(ui).getErrorMessage().contains("Give all four temperature limits"),
+                "Half a set needs its own sentence: " + bands(ui).getErrorMessage());
         assertFalse(ui.findButton().withText("Save").component().isEnabled());
     }
 
@@ -232,6 +234,15 @@ class DashboardViewTest {
                 () -> targetOfTheRunningCounter(ui).setValue(null),
                 "and a required field should refuse to be emptied");
         assertTrue(ui.findSpan().withTextContaining("/ 40.0 °Cd").exists());
+    }
+
+    /*
+       The four limits are one field, so the violation about them as a set belongs to
+       that field rather than to the form. Reaching for it by type is the point: it
+       is a component of its own now, not four numbers in a layout.
+    */
+    private static TemperatureBandsField bands(BrowserlessUIContext ui) {
+        return ui.find(TemperatureBandsField.class).first();
     }
 
     /*
