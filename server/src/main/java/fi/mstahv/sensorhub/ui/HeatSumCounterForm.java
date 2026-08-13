@@ -81,13 +81,11 @@ class HeatSumCounterForm extends VerticalLayout {
      * anything. Saved on change rather than behind another button — the outer form
      * already has a Save, and two save buttons in one popover is a puzzle.
      *
-     * <p>Which is why this form has no save button of its own and listens to the
-     * binder instead — and why it saves only what validates. A row that saves on
-     * every change is otherwise one keystroke away from storing a half-typed value,
-     * since emptying the field is what happens on the way to typing a new number.
-     * The {@code @NotNull} on the target makes the field required as well, so that
-     * particular keystroke is refused before it gets here; the check stays because
-     * the next constraint may not have a widget to enforce it.
+     * <p>Which is why this form has no save button of its own, and says so with an
+     * eager saved handler: it saves after every change that leaves the row valid,
+     * and shows the ones that do not. A row that saved on every change instead
+     * would be one keystroke away from storing a half-typed value, since emptying
+     * the field is what happens on the way to typing a new number.
      */
     private static class ExistingCounter extends BeanValidationForm<ChangedCounter> {
 
@@ -112,22 +110,15 @@ class HeatSumCounterForm extends VerticalLayout {
             comment.setPlaceholder("What is hanging");
             comment.setWidthFull();
 
+            /*
+               Saved as the reader types, and only when what they typed leaves the
+               row usable: an emptied target or an overlong comment is shown on the
+               field, and the counter keeps what it had.
+            */
+            setEagerSavedHandler(onChange::accept);
             setEntity(new ChangedCounter(counter.getId(), counter.getComment(),
                     counter.getTarget(), counter.isAlertBeforeTarget(),
                     counter.isAlertAtTarget()));
-
-            /*
-               Saving is the binder's value change, filtered: what the reader typed,
-               and only when the form holds together afterwards. isValid() answers
-               about that change rather than the one before it, because the form's
-               own listener — the one that validates — is registered when the binder
-               is first asked for, which is before this line can run.
-            */
-            getBinder().addValueChangeListener(event -> {
-                if (event.isFromClient() && isValid()) {
-                    onChange.accept(getEntity());
-                }
-            });
         }
 
         @Override
