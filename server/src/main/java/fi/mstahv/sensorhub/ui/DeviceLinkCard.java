@@ -77,8 +77,22 @@ class DeviceLinkCard extends Card {
         }
     }
 
-    private static String sensorCount(DeviceMeasurement measurement) {
-        int count = measurement.sensors().size();
+    /**
+     * How many measuring points this device has, which is not the same as how many
+     * values it sends: the chip's own temperature is the box reporting on itself,
+     * and counting it made a device with one thermometer say "2 sensors" while its
+     * dashboard showed one card.
+     *
+     * <p>Unless it is the only thing there is. A board measuring nothing but its own
+     * die is still a device worth listing, and "0 sensors" would read as broken.
+     */
+    static String sensorCount(DeviceMeasurement measurement) {
+        long count = measurement.sensors().stream()
+                .filter(sensor -> !sensor.isDeviceInternal())
+                .count();
+        if (count == 0) {
+            count = measurement.sensors().size();
+        }
         return count == 1 ? "1 sensor" : count + " sensors";
     }
 

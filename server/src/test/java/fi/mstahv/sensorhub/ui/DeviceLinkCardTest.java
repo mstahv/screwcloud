@@ -1,5 +1,6 @@
 package fi.mstahv.sensorhub.ui;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
@@ -89,6 +90,33 @@ class DeviceLinkCardTest {
                 new SensorMeasurement("REBF", null, 80.0)));
 
         assertTrue(summary.contains("ago") || summary.contains("now"), summary);
+    }
+
+    // ------------------------------------------------------------------
+    // How many sensors a device is said to have
+    // ------------------------------------------------------------------
+
+    /** The chip is the box reporting on itself, not a place being measured. */
+    @Test
+    void theChipIsNotCountedAsASensor() {
+        assertEquals("1 sensor", DeviceLinkCard.sensorCount(packet(
+                new SensorMeasurement("REBF", 4.0, 80.0),
+                new SensorMeasurement("CPU", 48.0, null))));
+
+        assertEquals("2 sensors", DeviceLinkCard.sensorCount(packet(
+                new SensorMeasurement("REBF", 4.0, 80.0),
+                new SensorMeasurement("DHT", 22.0, 45.0),
+                new SensorMeasurement("CPU", 48.0, null))));
+    }
+
+    /**
+     * Unless it is all there is. A board measuring nothing but its own die is
+     * still a device worth listing, and "0 sensors" would read as broken.
+     */
+    @Test
+    void aBoardThatOnlyMeasuresItselfStillHasASensor() {
+        assertEquals("1 sensor", DeviceLinkCard.sensorCount(packet(
+                new SensorMeasurement("CPU", 48.0, null))));
     }
 
     private static DeviceMeasurement packet(SensorMeasurement... sensors) {
