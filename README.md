@@ -1588,9 +1588,10 @@ a table of cases:
 | Previous | Now | Result |
 |---|---|---|
 | alert high | alert high | silent — nothing changed |
-| OK | warning high | announced |
-| alert low | warning low | announced — improving is also news |
-| warning low | warning high | announced — it crossed the whole OK band |
+| OK | warning high | announced at once |
+| warning high | alert high | announced at once — it got worse |
+| warning low | warning high | announced at once — it crossed the whole OK band |
+| alert low | warning low | waits — improving is news, but only once it lasts |
 | nothing yet | OK | silent — a first reading is not a transition |
 | nothing yet | alert high | announced — a freezer already too warm is worth knowing |
 
@@ -1598,11 +1599,43 @@ A band change is the trigger rather than a change of severity, because both
 warning bands share a severity and a swing from one to the other would otherwise
 go unmentioned.
 
+**Getting worse is announced at once; getting better has to last.** A reading
+sitting exactly on a limit crosses it every few minutes, and with every crossing
+counted as a change, one sensor produced seven notifications in an hour on a field
+morning. So a calmer band is announced only once the sensor has not been seen in
+the announced one for an hour:
+
+| The morning's readings, 12 in an hour | Notifications |
+|---|---|
+| every crossing announced (before) | 8 |
+| hysteresis 0.2 °C, asymmetric | 1 |
+| calmer band has to hold for an hour | 1 |
+| a 30-minute cool-down on top of the old rule | 2 |
+
+Two of those three work; the settling rule was chosen because it needs nothing
+stored. Hysteresis — a deadband around the limit, as a thermostat has — is the
+other standard answer and would steady the gauge colours too, but a correct one
+needs to remember which state the sensor was announced in, which is a column and a
+migration. The delay costs nothing but the promptness of good news, and anyone
+worried enough to want it sooner is looking at the dashboard, where the reading was
+right all along.
+
+The clock measures **how long ago the sensor was last seen in the band the reader
+was told about**. Wandering between calmer bands does not restart it, returning to
+the announced one does, and what is finally announced is the band the sensor is in
+*now* — coming down through two limits within the hour, the middle one was never
+news. Getting worse still interrupts the wait immediately.
+
+The rule needs to know what was last announced, which is not the same as the
+previous reading's band, since some readings are deliberately not announced. It is
+worked out by replaying the last sixty readings rather than by remembering: a
+cache would empty on restart and start announcing what had already been said.
+
 **A sensor with no bands never notifies.** Without limits there is nothing to
 leave or return to, so notifications are as opt-in as the gauge colours are.
 
-**The previous reading comes from the database**, not from memory: the two newest
-rows for that sensor are read back after the packet is stored. An in-memory
+**The readings come from the database**, not from memory: they are read back after
+the packet is stored. An in-memory
 per-sensor cache would be emptied by every restart and would then report the first
 reading after a deployment as a change.
 
