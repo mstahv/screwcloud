@@ -120,16 +120,17 @@ static const uint8_t OLED_HEIGHT = 64;
    Display layout. The Adafruit_GFX font is 6x8 px at text size 1, so size 2 is
    12x16 px and size 1 is 6x8 px.
 
-   Three rows 20 pixels apart: label and temperature large, humidity small on
-   the right. Only 10 characters fit per row at size 2, which is not enough for
-   label, temperature and humidity together — hence the two font sizes.
+   Three rows 20 pixels apart: the temperature large and right aligned, the name
+   of the measuring point small on the left. Only 10 characters fit per row at
+   size 2, so something has to give, and the name is the part a reader can still
+   read at half the size — a temperature is meant to be legible across a room.
 
    The bottom 8 pixels are reserved for the link status line in the small font.
    3 x 20 = 60 pixels for rows, the remaining 4 px for spacing and the status.
 
-       DHT   25.6  36%
-       R1    24.9  41%
-       RBF   -3.2  88%
+       cold room     24.9
+       R2            -3.2
+       DHT           25.6
        Sent ok, 45 s
 */
 static const uint8_t OLED_ROWS = 3;
@@ -138,8 +139,9 @@ static const uint8_t OLED_ROW_TOP = 0;
 static const uint8_t OLED_STATUS_TOP = 56;
 static const uint8_t OLED_BIG_CHAR_WIDTH = 12;
 static const uint8_t OLED_SMALL_CHAR_WIDTH = 6;
-// Temperature is right aligned to this x; the rest is left for humidity.
-static const uint8_t OLED_TEMPERATURE_RIGHT = 100;
+
+// Longest name a row can show: the display fits about a dozen next to a reading.
+static const uint8_t OLED_NAME_SIZE = 16;
 
 static const unsigned long PRINT_INTERVAL_MS = 5000;
 
@@ -162,40 +164,31 @@ static uint16_t readUint16(const uint8_t *p) {
 }
 
 /*
-   Human readable names for tags, so the log and the data sent to the server
-   show which measuring point a reading came from. Unknown tags show up by
-   their MAC address, so filling this in is optional.
+   Human readable names for tags, for the serial log and the OLED. Naming a tag
+   is optional: an unnamed one is shown by a running number instead.
 
-   Add your own tags here — the MAC is printed on the serial console.
+   These names are for the reader here, and go nowhere else. What the server
+   ties a reading to is the identifier derived from the MAC (sensorIdTo), which
+   no entry here can change — so renaming a measuring point is a display
+   change, never a new sensor in the database. The proper, long name belongs in
+   the web interface anyway; this is what fits on a 128 pixel display.
+
+   Add your own tags here — the MAC is printed on the serial console. Around a
+   dozen characters is what the display has room for.
 */
 struct RuuviTagName {
   uint8_t mac[6];
-  const char *name;   // long name for the serial log
-  const char *label;  // at most 3 characters for the display, nullptr = derived from MAC
+  const char *name;
 };
 
 static const RuuviTagName RUUVI_NAMES[] = {
-  {{0xF3, 0x19, 0x1A, 0xC0, 0x8E, 0xBF}, "cold room", "R1"},
+  {{0xF3, 0x19, 0x1A, 0xC0, 0x8E, 0xBF}, "cold room"},
 };
 
-/*
-   Two separate lookups rather than one function returning a struct pointer: a
-   file scope function cannot return a type declared in the sketch, because the
-   prototype the Arduino IDE generates would precede the type definition.
-*/
 static const char *ruuviNameFor(const uint8_t mac[6]) {
   for (const RuuviTagName &entry : RUUVI_NAMES) {
     if (memcmp(entry.mac, mac, 6) == 0) {
       return entry.name;
-    }
-  }
-  return nullptr;
-}
-
-static const char *ruuviLabelFor(const uint8_t mac[6]) {
-  for (const RuuviTagName &entry : RUUVI_NAMES) {
-    if (memcmp(entry.mac, mac, 6) == 0) {
-      return entry.label;
     }
   }
   return nullptr;
@@ -226,20 +219,37 @@ struct RuuviMeasurement {
   }
 
   /*
-     Identifier for the display and the server: the label from RUUVI_NAMES if
-     one was given, otherwise R plus the last MAC byte in hex.
+     The identifier the server ties readings to. It has to mean the same tag
+     after a reboot and a different tag from every neighbour, so it is derived
+     from the MAC and from nothing else — not from RUUVI_NAMES, which a reader
+     may edit freely without splitting a sensor's history in two.
 
-     Derived from the MAC rather than a running number so that it stays the same
-     across restarts — the server has to be able to tie a reading to the same
-     sensor. At most 3 characters, because the same identifier is drawn on the
-     OLED in the large font.
+     The low twelve bits of the address: four thousand values, where the last
+     byte alone gave 256 and two tags in eight collided about one time in ten.
+     It fills the four bytes the protocol has for an identifier exactly.
+
+     Nobody has to read this. What a reader sees is displayNameTo.
   */
   void sensorIdTo(char *buffer, size_t size) const {
-    const char *label = ruuviLabelFor(mac);
-    if (label != nullptr) {
-      snprintf(buffer, size, "%s", label);
+    snprintf(buffer, size, "R%03X", ((mac[4] & 0x0F) << 8) | mac[5]);
+  }
+
+  /*
+     What a reader sees: the name from RUUVI_NAMES, or a running number in the
+     order the tags were first heard.
+
+     The number is the tag's place in the registry, which is that order — a tag
+     holds its slot for as long as the device is up, so R2 stays R2 and does not
+     move under somebody reading the display. It does change across a reboot, if
+     the tags happen to be heard in another order. That is the price of a number
+     short enough to fit; a name from the table above is not affected.
+  */
+  void displayNameTo(char *buffer, size_t size, uint8_t ordinal) const {
+    const char *name = ruuviNameFor(mac);
+    if (name != nullptr) {
+      snprintf(buffer, size, "%s", name);
     } else {
-      snprintf(buffer, size, "R%02X", mac[5]);
+      snprintf(buffer, size, "R%u", ordinal);
     }
   }
 
@@ -649,7 +659,7 @@ struct Display {
     row = printTags(registry, row, false);
 
     if (row < OLED_ROWS && dht.hasReading()) {
-      printRow(row++, "DHT", dht.temperature, dht.humidity);
+      printRow(row++, "DHT", dht.temperature);
     }
 
     row = printTags(registry, row, true);
@@ -670,51 +680,62 @@ private:
      rows that are left.
   */
   uint8_t printTags(const RuuviRegistry &registry, uint8_t row, bool stale) {
-    for (const RuuviMeasurement &tag : registry.tags) {
+    for (uint8_t i = 0; i < MAX_RUUVI_TAGS; i++) {
+      const RuuviMeasurement &tag = registry.tags[i];
       if (!tag.valid || tag.isStale() != stale) {
         continue;
       }
       if (row >= OLED_ROWS) {
         break;
       }
-      char id[PROTOCOL_ID_SIZE + 1];
-      tag.sensorIdTo(id, sizeof(id));
-      printRow(row++, id, tag.temperature, tag.humidity);
+      // The slot number, not the row: a tag keeps its name when another one
+      // above it goes quiet and moves down the screen.
+      char name[OLED_NAME_SIZE + 1];
+      tag.displayNameTo(name, sizeof(name), i + 1);
+      printRow(row++, name, tag.temperature);
     }
     return row;
   }
 
   /*
-     Label on the left and temperature right aligned in the large font, humidity
-     in the small font at the right edge and vertically centred against the
-     large text.
+     Temperature right aligned in the large font, name on the left in the small
+     one, vertically centred against it.
+
+     The name is an identifier and the temperature is the measurement, so the
+     large font goes to the temperature. Humidity does not get the row at all:
+     on a display glanced at while walking past, which measuring point and how
+     warm it is are what earn the space, and everything else is a tap away on
+     the dashboard.
   */
-  void printRow(uint8_t row, const char *label, float temperature, float humidity) {
+  void printRow(uint8_t row, const char *name, float temperature) {
     const int16_t top = OLED_ROW_TOP + row * OLED_ROW_HEIGHT;
     char text[8];
-
-    oled.setTextSize(2);
-    oled.setCursor(0, top);
-    oled.print(label);
 
     if (isnan(temperature)) {
       snprintf(text, sizeof(text), "--");
     } else {
       snprintf(text, sizeof(text), "%.1f", temperature);
     }
-    int16_t width = strlen(text) * OLED_BIG_CHAR_WIDTH;
-    oled.setCursor(OLED_TEMPERATURE_RIGHT - width, top);
+    const int16_t width = strlen(text) * OLED_BIG_CHAR_WIDTH;
+
+    oled.setTextSize(2);
+    oled.setCursor(OLED_WIDTH - width, top);
     oled.print(text);
 
+    /*
+       Whatever the reading leaves, less a space. Measured against the reading
+       actually being drawn rather than a fixed column, so a name gets the three
+       extra characters that -12.3 would have taken. Truncated rather than
+       wrapped or shrunk: a name running into the reading is worse than a name
+       that stops early.
+    */
+    const uint8_t fits = (OLED_WIDTH - width) / OLED_SMALL_CHAR_WIDTH - 1;
+    char shown[OLED_NAME_SIZE + 1];
+    snprintf(shown, sizeof(shown), "%.*s", (int)fits, name);
+
     oled.setTextSize(1);
-    if (isnan(humidity)) {
-      snprintf(text, sizeof(text), "--");
-    } else {
-      snprintf(text, sizeof(text), "%.0f%%", humidity);
-    }
-    width = strlen(text) * OLED_SMALL_CHAR_WIDTH;
-    oled.setCursor(OLED_WIDTH - width, top + 4);
-    oled.print(text);
+    oled.setCursor(0, top + 4);
+    oled.print(shown);
   }
 
   /*

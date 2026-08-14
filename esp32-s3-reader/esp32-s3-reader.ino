@@ -44,26 +44,26 @@ static uint16_t readUint16(const uint8_t *p) {
 }
 
 /*
-   Human readable labels for tags. At most 3 characters; an unnamed tag becomes
-   R plus the last MAC byte in hex. Derived from the MAC rather than a running
-   number so the identifier stays the same across restarts — the server has to
-   be able to tie a reading to the same sensor.
+   Human readable names for tags, for the serial log — this board has no display
+   and sends nothing but the identifier below, so naming a tag here is purely a
+   convenience while watching the console. The measuring point's real name
+   belongs in the web interface.
 
    The MAC of a new tag is printed on the serial console.
 */
 struct RuuviTagName {
   uint8_t mac[6];
-  const char *label;
+  const char *name;
 };
 
 static const RuuviTagName RUUVI_NAMES[] = {
-  {{0xF3, 0x19, 0x1A, 0xC0, 0x8E, 0xBF}, "R1"},
+  {{0xF3, 0x19, 0x1A, 0xC0, 0x8E, 0xBF}, "cold room"},
 };
 
-static const char *ruuviLabelFor(const uint8_t mac[6]) {
+static const char *ruuviNameFor(const uint8_t mac[6]) {
   for (const RuuviTagName &entry : RUUVI_NAMES) {
     if (memcmp(entry.mac, mac, 6) == 0) {
-      return entry.label;
+      return entry.name;
     }
   }
   return nullptr;
@@ -90,13 +90,16 @@ struct RuuviReading {
     return millis() - receivedAt > RUUVI_STALE_MS;
   }
 
+  /*
+     The identifier the server ties readings to: the low twelve bits of the MAC,
+     and nothing else. Not a name from the table above, so that renaming a
+     measuring point never splits a sensor's history in two, and not a running
+     number, so that it survives a reboot. Kept identical to the Pico firmware —
+     the same tag must not arrive under two different identifiers depending on
+     which board happened to hear it.
+  */
   void sensorIdTo(char *buffer, size_t size) const {
-    const char *label = ruuviLabelFor(mac);
-    if (label != nullptr) {
-      snprintf(buffer, size, "%s", label);
-    } else {
-      snprintf(buffer, size, "R%02X", mac[5]);
-    }
+    snprintf(buffer, size, "R%03X", ((mac[4] & 0x0F) << 8) | mac[5]);
   }
 
   void fillReading(SensorReading &reading) const {
@@ -422,8 +425,10 @@ static void printReadings() {
     const RuuviReading &tag = readings[i];
     char id[PROTOCOL_ID_SIZE + 1];
     tag.sensorIdTo(id, sizeof(id));
-    Serial.printf("%s %02X:%02X:%02X:%02X:%02X:%02X  %.2f C  %.2f %%  RSSI %d dBm  (%lu ms ago)%s\n",
-                  id, tag.mac[0], tag.mac[1], tag.mac[2], tag.mac[3], tag.mac[4], tag.mac[5],
+    const char *name = ruuviNameFor(tag.mac);
+    Serial.printf("%s%s%s %02X:%02X:%02X:%02X:%02X:%02X  %.2f C  %.2f %%  RSSI %d dBm  (%lu ms ago)%s\n",
+                  id, name != nullptr ? " / " : "", name != nullptr ? name : "",
+                  tag.mac[0], tag.mac[1], tag.mac[2], tag.mac[3], tag.mac[4], tag.mac[5],
                   tag.temperature, tag.humidity, tag.rssi,
                   millis() - tag.receivedAt, tag.isStale() ? "  [STALE]" : "");
   }

@@ -236,8 +236,9 @@ chip heats up under load, and how well the enclosure sheds it.
 It carries no humidity, which the UI shows as a dash rather than 0 %.
 
 Costs 8 bytes per packet. Comment out `ENABLE_INTERNAL_TEMPERATURE` in `config.h`
-to leave it out, and `INTERNAL_SENSOR_ID` renames it if `CPU` collides with a
-RuuviTag label.
+to leave it out, and `INTERNAL_SENSOR_ID` renames it if `CPU` is not what you
+want to see. It cannot collide with a tag: a tag's identifier is always `R` and
+three hex digits.
 
 ### Why GP15
 
@@ -316,35 +317,42 @@ The display is meant to be read from across the room, so the font is as large as
 possible. Three rows:
 
 ```
-DHT     25.6 36%
-R1      24.9 41%
-RBF     -3.2 88%
+cold room     24.9
+R2            -3.2
+DHT           25.6
 Sent ok, 45 s
 ```
 
 The Adafruit_GFX font is 6×8 px at text size 1, so size 2 is 12×16 px. Only
-**10 characters** fit per row in the large font, which is not enough for the
-label, the temperature and the humidity at once (`DHT 25.6 36` is 11
-characters). Hence the label and the temperature are drawn at size 2 and the
-humidity at size 1 on the right, vertically centred against the large text. The
-temperature is the number you look at from a distance, so it gets the space.
+**10 characters** fit per row in the large font, which is not enough for a name
+and a reading at once — so the temperature is drawn at size 2, right aligned,
+and the name at size 1 on the left, vertically centred against it. The
+temperature is the number you look at from across a room; a name is something
+you walk up to and read.
 
 The row height is 20 px, so three rows take 60 pixels and the bottom 8 pixels
-are left for the link status row in the small font. The temperature is right
-aligned to x = 100, which leaves room for five-character values such as `-10.5`.
+are left for the link status row in the small font.
 
-Identifiers are at most 3 characters. For a RuuviTag the `label` field from the
-`RUUVI_NAMES` table is used if given, otherwise `R` plus the last MAC byte in
-hex. That is derived from the MAC rather than a running number so it stays the
-same across restarts. The long name and the MAC still show on the serial
-console.
+The name gets whatever the reading leaves, measured against the reading actually
+being drawn rather than a fixed column — `24.9` leaves room for 14 characters
+and `-12.3` for 10. A longer name is truncated, because a name running into the
+reading is worse than a name that stops early.
 
-Fields a sensor does not provide (for example humidity from a RuuviTag Pro
-2in1) show as dashes.
+Humidity is not on the display. Three numbers per row was more than a 128 pixel
+display could show legibly, and humidity is the one nobody squints at from the
+doorway — it is on the dashboard, along with pressure and battery voltage.
+A temperature a sensor does not provide shows as dashes.
 
-There are three rows, so a DHT22 plus two RuuviTags — or three tags if no DHT22
-is connected. The registry still keeps every tag it has heard in memory and the
-serial console prints them all.
+There are three rows and there can be more sensors than that, so the order
+decides who is left out: **tags that are still reporting first, then the DHT22,
+and tags that have gone quiet last of all.** The tags are the measuring points
+somebody deliberately placed; the DHT22 is wherever the box happens to sit. And
+a tag that stopped sending an hour ago must never push a still-reporting sensor
+off the screen, which is why it sorts below even the DHT22 — its reading is
+worth showing, but only with the space left over.
+
+Nothing is lost by not being drawn: the registry keeps every tag it has heard,
+the packet carries them all, and the serial console prints them all.
 
 ### RuuviTag
 
@@ -382,12 +390,18 @@ it for a minute (`RUUVI_STALE_MS`). A tag transmits every ~1285 ms, so anything
 older effectively means the tag is out of range or its battery is dead.
 
 Tags can be named in the `RUUVI_NAMES` table so measuring points are
-distinguishable in the log and in the data sent to the server. The table has two
-fields: `name` is the long name for the serial console and `label` an
-identifier of at most three characters for the display. Neither is mandatory —
-an unnamed tag shows by its MAC address on the serial console and as `R` plus
-the last MAC byte on the display. A new tag's MAC comes straight from the serial
-output.
+distinguishable on the display and in the log. A name is a display matter only
+and goes nowhere near the server, so it can be changed at will — see
+[Identifiers](#identifiers) below. Naming is optional: an unnamed tag is shown
+as `R1`, `R2`, … numbered in the order the device first heard them, and by its
+MAC address on the serial console. A new tag's MAC comes straight from the
+serial output.
+
+The running number belongs to the tag's slot in the registry, not to its row on
+the screen, so `R2` stays `R2` when the tag above it goes quiet and drops down
+the display. It can change across a reboot, if the tags are heard in a different
+order — the proper name for a measuring point lives in the web interface, which
+is keyed by the identifier below and unaffected.
 
 #### On accuracy
 
@@ -632,9 +646,19 @@ alternative would be to derive it from the RP2350 flash serial number so no
 per-device code edit is needed, but that would be unreadable in the UI — and
 devices are flashed one at a time anyway.
 
-Sensor identifiers are at most 3 characters and derived either from the MAC
-address or from the `RUUVI_NAMES` label, so they stay the same across restarts.
-The same identifier appears both on the OLED and on the server.
+<a id="identifiers"></a>
+Sensor identifiers are 4 characters. For a RuuviTag it is `R` and the low twelve
+bits of the MAC address in hex, derived from the address and from nothing else:
+not from a name, so that renaming a measuring point cannot split a sensor's
+history in two, and not from a running number, so that it survives a reboot.
+
+Twelve bits is 4096 values, where an earlier version used the last MAC byte
+alone and two tags out of eight collided about one time in ten — silently, since
+both then arrived as the same sensor. Both firmwares derive it identically, so a
+tag heard by either board reports as the same sensor.
+
+The identifier is what the server stores; it is not what a reader sees. The OLED
+shows a name, and the web interface shows the name given there.
 
 ### Three transport choices
 
