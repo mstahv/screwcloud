@@ -32,4 +32,21 @@ public record SensorMeasurement(String sensorId, Double temperature, Double humi
     public boolean isDeviceInternal() {
         return INTERNAL_SENSOR_ID.equals(sensorId);
     }
+
+    /**
+     * Whether this looks like a RuuviTag, by the identifier every reader derives
+     * the same way: {@code R} and hex digits from the tag's address.
+     *
+     * <p>A guess from a naming convention, which is all the packet offers — it
+     * carries no sensor type. It is used only to decide which reading to show first
+     * in a summary, so being wrong costs a preview showing one real temperature
+     * rather than another.
+     */
+    public boolean isRuuviTag() {
+        if (sensorId == null || sensorId.length() < 2 || sensorId.charAt(0) != 'R') {
+            return false;
+        }
+        return sensorId.chars().skip(1)
+                .allMatch(character -> Character.digit(character, 16) >= 0);
+    }
 }

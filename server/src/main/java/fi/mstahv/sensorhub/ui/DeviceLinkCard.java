@@ -1,5 +1,6 @@
 package fi.mstahv.sensorhub.ui;
 
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -81,13 +82,36 @@ class DeviceLinkCard extends Card {
         return count == 1 ? "1 sensor" : count + " sensors";
     }
 
-    private static String describe(DeviceMeasurement measurement) {
+    /** Package private for its test: the ordering is the part worth pinning down. */
+    static String describe(DeviceMeasurement measurement) {
         String age = Ages.format(measurement.receivedAt());
         return measurement.sensors().stream()
-                .map(SensorMeasurement::temperature)
-                .filter(temperature -> temperature != null)
-                .findFirst()
-                .map(temperature -> String.format(Locale.ROOT, "%.1f °C · %s", temperature, age))
+                .filter(sensor -> sensor.temperature() != null)
+                .min(Comparator.comparingInt(DeviceLinkCard::previewRank))
+                .map(sensor -> String.format(Locale.ROOT, "%.1f °C · %s",
+                        sensor.temperature(), age))
                 .orElse(age);
+    }
+
+    /**
+     * Which reading stands for the whole device in one line.
+     *
+     * <p>A RuuviTag first: it is a place somebody chose to measure, and on a device
+     * with several sensors it is the one the list is being scanned for. The box's
+     * own chip temperature last, because it is a diagnostic — it reads well above
+     * the air around it and moves with the load rather than the weather, so a
+     * device summarised by it looks like it is in a room nobody would sit in.
+     *
+     * <p>Anything else in between: a wired DHT22 measures air, just wherever the
+     * box happens to be.
+     *
+     * <p>Ties are broken by packet order, which {@code min} keeps — so with two
+     * tags this is the first one the device reported, as before.
+     */
+    private static int previewRank(SensorMeasurement sensor) {
+        if (sensor.isRuuviTag()) {
+            return 0;
+        }
+        return sensor.isDeviceInternal() ? 2 : 1;
     }
 }
