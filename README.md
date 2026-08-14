@@ -224,8 +224,18 @@ number that says nothing about the room.
 #### The chip's own temperature
 
 The RP2350 has a temperature sensor on the die, read with `analogReadTemp()`. It
-is reported to the server as sensor **`CPU`**, so it appears in the web UI as a
-card like any other and can be watched over time.
+is reported to the server as sensor **`CPU`**, and shown in the device's status
+line — `Updated 4 min ago · sequence 2 · CPU 42.7 °C` — rather than on a card.
+
+A card gave it the standing of a measuring point somebody chose: a heading, a 24
+hour sparkline, threshold settings and alert subscriptions, none of which anyone
+wants for a chip. The status line is where the rest of the device's own state
+already is. Every reading is still stored, so the history is there if it is ever
+wanted.
+
+A device that overrides `INTERNAL_SENSOR_ID` gets an ordinary card again. The
+packet carries nothing that distinguishes the chip from a thermometer, so the
+identifier is all there is to go on.
 
 **It is not a room thermometer.** The sensor sits on the same silicon as the CPU
 and the radio, so it reads well above the air around it — typically 10–20 °C
@@ -1347,10 +1357,10 @@ instants: an hour that stays within one day in Helsinki can straddle midnight in
 Tokyo, and then only the reader in Tokyo sees a date. `TemperatureSparkLineTest`
 covers that by passing the zone in explicitly.
 
-The arrival time and the sequence number are shown once below the selection
-rather than on every card, because they are per device rather than per sensor. A
-missing value (for example humidity from a RuuviTag Pro 2in1) shows as an en
-dash so it is distinct from zero.
+The arrival time, the sequence number and the chip's own temperature are shown
+once below the selection rather than on every card, because all three are per
+device rather than per sensor. A missing value (for example humidity from a
+RuuviTag Pro 2in1) shows as an en dash so it is distinct from zero.
 
 #### Components are updated, not recreated
 

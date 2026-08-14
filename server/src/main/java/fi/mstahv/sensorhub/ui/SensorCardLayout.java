@@ -72,7 +72,13 @@ class SensorCardLayout extends FlexLayout {
 
         Instant from = Instant.now().minus(HISTORY_WINDOW);
 
+        /*
+           The device's own chip temperature is not a measuring point and does not
+           get a card. It is a diagnostic about the box, and DashboardView shows it
+           in the device's status line where the rest of the box's own state is.
+        */
         List<SensorMeasurement> sensors = device.sensors().stream()
+                .filter(sensor -> !sensor.isDeviceInternal())
                 .sorted(Comparator.comparing(SensorMeasurement::sensorId))
                 .toList();
 

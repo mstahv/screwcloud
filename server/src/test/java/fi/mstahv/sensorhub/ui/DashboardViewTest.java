@@ -46,6 +46,42 @@ class DashboardViewTest {
         assertEquals(List.of("DHT", "RBF"), sensorCardTitles(ui));
     }
 
+    /*
+       Except the chip's own temperature, which is a diagnostic about the box
+       rather than a measuring point. It used to get the same card as a sensor
+       somebody placed on purpose — heading, sparkline, alert settings and all.
+    */
+    @Test
+    void theChipTemperatureIsNotOneOfTheMeasuringPoints(@Autowired BrowserlessUIContext ui) {
+        storeWithChip("EEEE", 6.5, 42.7);
+
+        ui.navigate(DashboardView.class, "EEEE");
+
+        assertEquals(List.of("DHT", "RBF"), sensorCardTitles(ui));
+    }
+
+    /* It is on the line that carries the rest of the device's own state. */
+    @Test
+    void theChipTemperatureIsInTheDeviceStatusLine(@Autowired BrowserlessUIContext ui) {
+        storeWithChip("FFFF", 6.5, 42.7);
+
+        ui.navigate(DashboardView.class, "FFFF");
+
+        assertTrue(ui.findSpan().withTextContaining("· CPU 42.7 °C").exists(),
+                "the chip temperature belongs with the sequence number, not on a card");
+    }
+
+    /* And a device that does not report one leaves the line as it was. */
+    @Test
+    void aDeviceWithoutAChipReadingSaysNothingAboutIt(@Autowired BrowserlessUIContext ui) {
+        store("GGGG", Instant.now(), 6.5, 21.0);
+
+        ui.navigate(DashboardView.class, "GGGG");
+
+        assertTrue(ui.findSpan().withTextContaining("sequence 1").exists());
+        assertFalse(ui.findSpan().withTextContaining("CPU").exists());
+    }
+
     @Test
     void aDeviceWithNoMeasurementsSaysSo(@Autowired BrowserlessUIContext ui) {
         ui.navigate(DashboardView.class, "BBBB");
@@ -283,6 +319,14 @@ class DashboardViewTest {
 
         assertTrue(ui.find(Badge.class).all().stream()
                 .noneMatch(badge -> badge.getText().contains("Offline")));
+    }
+
+    /** A packet as a device with ENABLE_INTERNAL_TEMPERATURE actually sends it. */
+    private void storeWithChip(String deviceId, double dht, double chip) {
+        measurements.store(new DeviceMeasurement(deviceId, 1, Instant.now(), List.of(
+                new SensorMeasurement("DHT", dht, 45.0),
+                new SensorMeasurement(SensorMeasurement.INTERNAL_SENSOR_ID, chip, null),
+                new SensorMeasurement("RBF", 21.0, 40.0))));
     }
 
     private void store(String deviceId, Instant at, double dht, double ruuvi) {

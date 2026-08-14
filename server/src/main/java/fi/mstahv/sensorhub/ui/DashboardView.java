@@ -24,6 +24,8 @@ import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
 import fi.mstahv.sensorhub.alerts.DeviceActivity;
 import fi.mstahv.sensorhub.alerts.Elapsed;
 import fi.mstahv.sensorhub.alerts.WebPushService;
+import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
+import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
 import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
@@ -138,8 +140,7 @@ public class DashboardView extends VerticalLayout
 
         store.findLatest(deviceId).ifPresentOrElse(device -> {
             emptyState.setVisible(false);
-            deviceStatus.setText("Updated %s · sequence %d"
-                    .formatted(Ages.format(device.receivedAt()), device.sequence()));
+            deviceStatus.setText(statusOf(device));
 
             /*
                The same judgement the notifications use, so the page and the phone
@@ -167,5 +168,26 @@ public class DashboardView extends VerticalLayout
             cards.clear();
             renderedReceivedAt = null;
         });
+    }
+
+    /**
+     * When the packet arrived, which one it was, and how warm the board itself is.
+     *
+     * <p>The chip temperature is here rather than on a card of its own because it
+     * is about the device, like the rest of this line — it says how hard the box is
+     * working, not what the weather is doing. A card gave it the same standing as a
+     * measuring point somebody placed deliberately, with a heading, a sparkline and
+     * alert settings, none of which anyone wants for it.
+     */
+    private static String statusOf(DeviceMeasurement device) {
+        String status = "Updated %s · sequence %d"
+                .formatted(Ages.format(device.receivedAt()), device.sequence());
+        return device.sensors().stream()
+                .filter(SensorMeasurement::isDeviceInternal)
+                .map(SensorMeasurement::temperature)
+                .filter(temperature -> temperature != null)
+                .findFirst()
+                .map(temperature -> status + " · CPU " + Readings.format(temperature, "%.1f °C"))
+                .orElse(status);
     }
 }
