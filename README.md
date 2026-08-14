@@ -638,10 +638,14 @@ while asleep is what the battery life is made of.
 **And it prints the self-heating**: the die temperature is read again at the end
 of each wake, and the difference from the reading that was sent says how much the
 board warmed itself doing the work. That number is the instrument for the whole
-experiment. Waiting with `delay()` keeps the processor running, so today the chip
-never really cools between readings — the first reading after a power-on is the
-only genuinely cold one this design produces, and it is the one to trust when
-judging what the sensor is worth.
+experiment. The first measurement of it was **+2.87 °C across a 7.2 second wake**,
+which is the size of the error the measure-first ordering avoids.
+
+The waiting itself is cheaper than it first appears: this core's `delay()` calls
+the SDK's `sleep_ms()`, which halts the processor on a `WFE` until the timer
+alarm. The core idles rather than spins. What still runs is everything around it —
+the clocks, the PLLs, the peripherals — which is exactly what dormant mode would
+switch off and why the remaining step is the SDK-level one.
 
 ### ARM or RISC-V
 

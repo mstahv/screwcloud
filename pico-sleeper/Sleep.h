@@ -11,6 +11,12 @@
   RP2350 does — but it is milliamps, not microamps, and the difference matters if
   this is ever to run on a battery.
 
+  The waiting itself is cheaper than it looks: this core's delay() calls the SDK's
+  sleep_ms(), which halts the processor on a WFE until the timer alarm fires. The
+  core is idle rather than spinning. What still costs is everything around it —
+  the clocks, the PLLs and the peripherals keep running, and that is what dormant
+  mode would switch off.
+
   Why it is not more than that, written down so nobody has to rediscover it:
 
   - The Arduino core for this chip documents **no sleep API at all**. Its RP2040
@@ -37,7 +43,8 @@ public:
   /*
      Waits in short steps rather than one long one. Nothing needs servicing here
      today, but a watchdog would, and a step short enough to feed one costs
-     nothing to have from the start.
+     nothing to have from the start. Each step is a WFE halt, not a spin, so the
+     stepping costs a wake per second and nothing else.
   */
   static void until(unsigned long milliseconds) {
     const unsigned long STEP_MS = 1000;

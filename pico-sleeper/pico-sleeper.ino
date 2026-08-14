@@ -58,7 +58,19 @@ static uint8_t consecutiveFailures = 0;
    warming itself, which is precisely what this device is trying not to measure.
 */
 static float readDieTemperature() {
+  const uint8_t DISCARDED = 2;
   const uint8_t SAMPLES = 8;
+
+  /*
+     The first conversions after the ADC has been idle are the least trustworthy,
+     and this reading is taken at the one moment in the cycle when the ADC has
+     been idle for fifteen minutes. Two thrown away costs four milliseconds.
+  */
+  for (uint8_t i = 0; i < DISCARDED; i++) {
+    analogReadTemp();
+    delay(2);
+  }
+
   float sum = 0.0f;
   for (uint8_t i = 0; i < SAMPLES; i++) {
     sum += analogReadTemp();
@@ -146,6 +158,12 @@ void setup() {
                 DEVICE_ID, transport->name());
   Serial.printf("Reading every %lu s\n", SEND_INTERVAL_MS / 1000);
 
+  /*
+     Marked, because it is the one reading of the run that cannot be compared with
+     the others: uploading the firmware and a USB host on the other end of the
+     cable both warm the board, and neither happens before any later reading.
+  */
+  Serial.println("First reading follows the upload, so treat it with suspicion:");
   readAndSend();
 }
 
