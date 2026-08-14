@@ -80,6 +80,37 @@ class DeviceListViewTest {
     }
 
     /*
+       A page nobody has typed on yet has nothing to complain about. Asking for the
+       identifier is the required indicator's job; saying it is missing before the
+       reader has reached the field is the form telling them off for its own empty
+       state — and on this page that error was the first thing on a first visit.
+    */
+    @Test
+    void theFormDoesNotOpenComplaining(@Autowired BrowserlessUIContext ui) {
+        openFrontPage(ui);
+
+        var field = ui.findTextField().withPlaceholder("Device ID").component();
+        assertFalse(field.isInvalid(), "nothing has been typed, so nothing is wrong yet");
+        assertTrue(field.isRequiredIndicatorVisible(), "and this is what asks for it");
+    }
+
+    /*
+       Once they have filled it in, though, emptying it again is their change and
+       is reported — otherwise a disabled Add button is all they get.
+    */
+    @Test
+    void clearingTheIdentifierAgainIsReported(@Autowired BrowserlessUIContext ui) {
+        openFrontPage(ui);
+
+        ui.findTextField().withPlaceholder("Device ID").setValue("LAHT");
+        ui.findTextField().withPlaceholder("Device ID").setValue("");
+
+        var field = ui.findTextField().withPlaceholder("Device ID").component();
+        assertTrue(field.isInvalid(), "a value the reader removed is a mistake worth naming");
+        assertEquals("Give the device identifier", field.getErrorMessage());
+    }
+
+    /*
        The identifier is four characters in the protocol, and the same constraint
        that says so on every table says it here. The reader finds that out at the
        field rather than from a toast after pressing Add — which is also why Add is
