@@ -248,6 +248,11 @@ A device that overrides `INTERNAL_SENSOR_ID` gets an ordinary card again. The
 packet carries nothing that distinguishes the chip from a thermometer, so the
 identifier is all there is to go on.
 
+**Unless it is all the device has.** A board that measures nothing but its own die
+— see [pico-sleeper](#pico-sleeper) — gets an ordinary card for it, counts as one
+sensor rather than none, and does not have the same number repeated on the status
+line above it. Hiding it there would leave a status line and an empty page.
+
 **It is not a room thermometer.** The sensor sits on the same silicon as the CPU
 and the radio, so it reads well above the air around it — typically 10–20 °C
 above, more when the modem is transmitting — and it moves with the load rather

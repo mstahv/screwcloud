@@ -74,11 +74,12 @@ class SensorCardLayout extends FlexLayout {
 
         /*
            The device's own chip temperature is not a measuring point and does not
-           get a card. It is a diagnostic about the box, and DashboardView shows it
-           in the device's status line where the rest of the box's own state is.
+           get a card: it is a diagnostic about the box, and DashboardView shows it
+           on the status line where the rest of the box's own state is. Unless it
+           is all this device has, in which case it is what the page is about — see
+           DeviceMeasurement.measuringPoints().
         */
-        List<SensorMeasurement> sensors = device.sensors().stream()
-                .filter(sensor -> !sensor.isDeviceInternal())
+        List<SensorMeasurement> sensors = device.measuringPoints().stream()
                 .sorted(Comparator.comparing(SensorMeasurement::sensorId))
                 .toList();
 

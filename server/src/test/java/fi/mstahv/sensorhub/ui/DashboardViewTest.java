@@ -71,6 +71,24 @@ class DashboardViewTest {
                 "the chip temperature belongs with the sequence number, not on a card");
     }
 
+    /**
+     * The exception to all of the above: a board with nothing but its own chip is
+     * a device whose one reading is what it is for. It gets an ordinary card, and
+     * the status line does not repeat the number underneath it.
+     */
+    @Test
+    void aDeviceThatOnlyMeasuresItselfGetsACardForIt(@Autowired BrowserlessUIContext ui) {
+        measurements.store(new DeviceMeasurement("SLP1", 1, Instant.now(), List.of(
+                new SensorMeasurement(SensorMeasurement.INTERNAL_SENSOR_ID, 18.6, null))));
+
+        ui.navigate(DashboardView.class, "SLP1");
+
+        assertEquals(List.of("CPU"), sensorCardTitles(ui),
+                "hiding it would leave a status line and an empty page");
+        assertFalse(ui.findSpan().withTextContaining("· CPU").exists(),
+                "the same number twice on one screen reads as two readings that agree");
+    }
+
     /* And a device that does not report one leaves the line as it was. */
     @Test
     void aDeviceWithoutAChipReadingSaysNothingAboutIt(@Autowired BrowserlessUIContext ui) {

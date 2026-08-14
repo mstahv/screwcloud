@@ -182,6 +182,14 @@ public class DashboardView extends VerticalLayout
     private static String statusOf(DeviceMeasurement device) {
         String status = "Updated %s · sequence %d"
                 .formatted(Ages.format(device.receivedAt()), device.sequence());
+        /*
+           Not when the chip is the only thing this device measures: it has a card
+           of its own then, and the same number in two places on one screen reads
+           as two readings that happen to agree.
+        */
+        if (device.measuresOnlyItself()) {
+            return status;
+        }
         return device.sensors().stream()
                 .filter(SensorMeasurement::isDeviceInternal)
                 .map(SensorMeasurement::temperature)

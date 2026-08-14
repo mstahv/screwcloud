@@ -1,7 +1,9 @@
 package fi.mstahv.sensorhub.ui;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.time.Instant;
@@ -60,6 +62,32 @@ class SensorCardLayoutTest {
     @BeforeEach
     void setUp() {
         layout = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
+    }
+
+    /**
+     * A board that measures nothing but its own die gets a card for it. Everywhere
+     * else the chip is a diagnostic and is left off the cards, but a device with
+     * only that has nothing else to show.
+     */
+    @Test
+    void aDeviceThatOnlyMeasuresItselfGetsACard() {
+        layout.show(new DeviceMeasurement("SLP1", 1, Instant.now(), List.of(
+                new SensorMeasurement("CPU", 18.6, null))));
+
+        assertEquals(1, layout.cardCount());
+        assertNotNull(layout.cardFor("CPU"));
+    }
+
+    /** With anything else to show, the chip goes back to being a diagnostic. */
+    @Test
+    void theChipLosesItsCardAsSoonAsThereIsARealSensor() {
+        layout.show(new DeviceMeasurement("SLP1", 1, Instant.now(), List.of(
+                new SensorMeasurement("CPU", 18.6, null),
+                new SensorMeasurement("REBF", 4.0, 80.0))));
+
+        assertEquals(1, layout.cardCount());
+        assertNull(layout.cardFor("CPU"));
+        assertNotNull(layout.cardFor("REBF"));
     }
 
     @Test

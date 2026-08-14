@@ -87,12 +87,7 @@ class DeviceLinkCard extends Card {
      * die is still a device worth listing, and "0 sensors" would read as broken.
      */
     static String sensorCount(DeviceMeasurement measurement) {
-        long count = measurement.sensors().stream()
-                .filter(sensor -> !sensor.isDeviceInternal())
-                .count();
-        if (count == 0) {
-            count = measurement.sensors().size();
-        }
+        int count = measurement.measuringPoints().size();
         return count == 1 ? "1 sensor" : count + " sensors";
     }
 
