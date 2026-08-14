@@ -58,6 +58,16 @@ public:
 #include <WiFiUdp.h>
 
 /*
+   How long the radio stays on after the packet has been handed over.
+
+   Here rather than in config.h because it is not a property of anyone's network:
+   it is how long a network stack needs to get a queued datagram out of the door.
+   config.h is also gitignored, so a constant added there would fail to compile
+   for everyone who already has one.
+*/
+static const unsigned long WIFI_LINGER_MS = 300;
+
+/*
    WiFi and UDP, the same as the other readers in this repository: no reply to
    wait for, and a packet lost on the way is replaced by the next one.
 
@@ -86,8 +96,20 @@ public:
   }
 
   bool send(const uint8_t *data, uint8_t length) override {
-    if (udp.beginPacket(SERVER_HOST, SERVER_PORT) != 1) {
-      failure = "no host";
+    /*
+       Resolved explicitly rather than letting beginPacket do it, for two
+       reasons: a name that will not resolve is a different failure from a packet
+       that will not send, and the address is worth printing when a packet has
+       gone missing.
+    */
+    IPAddress server;
+    if (!WiFi.hostByName(SERVER_HOST, server)) {
+      failure = "no DNS";
+      return false;
+    }
+
+    if (udp.beginPacket(server, SERVER_PORT) != 1) {
+      failure = "no socket";
       return false;
     }
     udp.write(data, length);
@@ -95,6 +117,22 @@ public:
       failure = "send failed";
       return false;
     }
+
+    /*
+       endPacket() means the datagram was handed to the network stack, not that
+       it has left the antenna. A first packet on a fresh connection usually
+       waits for an ARP reply before it can go anywhere, and powering the radio
+       down a millisecond later kills it in the queue — which is exactly what a
+       "sent" in the log with nothing at the server looks like.
+
+       There is no acknowledgement to wait for in UDP, so waiting a moment is
+       the honest remedy. It costs a fraction of the seconds the connection
+       itself took.
+    */
+    delay(WIFI_LINGER_MS);
+
+    Serial.printf("Sent %u bytes to %s (%s):%u\n",
+                  length, SERVER_HOST, server.toString().c_str(), (unsigned)SERVER_PORT);
     failure = "";
     return true;
   }

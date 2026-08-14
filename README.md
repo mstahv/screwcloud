@@ -600,6 +600,19 @@ It sends one sensor called `CPU`, so the server shows it on the device's status
 line rather than as a measuring point — and counts it as one sensor rather than
 none, because on this device it is all there is.
 
+### A packet that was "sent" and never arrived
+
+`endPacket()` returning success means the datagram was handed to the network
+stack, not that it has left the antenna. A first packet on a fresh connection
+usually waits for an ARP reply before it can go anywhere — and this device
+powers the radio down immediately afterwards, which throws the packet away
+while it is still in the queue.
+
+That is what "sent" in the serial log with nothing at the server looks like, and
+it is why the radio now stays on for `WIFI_LINGER_MS` after the hand-over. UDP
+offers no acknowledgement to wait for, so waiting a moment is the honest remedy;
+it costs a fraction of the seconds the connection itself took.
+
 ### Sleep, honestly
 
 `Sleep::until()` switches the radio off and waits. On this board that is most of
@@ -621,6 +634,14 @@ The sketch prints how long each wake took, because that is the number that
 decides whether going further is worth it. A wake of a few seconds every fifteen
 minutes is a duty cycle under one percent, and at that point the current drawn
 while asleep is what the battery life is made of.
+
+**And it prints the self-heating**: the die temperature is read again at the end
+of each wake, and the difference from the reading that was sent says how much the
+board warmed itself doing the work. That number is the instrument for the whole
+experiment. Waiting with `delay()` keeps the processor running, so today the chip
+never really cools between readings — the first reading after a power-on is the
+only genuinely cold one this design produces, and it is the one to trust when
+judging what the sensor is worth.
 
 ### ARM or RISC-V
 

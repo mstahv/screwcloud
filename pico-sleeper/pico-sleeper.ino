@@ -112,12 +112,21 @@ static unsigned long readAndSend() {
     consecutiveFailures++;
   }
 
+  /*
+     The same sensor again, now that the work is done and the radio has been on.
+     Not sent anywhere — it is the instrument for the question this device exists
+     to ask. The difference between the two is how much the board heated itself
+     during the wake, and if that number is large then the reading which is sent
+     is only as good as the cooling that precedes it.
+  */
+  float afterwards = readDieTemperature();
+
   unsigned long awake = millis() - start;
-  Serial.printf("%2.2f C, %s%s, sequence %u, awake %lu ms\n",
+  Serial.printf("%2.2f C, %s%s, sequence %u, awake %lu ms, self-heating %+.2f C\n",
                 (double)celsius,
                 sent ? "sent" : "FAILED: ",
                 sent ? "" : transport->lastFailure(),
-                sequence, awake);
+                sequence, awake, (double)(afterwards - celsius));
   if (!sent && consecutiveFailures > 1) {
     Serial.printf("  %u failures in a row\n", consecutiveFailures);
   }
