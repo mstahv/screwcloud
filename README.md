@@ -721,6 +721,42 @@ Three places where UDP differs from TCP and which are easy to get wrong:
 
 Source: SIM7028 Series TCPIP Application Note V1.04, sections 2.1.1–2.1.4.
 
+##### When a send fails
+
+The thing that makes `CIPSEND` convenient for binary data is also what makes a
+failure dangerous: it takes the length up front and then swallows **exactly that
+many bytes, whatever they are**. Miss the `>` prompt — one slow answer during a
+network hiccup is enough — and the module is left counting, so the next cycle's
+`AT+CIPSEND=...` is fed to it as a payload. It sends that text to the server,
+which logs an unknown protocol version 65: the letter `A`. Nothing recovers on its
+own, because every attempt feeds the mouth it is trying to talk to.
+
+So every failure is followed by a resynchronisation. First politely — a plain `AT`
+is answered only in command mode — and if that fails, the module is given exactly
+the bytes it is still owed, which completes the send it was waiting for. Zeroes,
+because the server recognises the version byte and drops the packet with one line
+in its log; a second copy of a real measurement would be worse.
+
+Beyond that the remedies escalate with the number of consecutive failures, one
+every `SEND_INTERVAL_MS`:
+
+| Failures | What happens |
+|---|---|
+| every one | resynchronise the command channel |
+| 2 | `AT+CIPCLOSE` and `AT+NETCLOSE`; the next send reopens both |
+| 4 | `AT+CRESET`, then the whole `begin()` sequence again |
+| 6 | the Pico reboots itself |
+
+The reboot is the last resort, and only for a device that has sent successfully
+before: one that never has is missing an antenna, a SIM or an APN, and restarting
+it every half hour would turn a fixable mistake into a boot loop that hides the log
+explaining it.
+
+The bottom row of the display says which step of the way it failed — `NO MODEM`,
+`NO NET`, `NO LINK`, `NO PROMPT`, `NO ACK`, or on WiFi `NO WIFI`, `NO HOST`,
+`NO SEND` — because "FAIL!" on its own says that something is wrong but not
+whether to check the antenna, the SIM, the coverage or the server.
+
 ##### Wiring
 
 The board has two separate headers, and it matters which pin comes from which.

@@ -30,6 +30,16 @@ public:
   virtual bool send(const uint8_t *data, uint8_t length) = 0;
 
   virtual const char *name() const = 0;
+
+  /*
+     Why the last send failed, in the few characters the OLED's bottom row has
+     left. "FAIL!" alone tells a reader that something is wrong but not whether
+     to check the antenna, the SIM, the coverage or the server — and those are
+     the four different afternoons that follow.
+  */
+  virtual const char *lastFailure() const {
+    return "";
+  }
 };
 
 #ifdef USE_WIFI
@@ -47,21 +57,34 @@ public:
 
   bool send(const uint8_t *data, uint8_t length) override {
     if (WiFi.status() != WL_CONNECTED && !begin()) {
+      failure = "NO WIFI";
       return false;
     }
     if (udp.beginPacket(SERVER_HOST, SERVER_PORT) != 1) {
+      // Almost always the server name not resolving.
+      failure = "NO HOST";
       return false;
     }
     udp.write(data, length);
-    return udp.endPacket() == 1;
+    if (udp.endPacket() != 1) {
+      failure = "NO SEND";
+      return false;
+    }
+    failure = "";
+    return true;
   }
 
   const char *name() const override {
     return "WiFi";
   }
 
+  const char *lastFailure() const override {
+    return failure;
+  }
+
 private:
   WiFiUDP udp;
+  const char *failure = "";
 
   bool waitForConnection() {
     unsigned long start = millis();
@@ -85,6 +108,23 @@ private:
 */
 static const uint8_t NBIOT_TX_PIN = 0;
 static const uint8_t NBIOT_RX_PIN = 1;
+
+/*
+   The recovery ladder for a link that has stopped working, counted in
+   consecutive failed sends — one every SEND_INTERVAL_MS.
+
+   Here rather than in config.h because this is not a property of anyone's
+   installation: it is what to do when the module stops answering, and the same
+   answer suits every device. config.h is also gitignored, so a constant added
+   there would fail to compile for everyone who already has one.
+
+   After every failure the module is resynchronised. These two are the steps
+   beyond that: reopen the socket and the PDP context, and finally restart the
+   module, which costs a minute of re-registration and is why it is not tried
+   first.
+*/
+static const uint8_t NBIOT_REOPEN_AFTER_FAILURES = 2;
+static const uint8_t NBIOT_RESET_AFTER_FAILURES = 4;
 
 /*
    SIM7028:n ohjaus SIMComin socket-AT-komennoilla:
@@ -190,10 +230,10 @@ public:
     char cmd[96];
 
     if (!initialised && !begin()) {
-      return false;
+      return fail("NO MODEM");
     }
     if (!ensureRegistered()) {
-      return false;
+      return fail("NO NET");
     }
 
     if (!socketOpen) {
@@ -212,7 +252,7 @@ public:
         // The module may consider the socket open even when we do not — close it
         // to be safe so the next attempt starts from a clean slate.
         command("AT+CIPCLOSE=0", "OK", 10000);
-        return false;
+        return fail("NO LINK");
       }
       socketOpen = true;
     }
@@ -226,19 +266,29 @@ public:
 #endif
     Serial1.print(cmd);
     Serial1.print("\r\n");
+
+    /*
+       From here until the module acknowledges, it may be counting out the bytes
+       it was promised. Remembered so that a failure can be undone rather than
+       left for the next send to walk into.
+    */
+    outstanding = length;
+
     if (!waitFor(">", 5000)) {
       Serial.println("SIM7028: CIPSEND gave no prompt");
-      socketOpen = false;
-      return false;
+      return fail("NO PROMPT");
     }
 
     Serial1.write(data, length);
     resetBuffer();
     if (!waitFor("OK", 20000)) {
       Serial.println("SIM7028: send was not acknowledged");
-      socketOpen = false;
-      return false;
+      return fail("NO ACK");
     }
+
+    outstanding = 0;
+    consecutiveFailures = 0;
+    failure = "";
     return true;
   }
 
@@ -246,10 +296,99 @@ public:
     return "SIM7028 NB-IoT";
   }
 
+  const char *lastFailure() const override {
+    return failure;
+  }
+
 private:
   bool uartOpen = false;
   bool initialised = false;
   bool socketOpen = false;
+
+  const char *failure = "";
+  uint8_t consecutiveFailures = 0;
+
+  /*
+     How many payload bytes the module may still be waiting for. Zero when the
+     command channel is known to be clear.
+  */
+  uint8_t outstanding = 0;
+
+  /**
+     Records why this send failed and puts the module back into a state the next
+     one can start from.
+
+     This is the fix for a failure that used to be permanent. AT+CIPSEND takes
+     the length up front and then swallows exactly that many bytes, whatever they
+     are. If the prompt is missed — one slow answer during a network hiccup is
+     enough — the module is left counting, and the next cycle's "AT+CIPSEND=..."
+     is fed to it as the payload. It duly sends that text to the server, which
+     reports an unknown protocol version 65: the letter A. Nothing ever recovers,
+     because every attempt feeds the mouth it is trying to talk to.
+  */
+  bool fail(const char *reason) {
+    failure = reason;
+    socketOpen = false;
+    consecutiveFailures++;
+
+    resynchronise();
+
+    /*
+       Escalating, because the cheap remedies work for the common causes and the
+       expensive ones are worth reaching for only when they do not. A socket that
+       is merely stale is fixed by reopening; a module that has lost its way needs
+       to be restarted, which costs a minute of registration.
+    */
+    if (consecutiveFailures >= NBIOT_RESET_AFTER_FAILURES) {
+      Serial.printf("SIM7028: %u failures in a row, resetting the module\n",
+                    consecutiveFailures);
+      command("AT+CRESET", "OK", 10000);
+      initialised = false;
+      consecutiveFailures = 0;
+    } else if (consecutiveFailures >= NBIOT_REOPEN_AFTER_FAILURES) {
+      command("AT+CIPCLOSE=0", "OK", 10000);
+      command("AT+NETCLOSE", "OK", 20000);
+    }
+    return false;
+  }
+
+  /*
+     Gets the module talking again, whatever it was doing.
+
+     First politely: if it answers AT with OK it is in command mode and there is
+     nothing to undo. If it does not, it is almost certainly still counting out a
+     payload — so it is given exactly the bytes it is owed, which completes that
+     send and returns it to command mode. Zeroes, because the server recognises
+     the version byte and drops the packet with one line in its log; a second
+     copy of a real measurement would be worse.
+  */
+  void resynchronise() {
+    if (commandModeRestored()) {
+      outstanding = 0;
+      return;
+    }
+    if (outstanding > 0) {
+      Serial.printf("SIM7028: feeding %u byte(s) the module was still owed\n",
+                    outstanding);
+      for (uint8_t i = 0; i < outstanding; i++) {
+        Serial1.write((uint8_t)0);
+      }
+      outstanding = 0;
+      resetBuffer();
+      waitFor("OK", 10000);
+      commandModeRestored();
+    }
+  }
+
+  /** Whether the module answers a plain AT, which only command mode does. */
+  bool commandModeRestored() {
+    for (uint8_t attempt = 0; attempt < 3; attempt++) {
+      if (command("AT", "OK", 1000)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /** Idempotent so that probe() and begin() can both call it. */
   void openUart() {

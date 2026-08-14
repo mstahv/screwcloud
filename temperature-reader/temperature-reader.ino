@@ -154,6 +154,19 @@ static const uint8_t MAX_RUUVI_TAGS = 8;
 // A RuuviTag broadcasts every ~1285 ms, so anything older than this is suspect.
 static const unsigned long RUUVI_STALE_MS = 60000;
 
+/*
+   How many sends in a row may fail before the device restarts itself. Six at
+   five minutes apart is half an hour, which is long enough that a passing
+   network problem has had every chance to pass and short enough that nobody
+   watches a dead link all evening.
+
+   This is the last resort, below the transport's own recovery. It exists because
+   the state that stops a link working is not always reachable from here: a modem
+   whose firmware has wedged answers AT and refuses to send, and only a power
+   cycle convinces it.
+*/
+static const uint8_t REBOOT_AFTER_FAILURES = 6;
+
 // Ruuvi fields are big endian.
 static int16_t readInt16(const uint8_t *p) {
   return (int16_t)((p[0] << 8) | p[1]);
@@ -482,11 +495,32 @@ struct LinkState {
   unsigned long lastSuccessAt = 0;
   bool everSucceeded = false;
 
-  void recordResult(bool ok) {
+  /*
+     Why the last send failed, from the transport. "FAIL!" on its own says that
+     something is wrong but not whether to check the antenna, the SIM, the
+     coverage or the server — and those are four different afternoons.
+  */
+  const char *reason = "";
+
+  /*
+     Consecutive failures. The transport heals what it can on its own; this is
+     the count that decides when the whole device has been unwell long enough to
+     be worth restarting.
+  */
+  uint8_t failures = 0;
+
+  void recordResult(bool ok, const char *failureReason) {
     status = ok ? LinkStatus::Ok : LinkStatus::Failed;
     if (ok) {
       lastSuccessAt = millis();
       everSucceeded = true;
+      failures = 0;
+      reason = "";
+    } else {
+      if (failures < 255) {
+        failures++;
+      }
+      reason = failureReason != nullptr ? failureReason : "";
     }
   }
 };
@@ -738,21 +772,32 @@ private:
     oled.print(shown);
   }
 
+  /** The transport's own words, or a plain FAIL! if it offered none. */
+  static const char *failureText(const LinkState &link) {
+    return link.reason != nullptr && link.reason[0] != '\0' ? link.reason : "FAIL!";
+  }
+
   /*
-     Link status on the bottom row. On failure it shows the time since the last
-     successful send, which says more than the time of the failed attempt.
+     Link status on the bottom row. On failure it shows why and the time since
+     the last successful send, which says more than the time of the failed
+     attempt.
   */
   void printStatus(const LinkState &link) {
-    char text[24];
+    char text[32];
     switch (link.status) {
       case LinkStatus::Ok:
         snprintf(text, sizeof(text), "Sent ok, %s", elapsed(link.lastSuccessAt));
         break;
       case LinkStatus::Failed:
+        /*
+           The reason first, because it is what decides what to do about it, and
+           the age second. 21 characters fit on this row in the small font, which
+           is why the reasons the transports report are as short as they are.
+        */
         if (link.everSucceeded) {
-          snprintf(text, sizeof(text), "FAIL! last ok %s", elapsed(link.lastSuccessAt));
+          snprintf(text, sizeof(text), "%s %s", failureText(link), elapsed(link.lastSuccessAt));
         } else {
-          snprintf(text, sizeof(text), "FAIL! no connection");
+          snprintf(text, sizeof(text), "%s, never sent", failureText(link));
         }
         break;
       default:
@@ -863,15 +908,45 @@ static void reportMeasurements() {
   }
 
   bool sent = transport->send(packet.data(), packet.size());
-  linkState.recordResult(sent);
+  linkState.recordResult(sent, transport->lastFailure());
   statusLed.setStatus(linkState.status);
 
-  Serial.printf("Send %s: %u sensors, %u bytes, sequence %u\n",
-                sent ? "ok" : "FAILED",
-                packet.sensorCount(), packet.size(), sequence);
+  if (sent) {
+    Serial.printf("Send ok: %u sensors, %u bytes, sequence %u\n",
+                  packet.sensorCount(), packet.size(), sequence);
+  } else {
+    Serial.printf("Send FAILED (%s), %u in a row: %u sensors, %u bytes, sequence %u\n",
+                  linkState.reason, linkState.failures,
+                  packet.sensorCount(), packet.size(), sequence);
+  }
 
   // Update the display immediately so the status is not one cycle behind.
   display.render(dhtSensor, ruuviTags, linkState);
+
+  rebootIfHopeless();
+}
+
+/*
+   The last resort, when the transport's own recovery has not helped for half an
+   hour. Everything this device knows is either in the tags themselves or on the
+   server, so a restart costs a few minutes of readings and nothing else — and it
+   clears any state that is stuck somewhere this code cannot reach, in the modem's
+   firmware or in the network stack.
+
+   Only for a device that had been working. One that has never sent anything is
+   missing an antenna, a SIM or an APN, and restarting it every half hour would
+   turn a fixable mistake into a boot loop that hides the log explaining it.
+*/
+static void rebootIfHopeless() {
+  if (!linkState.everSucceeded || linkState.failures < REBOOT_AFTER_FAILURES) {
+    return;
+  }
+  Serial.printf("Link has been down for %u sends (%s). Restarting.\n",
+                linkState.failures, linkState.reason);
+  Serial.flush();
+  delay(200);
+  // reboot(), not restart(): the arduino-pico core documents only this one.
+  rp2040.reboot();
 }
 
 void setup() {
@@ -903,7 +978,7 @@ void setup() {
     Serial.println("Transport init failed, will retry when sending");
     // Flag the failure right away so a wrong WiFi password shows up on the LED
     // and the display instead of only after the first send attempt.
-    linkState.recordResult(false);
+    linkState.recordResult(false, transport->lastFailure());
     statusLed.setStatus(linkState.status);
   }
 }
