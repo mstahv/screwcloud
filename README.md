@@ -640,6 +640,15 @@ into a POWMAN scratch register to survive the restart, and it takes the serial
 connection with it — which is the instrument this experiment is being run with, so
 it is a step to take once the questions about the temperature have been answered.
 
+**One thing to know before the first build.** arduino-pico 6.0.0 ships the
+compiled `pico_low_power` library, but its linker script does not define the two
+symbols that library expects around a persistent data section — that section is
+created by an SDK CMake function, and an Arduino build has no CMake. The link
+fails with `undefined reference to __persistent_data_start__`. `Sleep.h` defines
+them itself, one byte and an alias to it, which is the "no persistent data" case
+the library already handles; the reasoning is written out there. Setting
+`SLEEP_USE_SDK_LOW_POWER` to 0 backs out of the whole thing.
+
 **One caveat before anyone plans a battery.** Those numbers are for a Pico 2, not
 a Pico 2 **W**. The CYW43 radio is powered separately and does not appear in them
 at all. On this board it may well be the largest consumer between readings, and if

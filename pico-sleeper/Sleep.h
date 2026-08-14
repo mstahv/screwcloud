@@ -59,6 +59,35 @@
 
 #if SLEEP_USE_SDK_LOW_POWER
 #include <pico/low_power.h>
+
+/*
+   The core ships the compiled pico_low_power library, but its linker script does
+   not define the two symbols that library expects around a persistent data
+   section. That section is created by an SDK CMake function, and an Arduino build
+   has no CMake — a gap between SDK 2.3.0 and the Arduino packaging rather than
+   anything that can be installed. Linking fails with:
+
+     undefined reference to `__persistent_data_start__'
+     undefined reference to `__persistent_data_end__'
+
+   Both places the library uses them are safe when the two are the same address.
+   low_power_persistent_pstate_get compares them and returns early — "no
+   persistent data, so power down everything" — and reset_persistent_data does a
+   memset of end minus start, which is then zero bytes at a valid address. So they
+   are defined here as one byte and an alias to it.
+
+   This device has nothing to preserve anyway: it does not use Pstate, which is
+   the only mode that restarts the program and therefore the only one that needs
+   data to survive.
+
+   If this stops being needed — the core gains the symbols — the definitions
+   become a duplicate and the link will say so plainly. Set
+   SLEEP_USE_SDK_LOW_POWER to 0 to leave the whole thing alone.
+*/
+extern "C" {
+unsigned char __persistent_data_start__[1] = {0};
+unsigned char __persistent_data_end__[1] __attribute__((alias("__persistent_data_start__")));
+}
 #endif
 
 class Sleep {
