@@ -11,6 +11,11 @@ pico-sleeper/build/
 
 .DS_Store
 
+# A repository of its own, so that it can be published on its own. Ignored here
+# rather than tracked as a submodule: nothing in this project builds against it
+# yet, and a gitlink pointing at unpublished commits helps nobody.
+lr1121-java/
+
 # IDE
 .idea/
 
