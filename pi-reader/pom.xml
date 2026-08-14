@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.vaadin.example</groupId>
+    <artifactId>pi-reader</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <name>ScrewCloud Pi reader</name>
+    <description>Reads RuuviTags over BLE on a Raspberry Pi, shows them locally and forwards them to ScrewCloud</description>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
+        <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+        <quarkus.platform.version>3.36.1</quarkus.platform.version>
+
+        <vaadin.version>25.2.5</vaadin.version>
+        <viritin.version>3.7.0</viritin.version>
+
+        <!--
+           bluez-dbus talks to BlueZ over the system D-Bus, which needs the native
+           unix socket transport at runtime. The transport is a separate artifact
+           and is not pulled in automatically.
+        -->
+        <bluez-dbus.version>0.3.2</bluez-dbus.version>
+        <dbus-java.version>5.1.1</dbus-java.version>
+
+        <compiler-plugin.version>3.13.0</compiler-plugin.version>
+        <surefire-plugin.version>3.5.2</surefire-plugin.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>${quarkus.platform.artifact-id}</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.vaadin</groupId>
+                <artifactId>vaadin-bom</artifactId>
+                <version>${vaadin.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.vaadin</groupId>
+            <artifactId>vaadin-quarkus-extension</artifactId>
+            <version>${vaadin.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>in.virit</groupId>
+            <artifactId>viritin</artifactId>
+            <version>${viritin.version}</version>
+        </dependency>
+        <!-- The same theme the server uses, so the two look like one system. -->
+        <dependency>
+            <groupId>com.vaadin</groupId>
+            <artifactId>vaadin-aura-theme</artifactId>
+        </dependency>
+        <!-- The same gauge and sparkline the server's sensor cards are built from. -->
+        <dependency>
+            <groupId>in.virit</groupId>
+            <artifactId>svg-visualizations</artifactId>
+            <version>1.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>in.virit</groupId>
+            <artifactId>gauge</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-scheduler</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+        <!--
+           Vaadin expects the Bean Validation API on the classpath and fails to
+           start without it, whether or not this application validates anything.
+        -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-hibernate-validator</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.hypfvieh</groupId>
+            <artifactId>bluez-dbus</artifactId>
+            <version>${bluez-dbus.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.hypfvieh</groupId>
+            <artifactId>dbus-java-transport-native-unixsocket</artifactId>
+            <version>${dbus-java.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+           Drives the view the way a reader does, with no browser and no frontend
+           build. The plain flavour rather than the Spring one: this application's
+           beans are handed to the view by the test itself.
+        -->
+        <dependency>
+            <groupId>com.vaadin</groupId>
+            <artifactId>browserless-test-junit6</artifactId>
+            <version>1.1.1</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>generate-code</goal>
+                            <goal>generate-code-tests</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
+                <configuration>
+                    <!-- Vaadin resolves route parameters by name. -->
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire-plugin.version}</version>
+                <configuration>
+                    <!--
+                        Surefire runs with Java assertions enabled (-ea); at runtime
+                        they are off.
+
+                        Vaadin's BasicElementStateProvider.setAttribute asserts
+                        "attribute.equals(attribute.toLowerCase())", which assumes
+                        HTML's lower-case attribute names. SVG requires camelCase
+                        instead: SvgSparkLine sets viewBox and preserveAspectRatio,
+                        so any test that creates one fails with an AssertionError.
+
+                        The server module carries the same setting for the same
+                        reason. It does not affect how the application behaves.
+                    -->
+                    <enableAssertions>false</enableAssertions>
+                    <systemPropertyVariables>
+                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

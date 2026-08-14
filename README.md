@@ -7,14 +7,16 @@
 A screw driven into a cloud: self-hosted temperature monitoring where the
 readings go to your own server rather than into somebody else's cloud.
 
-There are two firmware variants, both speaking the same protocol to the same
-server:
+There are three readers, all speaking the same protocol to the same server:
 
 - **`temperature-reader`** for the Raspberry Pi Pico 2 W — the full version:
   RuuviTags over BLE, an optional wired DHT22, an optional OLED, and WiFi or
   NB-IoT for connectivity.
 - **`esp32-s3-reader`** for the ESP32-S3 — minimal: RuuviTags and WiFi, nothing
   else.
+- **`pi-reader`** for a Raspberry Pi that is already there doing something else —
+  the same job in Java, with a page of its own on the local network that keeps
+  showing the temperature when the internet does not.
 
 The server is a Spring Boot + Vaadin application that stores the measurements and
 shows them in a browser.
@@ -120,11 +122,15 @@ the choice and avoid both.
 |---|---|
 | `temperature-reader/` | Full firmware for the Raspberry Pi Pico 2 W: RuuviTags, DHT22, OLED, WiFi or NB-IoT |
 | `esp32-s3-reader/` | Minimal firmware for the ESP32-S3: RuuviTags and WiFi only |
+| [`pi-reader/`](pi-reader/) | The same reader in Java on a Raspberry Pi: Quarkus, Vaadin, BlueZ — plus a local page for when the server is unreachable |
 | `server/` | Spring Boot + Vaadin: receives the UDP packets and shows the latest readings |
 | `tools/` | `generate-vapid-keys.java`, which generates a key pair for web push |
 
-Both firmwares speak the same protocol to the same server, so a single server
-can collect from a mix of Pico and ESP32 devices.
+All three readers speak the same protocol to the same server, so one server can
+collect from a mix of Pico, ESP32 and Pi devices. Keeping three implementations of
+one wire format honest is what `ProtocolSyncTest` is for — there is one in the
+server, comparing the two sketches against each other, and one in `pi-reader`,
+comparing its constants against the firmware header.
 
 ## Hardware
 
