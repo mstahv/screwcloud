@@ -1,0 +1,63 @@
+/*
+  Copy this to config.h and edit that. config.h is gitignored because it holds
+  the WiFi password.
+
+    cp config.h.example config.h
+*/
+#pragma once
+
+// ---------------------------------------------------------------------------
+// This device
+// ---------------------------------------------------------------------------
+
+/*
+   Exactly 4 ASCII characters, unique among your devices. It is what the server
+   files the readings under, so changing it starts a new device rather than
+   renaming this one.
+*/
+#define DEVICE_ID "SLP1"
+
+/*
+   What the one sensor is called. "CPU" is what the other readers use for the
+   same thing, and the server knows that identifier: it shows a sensor called CPU
+   on the device's status line rather than as a measuring point of its own.
+
+   On this device that is the only reading there is, so the server counts it as
+   one sensor rather than as none.
+*/
+#define INTERNAL_SENSOR_ID "CPU"
+
+// ---------------------------------------------------------------------------
+// Where the readings go
+// ---------------------------------------------------------------------------
+
+static const char SERVER_HOST[] = "r.pakast.in";
+static const uint16_t SERVER_PORT = 5555;
+
+// ---------------------------------------------------------------------------
+// WiFi
+// ---------------------------------------------------------------------------
+
+static const char WIFI_SSID[] = "your-network";
+static const char WIFI_PASSWORD[] = "your-password";
+
+/*
+   How long to wait for an address before giving up and going back to sleep.
+   Waiting longer costs the battery directly: this is the part of a wake that
+   dominates all the rest of it.
+*/
+static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
+
+// ---------------------------------------------------------------------------
+// How often
+// ---------------------------------------------------------------------------
+
+/*
+   A quarter of an hour. Long enough that the chip cools between readings, which
+   is what makes the die temperature resemble the room; short enough that the
+   server's "this device has gone quiet" alert has something to measure against.
+
+   The server learns the pace a device keeps, so this can be changed freely — it
+   will simply learn the new one.
+*/
+static const unsigned long SEND_INTERVAL_MS = 15UL * 60UL * 1000UL;

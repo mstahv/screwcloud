@@ -17,6 +17,10 @@ There are three readers, all speaking the same protocol to the same server:
 - **`pi-reader`** for a Raspberry Pi that is already there doing something else —
   the same job in Java, with a page of its own on the local network that keeps
   showing the temperature when the internet does not.
+- **`pico-sleeper`** — an experiment: a bare Pico 2 W reporting nothing but its
+  own die temperature, asleep between readings. If the chip is cold enough to
+  stand in for the room, the cheapest sensor in this repository has nothing wired
+  to it at all.
 
 The server is a Spring Boot + Vaadin application that stores the measurements and
 shows them in a browser.
@@ -123,11 +127,12 @@ the choice and avoid both.
 | `temperature-reader/` | Full firmware for the Raspberry Pi Pico 2 W: RuuviTags, DHT22, OLED, WiFi or NB-IoT |
 | `esp32-s3-reader/` | Minimal firmware for the ESP32-S3: RuuviTags and WiFi only |
 | [`pi-reader/`](pi-reader/) | The same reader in Java on a Raspberry Pi: Quarkus, Vaadin, BlueZ — plus a local page for when the server is unreachable |
+| `pico-sleeper/` | An experiment: a bare Pico 2 W sending only its own die temperature, asleep in between |
 | `server/` | Spring Boot + Vaadin: receives the UDP packets and shows the latest readings |
 | `tools/` | `generate-vapid-keys.java`, which generates a key pair for web push |
 
-All three readers speak the same protocol to the same server, so one server can
-collect from a mix of Pico, ESP32 and Pi devices. Keeping three implementations of
+All of them speak the same protocol to the same server, so one server can collect
+from a mix of Pico, ESP32 and Pi devices. Keeping three implementations of
 one wire format honest is what `ProtocolSyncTest` is for — there is one in the
 server, comparing the two sketches against each other, and one in `pi-reader`,
 comparing its constants against the firmware header.
@@ -566,6 +571,71 @@ yield to the WiFi and BLE tasks.
 **Neither firmware has been compiled in this environment** — no Arduino
 toolchain here. The shared protocol code has been verified natively; the
 board-specific plumbing has not.
+
+## pico-sleeper
+
+An experiment with one question behind it: **is the RP2350's own die temperature
+close enough to the air around it to be worth reading?** If it is, the cheapest
+sensor here is a bare Pico 2 W with nothing wired to it.
+
+The cycle, every fifteen minutes and once at boot:
+
+```
+wake -> measure -> radio on -> send -> radio off -> sleep
+```
+
+**The order is the experiment.** The die is coldest the moment it wakes, and
+everything after the measurement heats it — connecting to WiFi takes seconds and
+is by far the largest part of a wake. Measuring first is what makes the reading
+about the room rather than about the work. Reading it after sending would produce
+a number that says how hard the board has just been working, which is what the
+chip temperature normally tells you and exactly what is not wanted here.
+
+It sends one sensor called `CPU`, so the server shows it on the device's status
+line rather than as a measuring point — and counts it as one sensor rather than
+none, because on this device it is all there is.
+
+### Sleep, honestly
+
+`Sleep::until()` switches the radio off and waits. On this board that is most of
+the saving, because the CYW43 draws more idle than the RP2350 does. It is
+milliamps, not microamps, and the reasons it is not more than that are worth
+knowing before anyone plans a battery around it:
+
+- The Arduino core for this chip **documents no sleep API at all** — its helper
+  class offers the clock frequency, the watchdog and the reset reason.
+- The Pico SDK's `pico_sleep` (dormant, wake on an alarm) is in **pico-extras**,
+  which the Arduino core does not bundle.
+- The RP2350 has a power manager with an always-on timer that can wake it from a
+  genuinely low power state. That is the right answer, and it is SDK-level work
+  worth verifying against the installed core rather than guessing at.
+- The RP2040's RTC **does not exist on the RP2350**, so half of what is written
+  about sleeping on a Pico does not apply to this board.
+
+The sketch prints how long each wake took, because that is the number that
+decides whether going further is worth it. A wake of a few seconds every fifteen
+minutes is a duty cycle under one percent, and at that point the current drawn
+while asleep is what the battery life is made of.
+
+### ARM or RISC-V
+
+The RP2350 has both, selected in the IDE under `Tools -> CPU Architecture`. The
+Arduino core supports both and reports FreeRTOS as the only known incompatibility.
+
+Neither Raspberry Pi's documentation nor the core's says which draws less, and it
+is second order here in any case: the processor is awake for a few seconds out of
+nine hundred, and during those seconds the radio dominates. **Build for ARM**, the
+better-travelled path with the WiFi stack, and treat the architecture as one more
+thing to measure — the wake duration in the log is the instrument.
+
+### Transport
+
+Behind an interface with one implementation, because the implementation is the
+part expected to change: a board that wakes, measures, sends a few dozen bytes and
+sleeps is what LoRaWAN is for, and WiFi is here because it can be tested on a desk
+today. Two things a LoRaWAN implementation cannot keep are written down in
+`Transport.h` rather than left to be discovered — the payload size at the slowest
+data rates, and the fact that joining on every wake would cost more than it saves.
 
 ## Sending to the server
 

@@ -78,6 +78,16 @@ class ProtocolSyncTest {
     private static final Firmware ESP = new Firmware("esp32", firmwareDirectory("esp32-s3-reader"));
 
     /**
+     * The sleeper carries the same wire format and none of the Ruuvi decoding, so
+     * only the header is compared against it. Every copy of {@code Protocol.h} in
+     * the repository has to be identical, and each new one makes that easier to
+     * get wrong.
+     */
+    private static final Firmware SLEEPER = new Firmware("sleeper", firmwareDirectory("pico-sleeper"));
+
+    private static final List<Firmware> ALL_FIRMWARES = List.of(PICO, ESP, SLEEPER);
+
+    /**
      * One value that must be the same in both sketches, and the pattern that finds
      * it. The pattern has exactly one capturing group: what it captures is what
      * gets compared.
@@ -133,9 +143,17 @@ class ProtocolSyncTest {
             Pattern.MULTILINE);
 
     @Test
-    void protocolHeaderIsByteIdenticalInBothSketches() throws IOException {
+    void protocolHeaderIsByteIdenticalInEverySketch() throws IOException {
+        for (Firmware firmware : ALL_FIRMWARES) {
+            if (firmware != PICO) {
+                assertHeaderMatchesPico(firmware);
+            }
+        }
+    }
+
+    private static void assertHeaderMatchesPico(Firmware other) throws IOException {
         byte[] pico = Files.readAllBytes(PICO.protocolHeader());
-        byte[] esp = Files.readAllBytes(ESP.protocolHeader());
+        byte[] esp = Files.readAllBytes(other.protocolHeader());
         if (Arrays.equals(pico, esp)) {
             return;
         }
@@ -147,7 +165,7 @@ class ProtocolSyncTest {
            content, or the same content with different line endings.
         */
         List<String> picoLines = Files.readAllLines(PICO.protocolHeader());
-        List<String> espLines = Files.readAllLines(ESP.protocolHeader());
+        List<String> espLines = Files.readAllLines(other.protocolHeader());
 
         for (int i = 0; i < Math.min(picoLines.size(), espLines.size()); i++) {
             if (!picoLines.get(i).equals(espLines.get(i))) {
@@ -158,19 +176,20 @@ class ProtocolSyncTest {
                         The two files must stay byte identical: copy one over the other."""
                         .formatted(i + 1,
                                 PICO.label(), picoLines.get(i),
-                                ESP.label(), espLines.get(i)));
+                                other.label(), espLines.get(i)));
             }
         }
         if (picoLines.size() != espLines.size()) {
             fail("Protocol.h has diverged: %s has %d lines, %s has %d."
-                    .formatted(PICO.label(), picoLines.size(), ESP.label(), espLines.size()));
+                    .formatted(PICO.label(), picoLines.size(), other.label(), espLines.size()));
         }
         /*
            Equal line by line but not byte by byte: CRLF against LF, or a missing
            newline at the end of one file. Harmless to the compiler, which is why
            it needs naming — otherwise this test fails with nothing to see.
         */
-        fail("Protocol.h: the lines match but the bytes differ — "
+        fail("Protocol.h in %s: the lines match but the bytes differ — "
+                .formatted(other.label())
                 + "line endings or a missing final newline.");
     }
 

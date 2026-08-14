@@ -2,10 +2,12 @@
 # Copy the matching config.h.example to config.h and edit that.
 temperature-reader/config.h
 esp32-s3-reader/config.h
+pico-sleeper/config.h
 
 # Arduino build output
 temperature-reader/build/
 esp32-s3-reader/build/
+pico-sleeper/build/
 
 .DS_Store
 
