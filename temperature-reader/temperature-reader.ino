@@ -606,6 +606,9 @@ static InternalTemperature internalTemperature;
    over time. Three rows is not much, and none of them should go to a number that
    says nothing about the room.
 
+   With more sensors than rows, the tags win: they are where somebody wanted a
+   temperature measured, and the DHT22 is wherever the box ended up.
+
    The display is entirely optional. Nothing here fails if it is absent; SPI has
    no read-back, so the sketch simply draws into the void.
 */
@@ -633,22 +636,23 @@ struct Display {
 
     uint8_t row = 0;
 
-    // A missing DHT22 gives up its row to the tags rather than showing dashes.
-    if (dht.hasReading()) {
+    /*
+       The tags first: they are the measuring points somebody put where they
+       wanted a temperature, while the DHT22 is wherever this box happens to sit.
+       With more sensors than rows, that is the one to lose.
+
+       Tags that have gone quiet come last of all, after the DHT22. They are worth
+       showing — a reading from a minute ago still says something — but a tag that
+       has stopped sending must never push a sensor that is still reporting off
+       the screen.
+    */
+    row = printTags(registry, row, false);
+
+    if (row < OLED_ROWS && dht.hasReading()) {
       printRow(row++, "DHT", dht.temperature, dht.humidity);
     }
 
-    for (const RuuviMeasurement &tag : registry.tags) {
-      if (!tag.valid) {
-        continue;
-      }
-      if (row >= OLED_ROWS) {
-        break;
-      }
-      char id[PROTOCOL_ID_SIZE + 1];
-      tag.sensorIdTo(id, sizeof(id));
-      printRow(row++, id, tag.temperature, tag.humidity);
-    }
+    row = printTags(registry, row, true);
 
     if (row == 0) {
       oled.setTextSize(1);
@@ -661,6 +665,25 @@ struct Display {
   }
 
 private:
+  /*
+     The tags that are still reporting, or the ones that have gone quiet, in the
+     rows that are left.
+  */
+  uint8_t printTags(const RuuviRegistry &registry, uint8_t row, bool stale) {
+    for (const RuuviMeasurement &tag : registry.tags) {
+      if (!tag.valid || tag.isStale() != stale) {
+        continue;
+      }
+      if (row >= OLED_ROWS) {
+        break;
+      }
+      char id[PROTOCOL_ID_SIZE + 1];
+      tag.sensorIdTo(id, sizeof(id));
+      printRow(row++, id, tag.temperature, tag.humidity);
+    }
+    return row;
+  }
+
   /*
      Label on the left and temperature right aligned in the large font, humidity
      in the small font at the right edge and vertically centred against the
