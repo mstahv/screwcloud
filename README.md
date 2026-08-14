@@ -613,39 +613,48 @@ it is why the radio now stays on for `WIFI_LINGER_MS` after the hand-over. UDP
 offers no acknowledgement to wait for, so waiting a moment is the honest remedy;
 it costs a fraction of the seconds the connection itself took.
 
-### Sleep, honestly
+### Sleep
 
-`Sleep::until()` switches the radio off and waits. On this board that is most of
-the saving, because the CYW43 draws more idle than the RP2350 does. It is
-milliamps, not microamps, and the reasons it is not more than that are worth
-knowing before anyone plans a battery around it:
+Since **pico-sdk 2.3.0** the SDK carries a library for this — `pico_low_power`,
+with official examples and, better, measured numbers. arduino-pico bundles that
+SDK from 5.7.0 onwards, so it is available in an ordinary Arduino build. Raspberry
+Pi's own figures for a Pico 2 running from 3V3:
 
-- The Arduino core for this chip **documents no sleep API at all** — its helper
-  class offers the clock frequency, the watchdog and the reset reason.
-- The Pico SDK's `pico_sleep` (dormant, wake on an alarm) is in **pico-extras**,
-  which the Arduino core does not bundle.
-- The RP2350 has a power manager with an always-on timer that can wake it from a
-  genuinely low power state. That is the right answer, and it is SDK-level work
-  worth verifying against the installed core rather than guessing at.
-- The RP2040's RTC **does not exist on the RP2350**, so half of what is written
-  about sleeping on a Pico does not apply to this board.
+| Mode | Current | Wakes on | Costs |
+|---|---|---|---|
+| `delay()` | — (every clock still running) | timer | nothing |
+| sleep | 6.9 mA | timer or any interrupt | nothing: it returns where it was called |
+| dormant | 3.7 mA | AON timer or a GPIO | the crystal stops, so USB and the serial log go with it |
+| Pstate, SRAM0 on | 0.14 mA | AON timer or a GPIO | **the program restarts on waking** |
+| Pstate, all SRAM off | 0.08 mA | AON timer or a GPIO | as above, and less retained |
 
-The sketch prints how long each wake took, because that is the number that
-decides whether going further is worth it. A wake of a few seconds every fifteen
-minutes is a duty cycle under one percent, and at that point the current drawn
-while asleep is what the battery life is made of.
+This sketch uses **sleep**, the lightest of the three, because it is the only one
+that leaves the program running: `low_power_sleep_for_ms()` returns where it was
+called, so the loop stays the ordinary loop it looks like. It stops the processor
+and most clocks, which is a long way below waiting in `delay()` — that halts the
+core on a `WFE` but leaves every clock and PLL running.
+
+Pstate is the real prize and suits this device better than it sounds: a wake here
+is already "run once from the top". What it needs is the sequence number moved
+into a POWMAN scratch register to survive the restart, and it takes the serial
+connection with it — which is the instrument this experiment is being run with, so
+it is a step to take once the questions about the temperature have been answered.
+
+**One caveat before anyone plans a battery.** Those numbers are for a Pico 2, not
+a Pico 2 **W**. The CYW43 radio is powered separately and does not appear in them
+at all. On this board it may well be the largest consumer between readings, and if
+it is, the difference between 6.9 mA and 0.14 mA of processor is not the
+difference it looks like. That wants a meter, not an argument.
+
+The sketch prints how long each wake took and which sleep it is using. A wake of a
+few seconds every fifteen minutes is a duty cycle under one percent, and at that
+point the current drawn while asleep is what the battery life is made of.
 
 **And it prints the self-heating**: the die temperature is read again at the end
 of each wake, and the difference from the reading that was sent says how much the
 board warmed itself doing the work. That number is the instrument for the whole
 experiment. The first measurement of it was **+2.87 °C across a 7.2 second wake**,
 which is the size of the error the measure-first ordering avoids.
-
-The waiting itself is cheaper than it first appears: this core's `delay()` calls
-the SDK's `sleep_ms()`, which halts the processor on a `WFE` until the timer
-alarm. The core idles rather than spins. What still runs is everything around it —
-the clocks, the PLLs, the peripherals — which is exactly what dormant mode would
-switch off and why the remaining step is the SDK-level one.
 
 ### ARM or RISC-V
 

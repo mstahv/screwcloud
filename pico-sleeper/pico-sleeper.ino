@@ -156,7 +156,8 @@ void setup() {
   Serial.println();
   Serial.printf("ScrewCloud sleeper, device %s, transport %s\n",
                 DEVICE_ID, transport->name());
-  Serial.printf("Reading every %lu s\n", SEND_INTERVAL_MS / 1000);
+  Serial.printf("Reading every %lu s, sleeping with %s\n",
+                SEND_INTERVAL_MS / 1000, Sleep::description());
 
   /*
      Marked, because it is the one reading of the run that cannot be compared with
