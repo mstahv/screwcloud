@@ -80,14 +80,21 @@
    the only mode that restarts the program and therefore the only one that needs
    data to survive.
 
+   The second symbol is made in assembly rather than with GCC's alias attribute,
+   which refuses this — an alias has to be a declaration and a variable with a
+   body is a definition, so the two cannot be the same thing. ".set" is what the
+   assembler offers for exactly this: give this name the value of that one. The
+   byte itself is declared in C so the compiler allocates and aligns it properly.
+
    If this stops being needed — the core gains the symbols — the definitions
    become a duplicate and the link will say so plainly. Set
    SLEEP_USE_SDK_LOW_POWER to 0 to leave the whole thing alone.
 */
 extern "C" {
-unsigned char __persistent_data_start__[1] = {0};
-unsigned char __persistent_data_end__[1] __attribute__((alias("__persistent_data_start__")));
+unsigned char __persistent_data_start__[1] __attribute__((used)) = {0};
 }
+asm(".global __persistent_data_end__\n"
+    ".set __persistent_data_end__, __persistent_data_start__\n");
 #endif
 
 class Sleep {
