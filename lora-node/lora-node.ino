@@ -291,7 +291,13 @@ static void printDeviceErrors() {
 /* Waits for one packet and reports it, or says the wait ran out. */
 static void listen() {
   uint8_t payload[64];
-  int state = radio.receive(payload, sizeof(payload));
+  /*
+     Zero, not the buffer size. That parameter is the expected packet length,
+     which a receiver only knows in advance in implicit header mode — here the
+     length travels in the packet, and telling the library to expect sixty four
+     bytes of it produced a reception of zero.
+  */
+  int state = radio.receive(payload, 0);
 
   if (state == RADIOLIB_ERR_NONE) {
     int length = radio.getPacketLength();
