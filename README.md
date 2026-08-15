@@ -128,6 +128,7 @@ the choice and avoid both.
 | `esp32-s3-reader/` | Minimal firmware for the ESP32-S3: RuuviTags and WiFi only |
 | [`pi-reader/`](pi-reader/) | The same reader in Java on a Raspberry Pi: Quarkus, Vaadin, BlueZ — plus a local page for when the server is unreachable |
 | `pico-sleeper/` | An experiment: a bare Pico 2 W sending only its own die temperature, asleep in between |
+| `lora-node/` | A Pico with a Core1121, transmitting so the LoRa receiver at the other end can be tested |
 | `server/` | Spring Boot + Vaadin: receives the UDP packets and shows the latest readings |
 | `tools/` | `generate-vapid-keys.java`, which generates a key pair for web push |
 
