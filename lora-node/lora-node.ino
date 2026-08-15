@@ -62,12 +62,37 @@ static const uint32_t rfswitch_dio_pins[] = {
   RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC
 };
 
-static const Module::RfSwitchMode_t rfswitch_table[] = {
+/*
+   Two candidate tables, alternated on every transmission.
+
+   The first is what Waveshare's driver configures, read across into RadioLib's
+   form: receive on RFSW0, transmit on RFSW1. That translation required assuming
+   RFSW0 is DIO5 and RFSW1 is DIO6, and nothing has confirmed the assumption.
+
+   If it is backwards, transmission is routed to the port with no antenna on it,
+   which loses about ninety decibels — the exact figure measured across this
+   link. Rather than reflash to test a guess, the sketch sends alternately with
+   each table and says which it used. The receiver's signal strength then names
+   the right one, in one run, with nobody having to coordinate anything.
+*/
+static const Module::RfSwitchMode_t rfswitch_vendor[] = {
   // mode                  DIO5  DIO6
   { LR11x0::MODE_STBY,   { LOW,  LOW  } },
   { LR11x0::MODE_RX,     { HIGH, LOW  } },
   { LR11x0::MODE_TX,     { LOW,  HIGH } },
   { LR11x0::MODE_TX_HP,  { LOW,  HIGH } },
+  { LR11x0::MODE_TX_HF,  { LOW,  LOW  } },
+  { LR11x0::MODE_GNSS,   { LOW,  LOW  } },
+  { LR11x0::MODE_WIFI,   { LOW,  LOW  } },
+  END_OF_MODE_TABLE,
+};
+
+static const Module::RfSwitchMode_t rfswitch_swapped[] = {
+  // mode                  DIO5  DIO6
+  { LR11x0::MODE_STBY,   { LOW,  LOW  } },
+  { LR11x0::MODE_RX,     { LOW,  HIGH } },
+  { LR11x0::MODE_TX,     { HIGH, LOW  } },
+  { LR11x0::MODE_TX_HP,  { HIGH, LOW  } },
   { LR11x0::MODE_TX_HF,  { LOW,  LOW  } },
   { LR11x0::MODE_GNSS,   { LOW,  LOW  } },
   { LR11x0::MODE_WIFI,   { LOW,  LOW  } },
@@ -344,7 +369,7 @@ void setup() {
   }
   Serial.println("Radio ready");
 
-  radio.setRfSwitchTable(rfswitch_dio_pins, rfswitch_table);
+  radio.setRfSwitchTable(rfswitch_dio_pins, rfswitch_vendor);
 
   /*
      Off, because Waveshare's example has it off and the receiver is matching
@@ -365,14 +390,23 @@ void loop() {
      arriving from one packet arriving and being printed again — which is the
      first thing to doubt when the same line keeps appearing.
   */
+  /*
+     The payload says which table sent it, so the receiver's log answers the
+     question without the two ends having to agree on anything beforehand.
+  */
+  bool swapped = (counter % 2) == 1;
+  radio.setRfSwitchTable(rfswitch_dio_pins, swapped ? rfswitch_swapped : rfswitch_vendor);
+
   char payload[24];
-  int length = snprintf(payload, sizeof(payload), "pico %d", counter++);
+  int length = snprintf(payload, sizeof(payload), "%s %d",
+                        swapped ? "swap" : "vend", counter++);
 
   int state = radio.transmit((uint8_t *)payload, length);
 
   if (state == RADIOLIB_ERR_NONE) {
-    Serial.printf("Sent \"%s\", %d bytes, %.1f ms in the air\n",
-                  payload, length, radio.getTimeOnAir(length) / 1000.0);
+    Serial.printf("Sent \"%s\" with the %s table, %d bytes, %.1f ms in the air\n",
+                  payload, swapped ? "swapped" : "vendor", length,
+                  radio.getTimeOnAir(length) / 1000.0);
   } else {
     Serial.printf("Transmit failed with %d\n", state);
   }
