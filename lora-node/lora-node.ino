@@ -73,7 +73,20 @@ static int counter = 0;
 
 void setup() {
   Serial.begin(115200);
-  delay(2000);   // long enough that the first lines are not lost
+
+  /*
+     Waiting for the host to open the port, not just for time to pass. A Pico
+     re-enumerates its USB after an upload, so anything printed in the first
+     moment goes nowhere — and a message that goes nowhere is the same as no
+     message at all, which is a terrible thing for a diagnostic to be.
+
+     The deadline is there so that a board with nothing attached still runs.
+  */
+  unsigned long waitingSince = millis();
+  while (!Serial && millis() - waitingSince < 5000) {
+    delay(10);
+  }
+
   Serial.println();
   Serial.println("Core1121 transmitter");
 
@@ -93,13 +106,23 @@ void setup() {
   config.preambleLength = 8;
   config.power = 14;                 // dBm, the low power path
 
+  // Printed before the call, so that a hang inside it is visible as one.
+  Serial.print("Initialising the radio... ");
   int state = radio.begin(config);
   if (state != RADIOLIB_ERR_NONE) {
-    Serial.printf("begin() failed with %d — check the wiring and the TCXO\n", state);
+    Serial.println();
+    /*
+       Repeated rather than said once. A diagnostic that speaks only in the
+       instant the port was not yet open leaves a board that looks dead, and
+       "no output" sends somebody looking for the wrong fault entirely.
+    */
     while (true) {
-      delay(1000);
+      Serial.printf("begin() failed with %d. Check the wiring, the TCXO voltage"
+                    " and that the module has power.\n", state);
+      delay(2000);
     }
   }
+  Serial.println("ok");
 
   radio.setRfSwitchTable(rfswitch_dio_pins, rfswitch_table);
 
