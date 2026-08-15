@@ -132,7 +132,7 @@ static const unsigned long SEND_INTERVAL_MS = 5000;
    Either answer arrives without transmitting into a port that may have nothing
    on it, which is the one experiment worth avoiding.
 */
-static const bool LISTEN_INSTEAD_OF_SENDING = false;
+static const bool LISTEN_INSTEAD_OF_SENDING = true;
 
 static int counter = 0;
 
@@ -425,14 +425,16 @@ void setup() {
 }
 
 void loop() {
-  /*
-     The counter is in the payload so that the receiver can tell packets
-     arriving from one packet arriving and being printed again — which is the
-     first thing to doubt when the same line keeps appearing.
-  */
+  if (LISTEN_INSTEAD_OF_SENDING) {
+    listen();
+    return;
+  }
+
   /*
      The payload says which table sent it, so the receiver's log answers the
-     question without the two ends having to agree on anything beforehand.
+     question without the two ends having to agree on anything beforehand. The
+     counter is in there too, so that packets arriving can be told from one
+     packet arriving and being printed again.
   */
   bool swapped = (counter % 2) == 1;
   radio.setRfSwitchTable(rfswitch_dio_pins, swapped ? rfswitch_swapped : rfswitch_vendor);
