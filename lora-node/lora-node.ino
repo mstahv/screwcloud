@@ -118,6 +118,22 @@ static const uint32_t TCXO_STARTUP_US = 10000;
 
 static const unsigned long SEND_INTERVAL_MS = 5000;
 
+/*
+   Set to true to listen instead of transmitting, and run "Smoke send waveshare"
+   on the Raspberry Pi.
+
+   This reverses the link, which is how to test the one thing left untested. The
+   Pi's antenna is proved — pulling it stopped reception — and its transmit path
+   uses the vendor's switch configuration numerically, with nothing assumed. So
+   if this end hears the Pi strongly, its antenna is fine and the fault is in how
+   this end transmits; if it hears the Pi at the same hundred and ten decibels
+   down, the fault is this end's antenna.
+
+   Either answer arrives without transmitting into a port that may have nothing
+   on it, which is the one experiment worth avoiding.
+*/
+static const bool LISTEN_INSTEAD_OF_SENDING = false;
+
 static int counter = 0;
 
 static const int PIN_CS = 13;
@@ -286,6 +302,26 @@ static void printDeviceErrors() {
   }
 }
 
+/* Waits for one packet and reports it, or says the wait ran out. */
+static void listen() {
+  uint8_t payload[64];
+  int state = radio.receive(payload, sizeof(payload));
+
+  if (state == RADIOLIB_ERR_NONE) {
+    int length = radio.getPacketLength();
+    Serial.printf("Received %d bytes, RSSI %.1f dBm, SNR %.1f dB: ",
+                  length, radio.getRSSI(), radio.getSNR());
+    for (int i = 0; i < length && i < (int) sizeof(payload); i++) {
+      Serial.printf("%02X", payload[i]);
+    }
+    Serial.println();
+  } else if (state == RADIOLIB_ERR_RX_TIMEOUT) {
+    Serial.println("Nothing heard");
+  } else {
+    Serial.printf("receive() failed with %d\n", state);
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -381,7 +417,11 @@ void setup() {
 
   Serial.println("868.000 MHz, SF7, BW 125 kHz, CR 4/5, sync 0x12, preamble 8,"
                  " CRC off, 14 dBm");
-  Serial.printf("Sending every %lu ms\n", SEND_INTERVAL_MS);
+  if (LISTEN_INSTEAD_OF_SENDING) {
+    Serial.println("Listening. Run \"Smoke send waveshare\" on the Raspberry Pi.");
+  } else {
+    Serial.printf("Sending every %lu ms\n", SEND_INTERVAL_MS);
+  }
 }
 
 void loop() {
