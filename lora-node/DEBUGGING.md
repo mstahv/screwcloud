@@ -17,6 +17,30 @@ working**: SPI in both directions, the busy line and reset. RadioLib's `begin()`
 reads the chip's version before it configures anything, so a `-707` is proof the
 chip is there and talking.
 
+## RadioLib's chip detection cannot be trusted to have run
+
+```cpp
+bool LR11x0::findChip(uint8_t ver) {
+  int16_t state = getVersionInfo(&info);
+  RADIOLIB_ASSERT(state);     // expands to: if(state != 0) return(state);
+```
+
+`findChip` returns `bool`, and the macro returns the error code from it. A failed
+version read therefore comes back as `(bool)(-707)`, which is **true** — "chip
+found". Everything `begin()` does afterwards is built on a detection that never
+happened, and every conclusion drawn from "well, it found the chip" is worthless.
+
+So the sketch reads the version **by hand**, with no library between it and the
+wires, and prints the raw bytes. Two out, five back, no configuration needed, and
+the answer is known: the module on the Raspberry Pi reports hardware `0x22`,
+device `0x03`, firmware 1.1.
+
+| Raw bytes | Meaning |
+|---|---|
+| all `00` | MISO is not arriving, or the module has no power |
+| all `FF` | MISO is floating high — the same fault, other polarity |
+| sensible values | the wiring is good and the fault is above it |
+
 ## Is it in bootloader mode?
 
 The first thing the sketch prints after a failure, because it explains a shape

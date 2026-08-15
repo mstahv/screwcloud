@@ -95,6 +95,89 @@ static const unsigned long SEND_INTERVAL_MS = 5000;
 
 static int counter = 0;
 
+static const int PIN_CS = 13;
+static const int PIN_RESET = 5;
+static const int PIN_BUSY = 14;
+
+/*
+   One command, by hand, with no library between us and the wires.
+
+   This exists because RadioLib's chip detection cannot be trusted to have run:
+   findChip() returns a bool, and the macro it uses to check for errors does
+   "return(state)" — so a failed version read comes back as (bool)(-707), which
+   is true. Every conclusion after that point is drawn from a detection that
+   never happened.
+
+   GetVersion is the right command to do by hand: two bytes out, five back, no
+   configuration needed, and its answer is known — the module on the Raspberry Pi
+   reports hardware 0x22, device 0x03, firmware 1.1.
+
+   What the bytes say:
+     all 0x00    MISO is not arriving, or the chip is not driving it
+     all 0xFF    MISO is floating high — the same fault, other polarity
+     sensible    the wiring is fine and the fault is above it
+*/
+static void probeByHand() {
+  Serial.println("Reading the version with no library in the way:");
+
+  pinMode(PIN_CS, OUTPUT);
+  digitalWrite(PIN_CS, HIGH);
+  pinMode(PIN_BUSY, INPUT);
+  pinMode(PIN_RESET, OUTPUT);
+
+  SPI1.setSCK(10);
+  SPI1.setTX(11);
+  SPI1.setRX(12);
+  SPI1.begin();
+
+  // Reset, and give it the settling time the vendor's driver allows.
+  digitalWrite(PIN_RESET, LOW);
+  delay(10);
+  digitalWrite(PIN_RESET, HIGH);
+  delay(300);
+
+  Serial.printf("  BUSY reads %d after reset (0 means ready)\n", digitalRead(PIN_BUSY));
+
+  SPI1.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
+
+  // GetVersion: opcode 0x0101, no arguments.
+  digitalWrite(PIN_CS, LOW);
+  SPI1.transfer(0x01);
+  SPI1.transfer(0x01);
+  digitalWrite(PIN_CS, HIGH);
+
+  // The chip answers in a transaction of its own, once it is ready.
+  unsigned long deadline = millis() + 100;
+  while (digitalRead(PIN_BUSY) && millis() < deadline) {
+    delayMicroseconds(100);
+  }
+  if (digitalRead(PIN_BUSY)) {
+    Serial.println("  BUSY never fell — the chip is not answering at all");
+  }
+
+  uint8_t answer[5];
+  digitalWrite(PIN_CS, LOW);
+  for (uint8_t i = 0; i < sizeof(answer); i++) {
+    answer[i] = SPI1.transfer(0x00);
+  }
+  digitalWrite(PIN_CS, HIGH);
+  SPI1.endTransaction();
+
+  Serial.printf("  raw: %02X %02X %02X %02X %02X\n",
+                answer[0], answer[1], answer[2], answer[3], answer[4]);
+  Serial.printf("  status 0x%02X, hardware 0x%02X, device 0x%02X, firmware %d.%d\n",
+                answer[0], answer[1], answer[2], answer[3], answer[4]);
+
+  if (answer[1] == 0x00 && answer[2] == 0x00) {
+    Serial.println("  nothing but zeroes: suspect MISO, or that the module has no power");
+  } else if (answer[1] == 0xFF && answer[2] == 0xFF) {
+    Serial.println("  nothing but ones: MISO is floating — suspect the MISO joint");
+  } else {
+    Serial.println("  the chip answered, so the wires are good");
+  }
+  Serial.println();
+}
+
 /*
    The chip's own error register, which says far more than an error code can.
    These are the blocks it calibrates on the way up, and the two oscillators it
@@ -212,6 +295,8 @@ void setup() {
   config.syncWord = 0x12;            // private network
   config.preambleLength = 8;
   config.power = 14;                 // dBm, the low power path
+
+  probeByHand();
 
   // Printed before the call, so that a hang inside it is visible as one.
   Serial.println("Initialising the radio...");
