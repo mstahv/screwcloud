@@ -46,6 +46,7 @@ public:
   explicit Core1121(Module *module) : LR1121(module) {}
   using LR11x0::getErrors;
   using LR11x0::getVersionInfo;
+  using LR11x0::setOutputPower;
 };
 
 // NSS, IRQ, NRST, BUSY — and SPI1, because GP10..GP13 belong to it.
@@ -63,17 +64,12 @@ static const uint32_t rfswitch_dio_pins[] = {
 };
 
 /*
-   Two candidate tables, alternated on every transmission.
+   What Waveshare's driver configures, read across into RadioLib's form: receive
+   on RFSW0, transmit on RFSW1, with RFSW0 as DIO5 and RFSW1 as DIO6.
 
-   The first is what Waveshare's driver configures, read across into RadioLib's
-   form: receive on RFSW0, transmit on RFSW1. That translation required assuming
-   RFSW0 is DIO5 and RFSW1 is DIO6, and nothing has confirmed the assumption.
-
-   If it is backwards, transmission is routed to the port with no antenna on it,
-   which loses about ninety decibels — the exact figure measured across this
-   link. Rather than reflash to test a guess, the sketch sends alternately with
-   each table and says which it used. The receiver's signal strength then names
-   the right one, in one run, with nobody having to coordinate anything.
+   That mapping was a translation and therefore a guess, so it was tested by
+   sending alternately with it and with its opposite. The opposite produced
+   nothing at all, which settles it.
 */
 static const Module::RfSwitchMode_t rfswitch_vendor[] = {
   // mode                  DIO5  DIO6
@@ -81,18 +77,6 @@ static const Module::RfSwitchMode_t rfswitch_vendor[] = {
   { LR11x0::MODE_RX,     { HIGH, LOW  } },
   { LR11x0::MODE_TX,     { LOW,  HIGH } },
   { LR11x0::MODE_TX_HP,  { LOW,  HIGH } },
-  { LR11x0::MODE_TX_HF,  { LOW,  LOW  } },
-  { LR11x0::MODE_GNSS,   { LOW,  LOW  } },
-  { LR11x0::MODE_WIFI,   { LOW,  LOW  } },
-  END_OF_MODE_TABLE,
-};
-
-static const Module::RfSwitchMode_t rfswitch_swapped[] = {
-  // mode                  DIO5  DIO6
-  { LR11x0::MODE_STBY,   { LOW,  LOW  } },
-  { LR11x0::MODE_RX,     { LOW,  HIGH } },
-  { LR11x0::MODE_TX,     { HIGH, LOW  } },
-  { LR11x0::MODE_TX_HP,  { HIGH, LOW  } },
   { LR11x0::MODE_TX_HF,  { LOW,  LOW  } },
   { LR11x0::MODE_GNSS,   { LOW,  LOW  } },
   { LR11x0::MODE_WIFI,   { LOW,  LOW  } },
@@ -116,6 +100,8 @@ static const float TCXO_VOLTAGE = 3.0;
 */
 static const uint32_t TCXO_STARTUP_US = 10000;
 
+static const int TX_POWER_DBM = 14;
+
 static const unsigned long SEND_INTERVAL_MS = 5000;
 
 /*
@@ -132,7 +118,7 @@ static const unsigned long SEND_INTERVAL_MS = 5000;
    Either answer arrives without transmitting into a port that may have nothing
    on it, which is the one experiment worth avoiding.
 */
-static const bool LISTEN_INSTEAD_OF_SENDING = true;
+static const bool LISTEN_INSTEAD_OF_SENDING = false;
 
 static int counter = 0;
 
@@ -355,7 +341,7 @@ void setup() {
   config.codingRate = 5;             // 4/5
   config.syncWord = 0x12;            // private network
   config.preambleLength = 8;
-  config.power = 14;                 // dBm, the low power path
+  config.power = TX_POWER_DBM;
 
   probeByHand();
 
@@ -408,6 +394,25 @@ void setup() {
   radio.setRfSwitchTable(rfswitch_dio_pins, rfswitch_vendor);
 
   /*
+     The amplifier the board is actually wired to, rather than the one the
+     library picks from the power asked for.
+
+     Waveshare's own table selects the high power amplifier at every level from
+     -9 to +22 dBm without variation, which says the low power output goes
+     nowhere on this module. Asking for 14 dBm the ordinary way selects the low
+     power path, and the radio then transmits into an unconnected pin — happily,
+     reporting success, while the far end hears about ninety decibels less than
+     it should.
+
+     select HP, supplied from the battery rail, duty cycle 0x04, size 0x07,
+     48 us ramp.
+  */
+  int power = radio.setOutputPower(TX_POWER_DBM, 0x01, 0x01, 0x04, 0x07, 0x02);
+  if (power != RADIOLIB_ERR_NONE) {
+    Serial.printf("setOutputPower failed with %d\n", power);
+  }
+
+  /*
      Off, because Waveshare's example has it off and the receiver is matching
      that example. A receiver expecting a CRC hears a packet without one as a
      packet that failed its CRC, and drops it — with no way to tell that from
@@ -436,19 +441,14 @@ void loop() {
      counter is in there too, so that packets arriving can be told from one
      packet arriving and being printed again.
   */
-  bool swapped = (counter % 2) == 1;
-  radio.setRfSwitchTable(rfswitch_dio_pins, swapped ? rfswitch_swapped : rfswitch_vendor);
-
   char payload[24];
-  int length = snprintf(payload, sizeof(payload), "%s %d",
-                        swapped ? "swap" : "vend", counter++);
+  int length = snprintf(payload, sizeof(payload), "pico %d", counter++);
 
   int state = radio.transmit((uint8_t *)payload, length);
 
   if (state == RADIOLIB_ERR_NONE) {
-    Serial.printf("Sent \"%s\" with the %s table, %d bytes, %.1f ms in the air\n",
-                  payload, swapped ? "swapped" : "vendor", length,
-                  radio.getTimeOnAir(length) / 1000.0);
+    Serial.printf("Sent \"%s\", %d bytes, %.1f ms in the air\n",
+                  payload, length, radio.getTimeOnAir(length) / 1000.0);
   } else {
     Serial.printf("Transmit failed with %d\n", state);
   }
