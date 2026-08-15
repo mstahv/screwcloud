@@ -67,6 +67,16 @@ static const Module::RfSwitchMode_t rfswitch_table[] = {
 */
 static const float TCXO_VOLTAGE = 3.0;
 
+/*
+   How long the oscillator is given to settle before the chip is calibrated
+   against it. Waveshare's driver allows 300 ticks of 30.52 us, which is about
+   9.2 ms; RadioLib's begin() uses its own default of 5 ms and then calibrates
+   immediately. A calibration against an oscillator that has not settled fails,
+   and the chip reports it as a failed command — which is error -707 and looks
+   like a wiring fault.
+*/
+static const uint32_t TCXO_STARTUP_US = 10000;
+
 static const unsigned long SEND_INTERVAL_MS = 5000;
 
 static int counter = 0;
@@ -107,22 +117,39 @@ void setup() {
   config.power = 14;                 // dBm, the low power path
 
   // Printed before the call, so that a hang inside it is visible as one.
-  Serial.print("Initialising the radio... ");
-  int state = radio.begin(config);
+  Serial.println("Initialising the radio...");
+
+  /*
+     Retried, and the oscillator given a longer start between attempts.
+
+     The first attempt is the one likely to fail: begin() powers the TCXO and
+     calibrates against it five milliseconds later, and this module's wants
+     nine. After a failure the oscillator is left running, so the next attempt
+     calibrates against a clock that has had time to settle.
+  */
+  int state = RADIOLIB_ERR_UNKNOWN;
+  for (int attempt = 1; attempt <= 5 && state != RADIOLIB_ERR_NONE; attempt++) {
+    state = radio.begin(config);
+    if (state != RADIOLIB_ERR_NONE) {
+      Serial.printf("  attempt %d: begin() failed with %d\n", attempt, state);
+      radio.setTCXO(TCXO_VOLTAGE, TCXO_STARTUP_US);
+      delay(50);
+    }
+  }
+
   if (state != RADIOLIB_ERR_NONE) {
-    Serial.println();
     /*
        Repeated rather than said once. A diagnostic that speaks only in the
        instant the port was not yet open leaves a board that looks dead, and
        "no output" sends somebody looking for the wrong fault entirely.
     */
     while (true) {
-      Serial.printf("begin() failed with %d. Check the wiring, the TCXO voltage"
-                    " and that the module has power.\n", state);
+      Serial.printf("begin() failed with %d after five attempts. -2 points at the"
+                    " wiring, -707 at the oscillator, -705 at BUSY.\n", state);
       delay(2000);
     }
   }
-  Serial.println("ok");
+  Serial.println("Radio ready");
 
   radio.setRfSwitchTable(rfswitch_dio_pins, rfswitch_table);
 
