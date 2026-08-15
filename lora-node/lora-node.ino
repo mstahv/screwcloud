@@ -81,6 +81,53 @@ static const unsigned long SEND_INTERVAL_MS = 5000;
 
 static int counter = 0;
 
+/*
+   The chip's own error register, which says far more than an error code can.
+   These are the blocks it calibrates on the way up, and the two oscillators it
+   has to start first — so a failed configuration names the thing that failed
+   rather than leaving six candidates.
+*/
+static void printDeviceErrors() {
+  static const struct {
+    uint16_t mask;
+    const char *name;
+  } ERRORS[] = {
+    { 1 << 0, "LF_RC_CALIB: the low frequency RC oscillator would not calibrate" },
+    { 1 << 1, "HF_RC_CALIB: the high frequency RC oscillator would not calibrate" },
+    { 1 << 2, "ADC_CALIB: the converter would not calibrate" },
+    { 1 << 3, "PLL_CALIB: the synthesiser would not calibrate" },
+    { 1 << 4, "IMG_CALIB: image rejection would not calibrate" },
+    { 1 << 5, "HF_XOSC_START: the 32 MHz oscillator did not start — the TCXO" },
+    { 1 << 6, "LF_XOSC_START: the 32 kHz oscillator did not start" },
+    { 1 << 7, "PLL_LOCK: the synthesiser would not lock" },
+  };
+
+  /*
+     Standby first: the chip reports no errors while it is doing something else,
+     so asking at the wrong moment gives a clean bill of health it does not mean.
+  */
+  radio.standby();
+
+  uint16_t errors = 0;
+  int state = radio.getErrors(&errors);
+  if (state != RADIOLIB_ERR_NONE) {
+    Serial.printf("  could not read the error register either (%d)\n", state);
+    return;
+  }
+  if (errors == 0) {
+    Serial.println("  the chip reports no errors, so the fault is in the exchange"
+                   " rather than in the radio");
+    return;
+  }
+
+  Serial.printf("  device errors 0x%04X:\n", errors);
+  for (auto &error : ERRORS) {
+    if (errors & error.mask) {
+      Serial.printf("    %s\n", error.name);
+    }
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -132,6 +179,7 @@ void setup() {
     state = radio.begin(config);
     if (state != RADIOLIB_ERR_NONE) {
       Serial.printf("  attempt %d: begin() failed with %d\n", attempt, state);
+      printDeviceErrors();
       radio.setTCXO(TCXO_VOLTAGE, TCXO_STARTUP_US);
       delay(50);
     }

@@ -17,6 +17,27 @@ working**: SPI in both directions, the busy line and reset. RadioLib's `begin()`
 reads the chip's version before it configures anything, so a `-707` is proof the
 chip is there and talking.
 
+## Asking the chip
+
+The sketch reads the chip's own error register after a failed `begin()` and
+prints the bits by name. That register says what an error code cannot: which of
+the blocks it calibrates on the way up refused, and whether either oscillator
+started.
+
+| Bit | Name | Meaning |
+|---|---|---|
+| 0 | `LF_RC_CALIB` | the low frequency RC oscillator would not calibrate |
+| 1 | `HF_RC_CALIB` | the high frequency RC oscillator would not calibrate |
+| 2 | `ADC_CALIB` | the converter would not calibrate |
+| 3 | `PLL_CALIB` | the synthesiser would not calibrate |
+| 4 | `IMG_CALIB` | image rejection would not calibrate |
+| 5 | `HF_XOSC_START` | **the 32 MHz oscillator did not start — the TCXO** |
+| 6 | `LF_XOSC_START` | the 32 kHz oscillator did not start |
+| 7 | `PLL_LOCK` | the synthesiser would not lock |
+
+The chip has to be in standby to answer honestly: asked while it is busy it
+reports nothing wrong, which is not the same as nothing being wrong.
+
 ## Finding out which command
 
 `build_opt.h` in this folder turns on RadioLib's own tracing:
