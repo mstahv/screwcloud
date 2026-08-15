@@ -34,8 +34,21 @@
 
 #include <RadioLib.h>
 
+/*
+   The radio, with one of the library's protected methods brought back into the
+   open. getErrors() asks the chip which block refused to calibrate, which is the
+   difference between a diagnosis and six candidates — and a derived class may
+   publish what its base declared protected, which is cheaper than a build flag
+   the IDE keeps forgetting to apply.
+*/
+class Core1121 : public LR1121 {
+public:
+  explicit Core1121(Module *module) : LR1121(module) {}
+  using LR11x0::getErrors;
+};
+
 // NSS, IRQ, NRST, BUSY — and SPI1, because GP10..GP13 belong to it.
-LR1121 radio = new Module(13, 15, 5, 14, SPI1);
+Core1121 radio(new Module(13, 15, 5, 14, SPI1));
 
 /*
    The antenna switch, which is a property of this board and of nothing else.

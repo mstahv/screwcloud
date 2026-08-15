@@ -38,6 +38,11 @@ started.
 The chip has to be in standby to answer honestly: asked while it is busy it
 reports nothing wrong, which is not the same as nothing being wrong.
 
+`getErrors()` is protected in RadioLib, so the sketch declares a small subclass
+that publishes it. The library also has a `RADIOLIB_GODMODE` build flag that
+opens everything at once, but a flag is a thing to remember and undo, and a
+three line subclass is not.
+
 ## Finding out which command
 
 `build_opt.h` in this folder turns on RadioLib's own tracing:
