@@ -45,6 +45,7 @@ class Core1121 : public LR1121 {
 public:
   explicit Core1121(Module *module) : LR1121(module) {}
   using LR11x0::getErrors;
+  using LR11x0::getVersionInfo;
 };
 
 // NSS, IRQ, NRST, BUSY — and SPI1, because GP10..GP13 belong to it.
@@ -100,6 +101,42 @@ static int counter = 0;
    has to start first — so a failed configuration names the thing that failed
    rather than leaving six candidates.
 */
+/*
+   What the chip says it is. This is the line that separates a radio which is
+   merely misconfigured from one that has no working firmware at all: in
+   bootloader mode it reports itself as 0xDF, answers a version query, and
+   refuses every other command — which is exactly the shape of a failure where
+   getErrors() fails too.
+
+   RadioLib's findChip() accepts a bootloader as "found", so begin() gets past it
+   and then fails on the first real command.
+*/
+static void printChipIdentity() {
+  LR11x0VersionInfo_t info;
+  int state = radio.getVersionInfo(&info);
+  if (state != RADIOLIB_ERR_NONE) {
+    Serial.printf("  getVersionInfo failed too (%d)\n", state);
+    return;
+  }
+
+  const char *what;
+  switch (info.device) {
+    case RADIOLIB_LR11X0_DEVICE_LR1121:
+      what = "LR1121, normal mode";
+      break;
+    case RADIOLIB_LR11X0_DEVICE_BOOT:
+      what = "BOOTLOADER — the chip has no working firmware, and only firmware"
+             " updates will be accepted";
+      break;
+    default:
+      what = "not a device this library knows";
+      break;
+  }
+  Serial.printf("  device 0x%02X: %s\n", info.device, what);
+  Serial.printf("  hardware 0x%02X, firmware %d.%d\n",
+                info.hardware, info.fwMajor, info.fwMinor);
+}
+
 static void printDeviceErrors() {
   static const struct {
     uint16_t mask;
@@ -192,9 +229,19 @@ void setup() {
     state = radio.begin(config);
     if (state != RADIOLIB_ERR_NONE) {
       Serial.printf("  attempt %d: begin() failed with %d\n", attempt, state);
+      printChipIdentity();
       printDeviceErrors();
       radio.setTCXO(TCXO_VOLTAGE, TCXO_STARTUP_US);
-      delay(50);
+
+      /*
+         Growing, to test the idea that the radio simply needs longer than a
+         Pico takes to reach setup(). On a Raspberry Pi the module has been
+         powered for the whole of Linux booting before anything talks to it; here
+         it is milliseconds. By the fifth attempt it has had seven seconds.
+      */
+      unsigned long settle = attempt * 500UL;
+      Serial.printf("  waiting %lu ms before trying again\n", settle);
+      delay(settle);
     }
   }
 

@@ -17,6 +17,25 @@ working**: SPI in both directions, the busy line and reset. RadioLib's `begin()`
 reads the chip's version before it configures anything, so a `-707` is proof the
 chip is there and talking.
 
+## Is it in bootloader mode?
+
+The first thing the sketch prints after a failure, because it explains a shape
+of failure that nothing else does: **a chip in bootloader mode answers a version
+query and refuses everything else.**
+
+| `device` | Meaning |
+|---|---|
+| `0x03` | LR1121, normal mode |
+| `0xDF` | bootloader — no working firmware, only firmware updates accepted |
+
+RadioLib's `findChip()` treats a bootloader as found, so `begin()` gets past chip
+detection and then fails on the first real command — with `getErrors()` failing
+too, since that is a real command as well.
+
+If it says `0xDF`, no amount of wiring or timing will help. The demo package
+ships `lr1121_firmware_update` with three transceiver images, and RadioLib has
+`updateFirmware()`.
+
 ## Asking the chip
 
 The sketch reads the chip's own error register after a failed `begin()` and
