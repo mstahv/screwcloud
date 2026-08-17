@@ -22,6 +22,7 @@
 
         <vaadin.version>25.2.5</vaadin.version>
         <viritin.version>3.8.0</viritin.version>
+        <pi4j.version>4.0.2</pi4j.version>
 
         <!--
            bluez-dbus talks to BlueZ over the system D-Bus, which needs the native
@@ -100,14 +101,35 @@
         </dependency>
 
         <!--
-           The LoRa radio, which reaches spidev and the GPIO character device
-           through the Foreign Function and Memory API — so nothing native has to
-           be built or installed alongside this application either.
+           The LoRa radio. The driver lives in pi4j-drivers now, and reaches spidev
+           and the GPIO character device through Pi4J's FFM provider — so nothing
+           native has to be built or installed alongside this application either.
         -->
         <dependency>
-            <groupId>in.virit.iot</groupId>
-            <artifactId>lr1121-java</artifactId>
-            <version>0.1.0-SNAPSHOT</version>
+            <groupId>com.pi4j</groupId>
+            <artifactId>pi4j-drivers</artifactId>
+            <version>1.1.1-SNAPSHOT</version>
+        </dependency>
+
+        <!--
+           The provider that reaches the hardware. pi4j-drivers depends on pi4j-core
+           for the IO interfaces but leaves the choice of provider to whoever is
+           deploying, which is the right way round: a driver should not decide how
+           the machine under it talks to its pins.
+
+           Core is named explicitly as well, only to keep it at the same version as
+           the provider: pi4j-drivers brings 4.0.1 transitively, and a core and a
+           plugin from different releases is not a combination anyone has tested.
+        -->
+        <dependency>
+            <groupId>com.pi4j</groupId>
+            <artifactId>pi4j-core</artifactId>
+            <version>${pi4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.pi4j</groupId>
+            <artifactId>pi4j-plugin-ffm</artifactId>
+            <version>${pi4j.version}</version>
         </dependency>
 
         <dependency>

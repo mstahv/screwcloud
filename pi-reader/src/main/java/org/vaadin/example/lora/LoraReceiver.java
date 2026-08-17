@@ -7,11 +7,18 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 
-import in.virit.iot.lr1121.BoardConfig;
-import in.virit.iot.lr1121.LoraSettings;
-import in.virit.iot.lr1121.Lr1121;
-import in.virit.iot.lr1121.ReceivedPacket;
-import in.virit.iot.lr1121.linux.LinuxTransport;
+import com.pi4j.Pi4J;
+import com.pi4j.context.Context;
+import com.pi4j.drivers.radio.lora.lr11xx.Lr1121Driver;
+import com.pi4j.io.gpio.digital.DigitalInput;
+import com.pi4j.io.gpio.digital.DigitalInputConfigBuilder;
+import com.pi4j.io.gpio.digital.DigitalOutput;
+import com.pi4j.io.gpio.digital.DigitalOutputConfigBuilder;
+import com.pi4j.io.gpio.digital.DigitalState;
+import com.pi4j.io.spi.Spi;
+import com.pi4j.io.spi.SpiChipSelect;
+import com.pi4j.io.spi.SpiConfigBuilder;
+import com.pi4j.io.spi.SpiMode;
 
 import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.runtime.StartupEvent;
@@ -161,14 +168,18 @@ public class LoraReceiver {
            private sync word, an 8 symbol preamble, an explicit header — the
            length travels in the packet — and no IQ inversion.
         */
-        LoraSettings settings = new LoraSettings(spreadingFactor, LoraSettings.BW_125_KHZ,
-                LoraSettings.CR_4_5, LoraSettings.SYNC_WORD_PRIVATE, 8, true, crc, false);
+        Lr1121Driver.LoraSettings settings = new Lr1121Driver.LoraSettings(
+                spreadingFactor, Lr1121Driver.LoraSettings.BW_125_KHZ,
+                Lr1121Driver.LoraSettings.CR_4_5, Lr1121Driver.LoraSettings.SYNC_WORD_PRIVATE,
+                8, true, crc, false);
 
-        try (Lr1121 radio = new Lr1121(LinuxTransport.core1121OnRaspberryPi())) {
-            Lr1121.Version version = radio.version();
+        Context pi4j = Pi4J.newAutoContext();
+        try (Lr1121Driver radio = new Lr1121Driver(spi(pi4j), resetLine(pi4j),
+                inputLine(pi4j, "lora-busy", BUSY_PIN), inputLine(pi4j, "lora-irq", IRQ_PIN))) {
+            Lr1121Driver.Version version = radio.version();
             LOG.infof("LoRa radio: %s", version);
 
-            radio.configure(BoardConfig.core1121());
+            radio.configure(Lr1121Driver.BoardConfig.core1121());
             radio.configureLora(frequencyHz, settings);
 
             status = "Listening on %.3f MHz, SF%d, CRC %s".formatted(
@@ -191,10 +202,64 @@ public class LoraReceiver {
                     e.toString());
         } finally {
             listening = false;
+            pi4j.shutdown();
         }
     }
 
-    private void relay(ReceivedPacket received) {
+    /*
+       The wiring, which is this machine's business rather than the driver's — the
+       driver takes the bus and the three lines and knows nothing about which pins
+       they came from. These are Waveshare's own numbers for the Core1121.
+    */
+    private static final int RESET_PIN = 22;
+    private static final int BUSY_PIN = 24;
+    private static final int IRQ_PIN = 23;
+
+    /**
+     * 2 MHz rather than the 10 MHz the vendor's demo uses. Ten is fine down a short
+     * ribbon to a HAT; over jumper wires with no ground return beside each signal it
+     * is marginal, and marginal SPI does not fail cleanly — it corrupts the odd byte
+     * into a plausible number, such as a version that reads 0x14 instead of 0x22.
+     */
+    private static Spi spi(Context pi4j) {
+        return pi4j.create(SpiConfigBuilder.newInstance(pi4j)
+                .id("lora-spi")
+                .bus(0)
+                .chipSelect(SpiChipSelect.CS_0)
+                .mode(SpiMode.MODE_0)
+                .baud(2_000_000)
+                .build());
+    }
+
+    /**
+     * High from the moment the line is claimed. Reset is active low, so an output
+     * that comes up at zero holds the radio in reset — after which it answers
+     * nothing, its busy line never falls, and every symptom points at the wiring.
+     */
+    private static DigitalOutput resetLine(Context pi4j) {
+        return pi4j.create(DigitalOutputConfigBuilder.newInstance(pi4j)
+                .id("lora-reset")
+                .bcm(RESET_PIN)
+                .initial(DigitalState.HIGH)
+                .shutdown(DigitalState.HIGH)
+                .build());
+    }
+
+    /**
+     * Debounce off, explicitly. Pi4J defaults it to 10 000 microseconds, which is a
+     * sensible guard for a pushbutton and ten milliseconds of damage here: these
+     * lines carry a radio announcing an arrived packet, and two packets inside one
+     * debounce window would be delivered as one.
+     */
+    private static DigitalInput inputLine(Context pi4j, String id, int pin) {
+        return pi4j.create(DigitalInputConfigBuilder.newInstance(pi4j)
+                .id(id)
+                .bcm(pin)
+                .debounce(0L)
+                .build());
+    }
+
+    private void relay(Lr1121Driver.ReceivedPacket received) {
         LoraPacket packet = new LoraPacket(received.payload(), received.rssiDbm(), received.snrDb());
         remember(packet);
 
