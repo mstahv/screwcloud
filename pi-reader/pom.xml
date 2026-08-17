@@ -21,7 +21,7 @@
         <quarkus.platform.version>3.36.1</quarkus.platform.version>
 
         <vaadin.version>25.2.5</vaadin.version>
-        <viritin.version>3.7.0</viritin.version>
+        <viritin.version>3.8.0</viritin.version>
 
         <!--
            bluez-dbus talks to BlueZ over the system D-Bus, which needs the native
