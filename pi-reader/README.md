@@ -220,27 +220,53 @@ the supplementary groups when the unit starts, not when `usermod` runs:
 ```ini
 [Service]
 User=ereader1
-SupplementaryGroups=bluetooth spi gpio
+SupplementaryGroups=bluetooth
 ```
 
 ```bash
 sudo systemctl daemon-reload && sudo systemctl restart <service>
 ```
 
-`spi` and `gpio` are for the LoRa radio, and it needs **both** — which is the part
-worth knowing in advance. The driver opens `/dev/spidev0.0` for the bus and
-`/dev/gpiochip0` for reset, busy and DIO9, and they are owned by different groups
-on Raspberry Pi OS. Granting only `spi` gets you past the first failure and
-straight into an identical one:
+**The LoRa radio needs real group membership, not this.** Four groups, and by
+`usermod`:
 
-```
-The LoRa radio is not available (Lr11xxException: open(/dev/spidev0.0) failed,
-errno 13 (EACCES: permission denied)). Everything else still works.
+```bash
+sudo usermod -aG spi,gpio,dialout,i2c ereader1
+sudo systemctl restart <service>
 ```
 
-`EACCES` rather than `ENOENT` is itself the good news: the device exists, so SPI is
-enabled in `config.txt` and only the permission is missing. `ENOENT` would mean
-`dtparam=spi=on` instead.
+Only two of those are about the radio: the kernel wants `spi` for
+`/dev/spidev0.0` and `gpio` for `/dev/gpiochip0`, where reset, busy and DIO9 live.
+The other two are Pi4J's, which the driver uses to reach both — it registers its
+providers as one batch and refuses the batch unless the user is in every group any
+of them might want, so an application using nothing but SPI and three GPIO lines
+still needs the serial and I²C groups. `i2c` was found the hard way, after Pi4J's
+own error message named only `gpio` and `dialout`.
+
+And `SupplementaryGroups=` does **not** work for these, which is the trap:
+Pi4J reads the group database looking for the user's name rather than asking what
+groups the process is actually running with. The unit file satisfies the kernel and
+not Pi4J. `usermod` writes `/etc/group` and satisfies both.
+
+The failure looks like a classpath problem and is not one:
+
+```
+Pi4J provider [ffm-spi] could not be found.
+Please include this 'provider' JAR in the classpath.
+```
+
+The definitive answer is a few lines earlier, from `FFMPermissionHelper` at ERROR.
+See `lr1121-java/pi4j-migration.md` for the full account.
+
+The other launch requirement is a JVM flag, since the driver reaches the kernel
+through the Foreign Function and Memory API:
+
+```bash
+java --enable-native-access=ALL-UNNAMED -jar target/quarkus-app/quarkus-run.jar
+```
+
+Without it every start prints four warnings, and a future JDK will refuse the call
+outright.
 
 The decisive check, without deploying anything, is to do what the application does
 as the user it runs as:
