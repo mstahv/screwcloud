@@ -168,12 +168,8 @@ public class LoraReceiver {
            the two settings that are wrong by default and fail silently.
         */
         Context pi4j = Pi4J.newAutoContext();
-        try (Lr1121Driver radio = Lr1121Driver.on(pi4j)
-                .spi(0, SpiChipSelect.CS_0)
-                .resetPin(22)
-                .busyPin(24)
-                .interruptPin(23)
-                .open()) {
+        try (Lr1121Driver radio = new Lr1121Driver(pi4j, 0, SpiChipSelect.CS_0,
+                22 /* reset */, 24 /* busy */, 23 /* DIO9 */)) {
             Lr1121Driver.Version version = radio.version();
             LOG.infof("LoRa radio: %s", version);
 
