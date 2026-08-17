@@ -15,11 +15,17 @@ pico-sleeper/build/
 # rather than tracked as a submodule: a gitlink pointing at unpublished commits
 # helps nobody.
 #
-# pi-reader does now build against it, so it has to be installed into the local
-# Maven repository first — "mvn -f ../lr1121-java install". Until the artifact is
-# published somewhere, a fresh clone of this repository cannot build pi-reader
-# without also having that one.
+# Nothing builds against it any more — the LR11xx driver moved to pi4j-drivers, and
+# pi-reader takes it from there. What is left here is pi4j-migration.md, which is
+# the record of how that move went and what to feed back to the Pi4J project.
 lr1121-java/
+
+# The same, and now the one that matters: pi-reader takes its LoRa driver from
+# pi4j-drivers, and until the LR11xx driver is released that means a local build of
+# the pull request branch. README.md in pi-reader says how. Ignored rather than
+# submoduled for the same reason as above, and tracked here rather than in
+# .git/info/exclude because it is now a documented step somebody else may follow.
+pi4j-drivers/
 
 # IDE
 .idea/

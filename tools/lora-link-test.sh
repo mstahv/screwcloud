@@ -32,7 +32,18 @@ RECEIVER=${1:?usage: $0 <receiving-host> <transmitting-host> [seconds]}
 TRANSMITTER=${2:?usage: $0 <receiving-host> <transmitting-host> [seconds]}
 SECONDS_TO_RUN=${3:-30}
 
+# Where the driver project is checked out. It is not part of this repository, and
+# until the LR11xx driver is released it has to be the pull request branch:
+#
+#   git clone -b lr11xx-lora-driver https://github.com/mstahv/pi4j-drivers.git
+#
 DRIVERS_DIR=${DRIVERS_DIR:-pi4j-drivers}
+if [ ! -f "$DRIVERS_DIR/pom.xml" ]; then
+    echo "No driver project at $DRIVERS_DIR." >&2
+    echo "Clone it, or point DRIVERS_DIR at it:" >&2
+    echo "  git clone -b lr11xx-lora-driver https://github.com/mstahv/pi4j-drivers.git" >&2
+    exit 1
+fi
 REMOTE_DIR=${REMOTE_DIR:-/tmp/lr11xx}
 MAIN=com.pi4j.drivers.radio.lora.lr11xx.Lr11xxLinkCheck
 

@@ -104,6 +104,16 @@
            The LoRa radio. The driver lives in pi4j-drivers now, and reaches spidev
            and the GPIO character device through Pi4J's FFM provider — so nothing
            native has to be built or installed alongside this application either.
+
+           NOT ON MAVEN CENTRAL YET. The LR11xx driver is in review as a pull
+           request, so until it is merged and released this needs a local build:
+
+             git clone -b lr11xx-lora-driver https://github.com/mstahv/pi4j-drivers.git
+             mvn -f pi4j-drivers/pom.xml install -DskipTests
+
+           https://github.com/mstahv/pi4j-drivers/tree/lr11xx-lora-driver
+
+           When it is released this becomes an ordinary version and the note goes.
         -->
         <dependency>
             <groupId>com.pi4j</groupId>

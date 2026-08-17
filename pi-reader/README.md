@@ -10,8 +10,8 @@ because a reader that runs on the same network as the tags can keep showing the
 temperature when the internet does not.
 
 **Quarkus** for the runtime, **Vaadin** for the page, **bluez-dbus** for the
-Bluetooth radio and [lr1121-java](../lr1121-java) for the LoRa one. Java 25, no
-database.
+Bluetooth radio and [pi4j-drivers](https://github.com/mstahv/pi4j-drivers/tree/lr11xx-lora-driver)
+for the LoRa one. Java 25, no database.
 
 Java 25 rather than 21 because the LoRa driver reaches spidev and the GPIO
 character device through the Foreign Function and Memory API, which became final
@@ -39,16 +39,27 @@ restart, which costs a day of a picture the server has anyway.
 ## Running it
 
 ```bash
-mvn -f ../lr1121-java install         # once; see below
 mvn quarkus:dev                       # http://localhost:8080
 mvn package                           # frontend bundle included
 java -jar target/quarkus-app/quarkus-run.jar
 ```
 
-`lr1121-java` is a repository of its own and is not tracked here, so it has to be
-installed into the local Maven repository before this builds. It is needed whether
-or not the LoRa radio is switched on: the dependency is compiled against either
-way.
+### The LoRa driver needs a local build, for now
+
+The `com.pi4j:pi4j-drivers:1.1.1-SNAPSHOT` dependency is not on Maven Central. The
+LR11xx driver it carries is in review as a pull request, so until that is merged and
+released it has to be built and installed by hand:
+
+```bash
+git clone -b lr11xx-lora-driver https://github.com/mstahv/pi4j-drivers.git
+mvn -f pi4j-drivers/pom.xml install -DskipTests
+```
+
+<https://github.com/mstahv/pi4j-drivers/tree/lr11xx-lora-driver>
+
+It is needed whether or not the LoRa radio is switched on, because the dependency is
+compiled against either way. When the driver is released, the version in `pom.xml`
+becomes an ordinary one and this section goes away.
 
 No `production` profile and no `vaadin-maven-plugin`: with Vaadin 25 the Quarkus
 extension builds the frontend as part of the ordinary package.
