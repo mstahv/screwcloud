@@ -7,7 +7,42 @@
 A screw driven into a cloud: self-hosted temperature monitoring where the
 readings go to your own server rather than into somebody else's cloud.
 
-There are three readers, all speaking the same protocol to the same server:
+## What you can do with it
+
+**The cheapest useful build is one board.** A Pico 2 W and a USB charger, with
+nothing wired to it at all, reporting its own die temperature — which is exactly
+what `pico-sleeper` exists to find out about. Add a RuuviTag and it becomes a
+proper sensor; add a DHT22, an OLED, both or neither, and the same sketch covers
+every combination, because the optional parts are detected at runtime rather than
+configured.
+
+**It goes where WiFi does not.** `temperature-reader` speaks WiFi *or* NB-IoT and
+picks whichever answers at boot, so a reader can sit at a summer cottage, in a
+garage or on a field with a 4G IoT SIM and no network of its own — sixteen bytes
+every five minutes, which is what makes a metered connection affordable. Where
+there is no cellular either, a node can shout over LoRa to a Raspberry Pi that
+relays it onward.
+
+**It does part of a Ruuvi Gateway's job, on your terms.** Hear the tags, forward
+the readings — but the server is yours, the wire format is eight bytes of header
+and eight per sensor and it is written down here, and everything between the tag
+and the browser is in this repository under the AGPL.
+
+**You change it in the Arduino IDE.** The firmwares are ordinary sketches: copy
+`config.h.example`, edit three lines, press upload. No toolchain to install and no
+build system to learn. The code is commented throughout for somebody who means to
+alter it rather than admire it — including the parts that took two attempts, and
+why the first one was wrong.
+
+**You do not need a server to start.** A public one runs at `r.pakast.in` and the
+sketches point at it out of the box, so the first reading arrives before you have
+decided whether you like any of this. It is free, unauthenticated and offered
+exactly as it is — see [Demo server](#demo-server) — and your own is a Spring Boot
+jar and a PostgreSQL for when you want one.
+
+## The pieces
+
+Four readers, all speaking the same protocol to the same server:
 
 - **`temperature-reader`** for the Raspberry Pi Pico 2 W — the full version:
   RuuviTags over BLE, an optional wired DHT22, an optional OLED, and WiFi or
@@ -16,7 +51,9 @@ There are three readers, all speaking the same protocol to the same server:
   else.
 - **`pi-reader`** for a Raspberry Pi that is already there doing something else —
   the same job in Java, with a page of its own on the local network that keeps
-  showing the temperature when the internet does not.
+  showing the temperature when the internet does not. It also reads a Nordic
+  Thingy:52 and relays LoRa packets from nodes too far away for WiFi, so a device
+  out of range still arrives at the server as itself.
 - **`pico-sleeper`** — an experiment: a bare Pico 2 W reporting nothing but its
   own die temperature, asleep between readings. If the chip is cold enough to
   stand in for the room, the cheapest sensor in this repository has nothing wired
