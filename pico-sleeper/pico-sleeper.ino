@@ -27,14 +27,73 @@
 #include "Sleep.h"
 #include "Transport.h"
 
+/*
+   Which radio the readings leave by.
+
+   TRANSPORT in config.h takes one of three values:
+
+     USE_AUTO   LoRa if a Core1121 answers on the SPI bus, WiFi if it does not
+     USE_LORA   LoRa, with nothing to fall back on
+     USE_WIFI   WiFi, and RadioLib need not be installed at all
+
+   USE_AUTO is the default, and it is what a board that is sometimes wired to a
+   radio and sometimes not actually wants: the question is settled by the hardware
+   at boot rather than by a flag somebody forgot to change before flashing. It
+   costs one SPI command and about a third of a second, once.
+
+   The catch is that USE_AUTO compiles both, so RadioLib has to be installed even
+   on a board that will end up choosing WiFi. USE_WIFI is there for the board that
+   never has a radio and should not need the library.
+
+   The two are not interchangeable in what they promise. WiFi reaches a server
+   directly and fails if there is no network; LoRa reaches a Raspberry Pi running
+   pi-reader, which relays the bytes onward, and cannot tell whether anything heard
+   it. What they have in common is that neither waits for an acknowledgement, which
+   is what lets the same sketch use either.
+
+   Defaulted here rather than required in config.h, because config.h is gitignored
+   and a constant required there would stop the sketch compiling for everyone who
+   already has one.
+*/
+#define USE_WIFI 0
+#define USE_LORA 1
+#define USE_AUTO 2
+
+#ifndef TRANSPORT
+#define TRANSPORT USE_AUTO
+#endif
+
+#if TRANSPORT != USE_WIFI
+#include "LoraTransport.h"
+static LoraTransport loraTransport;
+#endif
+
+#if TRANSPORT != USE_LORA
 static WiFiTransport wifiTransport;
+#endif
 
 /*
-   A pointer to the interface rather than the class, so that swapping in a
-   LoRaWAN transport is one line here and no lines anywhere else. See Transport.h
-   for what such an implementation would have to deal with.
+   A pointer to the interface rather than the class, so that swapping the
+   transport is these few lines and none anywhere else.
+
+   Filled in by setup() rather than here: with USE_AUTO the answer comes off the
+   SPI bus, and there is no SPI bus yet when statics are initialised.
 */
-static Transport *transport = &wifiTransport;
+static Transport *transport = nullptr;
+
+static Transport *chooseTransport() {
+#if TRANSPORT == USE_WIFI
+  return &wifiTransport;
+#elif TRANSPORT == USE_LORA
+  return &loraTransport;
+#else
+  if (LoraTransport::radioAnswers()) {
+    return &loraTransport;
+  }
+  Serial.println("No LoRa radio on the SPI bus — using WiFi.");
+  return &wifiTransport;
+#endif
+}
 
 /*
    The sequence number lives in RAM and so lasts as long as the sketch does. That
@@ -154,8 +213,21 @@ void setup() {
      close to the room as it will ever be.
   */
   Serial.println();
-  Serial.printf("ScrewCloud sleeper, device %s, transport %s\n",
-                DEVICE_ID, transport->name());
+
+  /*
+     Before anything is printed about it and before the first reading, since with
+     USE_AUTO nothing yet knows which radio this board has.
+  */
+  transport = chooseTransport();
+
+  /*
+     The compile time, so that "did the upload actually take?" is a question with
+     an answer. A board that is still running yesterday's firmware looks exactly
+     like a board whose new code does not work, and the two send you looking in
+     completely different places.
+  */
+  Serial.printf("ScrewCloud sleeper, device %s, transport %s, built %s %s\n",
+                DEVICE_ID, transport->name(), __DATE__, __TIME__);
   Serial.printf("Reading every %lu s, sleeping with %s\n",
                 SEND_INTERVAL_MS / 1000, Sleep::description());
 

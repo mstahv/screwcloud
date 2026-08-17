@@ -49,6 +49,54 @@ static const char WIFI_PASSWORD[] = "your-password";
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 
 // ---------------------------------------------------------------------------
+// Which radio
+//
+//   USE_AUTO   LoRa if a Core1121 answers on the SPI bus, WiFi if it does not
+//   USE_LORA   LoRa always, with nothing to fall back on
+//   USE_WIFI   WiFi always, and RadioLib need not be installed at all
+//
+// USE_AUTO settles it from the hardware at boot rather than from a flag somebody
+// forgot to change before flashing, which is what a board that is sometimes wired
+// to a radio and sometimes not wants. It asks the SPI bus for the chip's version,
+// retrying as the radio starts up — a Pico reaches setup() in milliseconds, and a
+// chip asked too early answers with zeroes that look exactly like an empty bus.
+// A board with no radio pays the full wait, about a second and a half, once.
+//
+// It does compile both, so RadioLib is needed even on a board that ends up
+// choosing WiFi — USE_WIFI is the way out of that.
+//
+// A LoRa packet is heard by a Raspberry Pi running pi-reader, which relays it to
+// the server byte for byte, so this device still appears there as itself, with its
+// own identifier and its own sequence numbers.
+//
+// USE_AUTO and USE_LORA need RadioLib 7.7.1 or later from the Library Manager and
+// the wiring listed in LoraTransport.h. The antenna goes on before power: a
+// transmitter driving an open port is a transmitter damaging itself.
+// ---------------------------------------------------------------------------
+
+#define TRANSPORT USE_AUTO
+
+/*
+   These must match the listening Pi exactly — the screwcloud.lora.* values in
+   pi-reader's application.properties. There is no negotiation in LoRa and no
+   error when two ends disagree: a mismatched spreading factor, a mismatched CRC
+   setting and a missing antenna all sound alike, which is silence. Change one
+   end and the other in the same breath, and one thing at a time.
+
+   Commented out because LoraTransport.h carries these same values as its
+   defaults. Uncomment one to move it, and move the Pi with it.
+
+   SF7 is what the link has been proven at. SF9 reaches noticeably further for
+   about four times the time in the air, and SF12 further still at about 1.3 s a
+   packet — all of them far inside the band's 1 % duty cycle at this device's
+   pace.
+*/
+// #define LORA_FREQUENCY_MHZ 868.0
+// #define LORA_SPREADING_FACTOR 7
+// #define LORA_CRC 0
+// #define LORA_TX_POWER_DBM 14
+
+// ---------------------------------------------------------------------------
 // How often
 // ---------------------------------------------------------------------------
 
@@ -59,5 +107,10 @@ static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 
    The server learns the pace a device keeps, so this can be changed freely — it
    will simply learn the new one.
+
+   For a field test — walking away from the Pi to watch the signal strength fall
+   — a quarter of an hour is useless. Set this to ten seconds or so while you
+   walk, and set it back afterwards: a chip that wakes every ten seconds never
+   cools, so the temperature it reports stops being about the room.
 */
 static const unsigned long SEND_INTERVAL_MS = 15UL * 60UL * 1000UL;

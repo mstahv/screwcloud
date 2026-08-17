@@ -126,8 +126,8 @@ the choice and avoid both.
 |---|---|
 | `temperature-reader/` | Full firmware for the Raspberry Pi Pico 2 W: RuuviTags, DHT22, OLED, WiFi or NB-IoT |
 | `esp32-s3-reader/` | Minimal firmware for the ESP32-S3: RuuviTags and WiFi only |
-| [`pi-reader/`](pi-reader/) | The same reader in Java on a Raspberry Pi: Quarkus, Vaadin, BlueZ — plus a local page for when the server is unreachable |
-| `pico-sleeper/` | An experiment: a bare Pico 2 W sending only its own die temperature, asleep in between |
+| [`pi-reader/`](pi-reader/) | The same reader in Java on a Raspberry Pi: Quarkus, Vaadin, BlueZ — RuuviTags and a Nordic Thingy:52, plus a local page for when the server is unreachable and a LoRa relay for nodes out of WiFi range |
+| `pico-sleeper/` | An experiment: a bare Pico 2 W sending only its own die temperature, asleep in between, over WiFi or LoRa |
 | `lora-node/` | A Pico with a Core1121, transmitting so the LoRa receiver at the other end can be tested |
 | `server/` | Spring Boot + Vaadin: receives the UDP packets and shows the latest readings |
 | `tools/` | `generate-vapid-keys.java`, which generates a key pair for web push |
@@ -679,12 +679,57 @@ thing to measure — the wake duration in the log is the instrument.
 
 ### Transport
 
-Behind an interface with one implementation, because the implementation is the
-part expected to change: a board that wakes, measures, sends a few dozen bytes and
-sleeps is what LoRaWAN is for, and WiFi is here because it can be tested on a desk
+Behind an interface, because the implementation is the part expected to change: a
+board that wakes, measures, sends a few dozen bytes and sleeps is exactly what a
+long range radio is for, and WiFi is here because it can be tested on a desk
 today. Two things a LoRaWAN implementation cannot keep are written down in
 `Transport.h` rather than left to be discovered — the payload size at the slowest
 data rates, and the fact that joining on every wake would cost more than it saves.
+
+There are two implementations now. `TRANSPORT` in `config.h` picks between them:
+`USE_LORA` for the Core1121 on SPI1, `USE_WIFI` for the network, and `USE_AUTO` —
+the default — for **whichever the hardware turns out to have**. A LoRa packet goes
+to a Raspberry Pi running `pi-reader`, which relays the bytes onward untouched, so
+a node out of WiFi range still appears on the server as itself. Plain LoRa rather
+than LoRaWAN: there is no network to join, and no acknowledgement that anything
+heard it.
+
+`USE_AUTO` asks the SPI bus rather than trusting a flag: `GetVersion` by hand, and
+a chip that answers with something other than all zeroes or all ones is a radio.
+That question cannot be delegated to RadioLib, whose `findChip()` returns a bool
+and whose error macro does `return(state)` — so a failed version read comes back as
+`(bool)(-707)`, which is `true`, and every conclusion after it is drawn from a
+detection that never happened.
+
+**The probe has to retry**, which is the part that is easy to get wrong and was.
+`lora-node.ino` runs the same probe, but only after waiting up to five seconds for
+a serial monitor, so its radio has had seconds of power before anything speaks to
+it; there the probe is a diagnostic that gates nothing and `begin()` runs regardless
+with five growing retries. This sketch waits for nothing on purpose, so a single
+read lands milliseconds after power-up, gets zeroes from a chip that is still
+starting, and concludes — confidently, and wrongly — that there is no radio. Five
+attempts with a growing pause fix it, and a board that really has no radio pays
+about a second and a half, once, before going on to spend several seconds joining
+a WiFi network.
+
+It does compile both transports, so RadioLib has to be installed even on a board
+that ends up on WiFi; `USE_WIFI` is the way out of that.
+
+A wake costs milliseconds rather than the seconds WiFi spends connecting, which is
+the whole point. The radio is configured once at boot and slept holding its
+configuration afterwards, because `begin()` calibrates against the oscillator and
+the first attempt after a cold power-up is the one likely to fail — a growing
+retry is the right answer once at boot and a poor one every fifteen minutes. A
+failed wake or a failed transmission clears the flag, so the next wake pays for a
+full initialisation and a radio that has lost its configuration recovers by
+itself.
+
+**Both ends must agree exactly.** There is no negotiation in LoRa and no error
+when two ends disagree: a mismatched spreading factor, a mismatched CRC setting
+and a missing antenna all sound alike, which is silence. The defaults at both ends
+are the parameters the link has actually been made to work with — `lora-node.ino`'s,
+which are Waveshare's own example's — and the far end's counterparts are
+`screwcloud.lora.*` in `pi-reader`'s `application.properties`.
 
 ## Sending to the server
 
