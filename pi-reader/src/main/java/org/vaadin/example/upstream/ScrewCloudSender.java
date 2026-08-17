@@ -11,7 +11,7 @@ import java.util.List;
 import org.vaadin.example.protocol.MeasurementPacket;
 import org.vaadin.example.protocol.Protocol;
 import org.vaadin.example.protocol.SensorReading;
-import org.vaadin.example.ruuvi.RuuviReading;
+import org.vaadin.example.sensor.Reading;
 import org.vaadin.example.ruuvi.TagRegistry;
 
 import io.quarkus.scheduler.Scheduled;
@@ -88,14 +88,14 @@ public class ScrewCloudSender {
         if (!enabled) {
             return;
         }
-        List<RuuviReading> fresh = registry.heardWithin(staleAfter, Instant.now());
+        List<Reading> fresh = registry.heardWithin(staleAfter, Instant.now());
         if (fresh.isEmpty()) {
             status = "Nothing to send: no tag heard in the last " + staleAfter;
             LOG.debug(status);
             return;
         }
 
-        List<RuuviReading> included = fresh;
+        List<Reading> included = fresh;
         if (included.size() > Protocol.MAX_SENSORS) {
             /*
                The packet holds eight. Sending the eight heard most recently is the
@@ -106,7 +106,7 @@ public class ScrewCloudSender {
             LOG.warnf("Heard %d tags but a packet holds %d; leaving out %s",
                     fresh.size(), Protocol.MAX_SENSORS,
                     fresh.subList(Protocol.MAX_SENSORS, fresh.size()).stream()
-                            .map(RuuviReading::sensorId).toList());
+                            .map(Reading::sensorId).toList());
         }
 
         List<String> clashing = registry.duplicateSensorIds();
@@ -129,6 +129,37 @@ public class ScrewCloudSender {
         } catch (IOException e) {
             status = "Send failed: " + e.getMessage();
             LOG.warnf("Could not send to %s:%d (%s)", host, port, e.getMessage());
+        }
+    }
+
+    /**
+     * Sends bytes that were built somewhere else, untouched.
+     *
+     * <p>For packets relayed from another device over LoRa. They keep that
+     * device's identifier and its sequence numbers, so it appears on the server
+     * as itself rather than as readings attributed to this machine — and nothing
+     * on the server had to be taught anything for that to work.
+     *
+     * <p>Not scheduled and not rate limited: a relay sends when something
+     * arrives, and how often that is belongs to whoever is transmitting.
+     */
+    public void forward(byte[] packet) {
+        if (!enabled) {
+            return;
+        }
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.send(new DatagramPacket(packet, packet.length,
+                    InetAddress.getByName(host), port));
+            lastSuccess = Instant.now();
+            /*
+               Host first, as in every other call here. An int in the leading
+               position matches both debugf(String, int, ...) and
+               debugf(String, Object, ...), which the compiler refuses as
+               ambiguous rather than choosing for us.
+            */
+            LOG.debugf("Relayed to %s:%d, %d bytes", host, port, packet.length);
+        } catch (IOException e) {
+            LOG.warnf("Could not relay to %s:%d (%s)", host, port, e.getMessage());
         }
     }
 

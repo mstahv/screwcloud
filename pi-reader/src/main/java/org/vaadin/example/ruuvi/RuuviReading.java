@@ -1,7 +1,8 @@
 package org.vaadin.example.ruuvi;
 
-import java.time.Duration;
 import java.time.Instant;
+
+import org.vaadin.example.sensor.Reading;
 
 /**
  * One advertisement from one RuuviTag, decoded.
@@ -24,7 +25,7 @@ import java.time.Instant;
  */
 public record RuuviReading(byte[] mac, Double temperature, Double humidity, Double pressure,
                            Double batteryVoltage, Integer txPower, int movementCounter,
-                           int sequenceNumber, Short rssi, Instant receivedAt) {
+                           int sequenceNumber, Short rssi, Instant receivedAt) implements Reading {
 
     /**
      * The identifier the server ties readings to, derived exactly as both firmwares
@@ -34,11 +35,13 @@ public record RuuviReading(byte[] mac, Double temperature, Double humidity, Doub
      * reader and by a microcontroller, and if the two disagreed it would arrive as
      * two sensors.
      */
+    @Override
     public String sensorId() {
         return "R%03X".formatted(((mac[4] & 0x0F) << 8) | (mac[5] & 0xFF));
     }
 
     /** The address in the usual notation, for the log and for naming a tag. */
+    @Override
     public String macAddress() {
         StringBuilder text = new StringBuilder(17);
         for (byte b : mac) {
@@ -48,9 +51,5 @@ public record RuuviReading(byte[] mac, Double temperature, Double humidity, Doub
             text.append("%02X".formatted(b));
         }
         return text.toString();
-    }
-
-    public boolean isOlderThan(Duration age, Instant now) {
-        return receivedAt.plus(age).isBefore(now);
     }
 }

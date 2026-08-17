@@ -9,6 +9,9 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import org.vaadin.example.sensor.Reading;
+import org.vaadin.example.thingy.ThingyReading;
+
 class TagRegistryTest {
 
     private static final Instant NOW = Instant.parse("2026-08-14T09:00:00Z");
@@ -43,7 +46,7 @@ class TagRegistryTest {
         registry.store(reading("CB:B8:33:4C:88:4F", 21.0, NOW));
         registry.store(reading("CB:B8:33:4C:88:5F", 5.0, NOW.minusSeconds(300)));
 
-        List<RuuviReading> fresh = registry.heardWithin(Duration.ofMinutes(1), NOW);
+        List<Reading> fresh = registry.heardWithin(Duration.ofMinutes(1), NOW);
 
         assertEquals(1, fresh.size());
         assertEquals(21.0, fresh.getFirst().temperature());
@@ -60,7 +63,29 @@ class TagRegistryTest {
 
         assertEquals(List.of(2.0, 3.0, 1.0),
                 registry.heardWithin(Duration.ofMinutes(1), NOW).stream()
-                        .map(RuuviReading::temperature).toList());
+                        .map(Reading::temperature).toList());
+    }
+
+    /**
+     * A Thingy:52 sits in the registry beside the RuuviTags and is reported like
+     * one of them.
+     *
+     * <p>It arrives by an entirely different route — a GATT connection rather than
+     * an advertisement — and nothing here knows or cares. That is the point of the
+     * registry holding readings rather than tags: the sensor that was added last
+     * needed no change to the packet, the page or the upload.
+     */
+    @Test
+    void aThingyIsKeptAndReportedAlongsideTheTags() {
+        registry.store(reading("CB:B8:33:4C:88:4F", 21.0, NOW));
+        registry.store(new ThingyReading("E5:6C:AB:12:34:5F", 19.5, 45.0, (short) -60, NOW));
+
+        assertEquals(2, registry.size());
+        assertEquals(List.of("R84F", "T45F"),
+                registry.readings().stream().map(Reading::sensorId).toList(),
+                "both are worth sending, under identifiers that cannot be confused");
+        assertEquals(2, registry.heardWithin(Duration.ofMinutes(1), NOW).size());
+        assertTrue(registry.duplicateSensorIds().isEmpty());
     }
 
     /**

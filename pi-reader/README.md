@@ -9,8 +9,14 @@ It exists because a Raspberry Pi is often already there doing something else, an
 because a reader that runs on the same network as the tags can keep showing the
 temperature when the internet does not.
 
-**Quarkus** for the runtime, **Vaadin** for the page, **bluez-dbus** for the radio.
-Java 21, no database.
+**Quarkus** for the runtime, **Vaadin** for the page, **bluez-dbus** for the
+Bluetooth radio and [lr1121-java](../lr1121-java) for the LoRa one. Java 25, no
+database.
+
+Java 25 rather than 21 because the LoRa driver reaches spidev and the GPIO
+character device through the Foreign Function and Memory API, which became final
+in 22 — which is also why there is no native library to build or install
+alongside this.
 
 The page uses the Aura theme and the same cards the server draws — the same gauge
 and the same sparkline, from the same libraries — because the two are looked at by
@@ -33,10 +39,16 @@ restart, which costs a day of a picture the server has anyway.
 ## Running it
 
 ```bash
+mvn -f ../lr1121-java install         # once; see below
 mvn quarkus:dev                       # http://localhost:8080
 mvn package                           # frontend bundle included
 java -jar target/quarkus-app/quarkus-run.jar
 ```
+
+`lr1121-java` is a repository of its own and is not tracked here, so it has to be
+installed into the local Maven repository before this builds. It is needed whether
+or not the LoRa radio is switched on: the dependency is compiled against either
+way.
 
 No `production` profile and no `vaadin-maven-plugin`: with Vaadin 25 the Quarkus
 extension builds the frontend as part of the ordinary package.
@@ -57,6 +69,12 @@ java -jar target/quarkus-app/quarkus-run.jar
 | `screwcloud.upload.interval` | `5m` | the same pace the firmware keeps |
 | `screwcloud.upload.enabled` | `true` | `false` to watch locally and report nowhere |
 | `screwcloud.ble.enabled` | `true` | `false` on a machine with no Bluetooth |
+| `screwcloud.thingy.enabled` | `false` | `true` to also read a Nordic Thingy:52 |
+| `screwcloud.thingy.address` | *(empty)* | which Thingy, when more than one is in range |
+| `screwcloud.lora.enabled` | `false` | `true` on a Pi with a Core1121 wired to it |
+| `screwcloud.lora.frequency` | `868000000` | must match the sending firmware exactly |
+| `screwcloud.lora.spreading-factor` | `7` | the same |
+| `screwcloud.lora.crc` | `false` | the same |
 | `screwcloud.names.file` | `~/.screwcloud-sensors.csv` | where the names live |
 
 ### On the Pi
@@ -108,25 +126,80 @@ Where the firmware silently drops sensors past the eighth, this refuses to build
 such a packet, and the sender picks the eight heard most recently and logs which
 ones it left out.
 
+**The Thingy:52** is read too, when `screwcloud.thingy.enabled` is on, and
+reported as a sensor of its own under `T` and twelve bits of its address — the
+same derivation a RuuviTag gets, with a different letter so the two can never
+collide.
+
+It is the one device here that has to be **connected** to. Its environment
+characteristics are notify-only in Nordic's firmware: not readable, and not in the
+advertisement either, so there is no listen-only way to get the temperature. This
+connects once, subscribes to temperature and humidity, and from then on polls the
+value BlueZ caches from each notification — which looks exactly like polling
+`ManufacturerData` for a Ruuvi advertisement and costs as little.
+
+Three consequences, none of which announce themselves:
+
+- **One host at a time.** A connected Thingy is not available to the nRF Thingy
+  phone app. If the app takes it, this reader loses it and reconnects on the next
+  poll; the two cannot both have it.
+- **Connecting is slow and can fail**, especially while a discovery is running —
+  and one always is, because the Ruuvi scanner needs it. That is why the Thingy has
+  a thread of its own: a connect that blocks for seconds must not stall the
+  advertisement polling.
+- **A Thingy asleep does not advertise.** Press its button if nothing is found.
+
+Everything downstream of the two radios works on a `Reading`, which is what let a
+second kind of sensor arrive without the registry, the history, the cards or the
+packet learning anything about it. Ruuvi's sequence number, movement counter,
+battery voltage and pressure stay on `RuuviReading`, where the scanner that
+understands them can use them.
+
+**Relaying LoRa.** With `screwcloud.lora.enabled`, a second radio listens for
+measurement packets over the air and passes them to the server **byte for byte**.
+A device out of WiFi range therefore appears on the server as itself — its own
+identifier, its own sensors, its own sequence numbers — rather than as readings
+attributed to this machine, and nothing on the server had to be taught anything
+for that to work. It is also why the packet is not decoded on the way through:
+re-encoding it is a way to introduce a difference between what was sent and what
+arrives, and the server already refuses what it cannot read.
+
+The page shows what has arrived and how strongly, which is the number a field test
+is made of — it is what changes as somebody walks away from the Pi with a node in
+their hand.
+
+The three radio settings must match the sending firmware **exactly**. There is no
+negotiation in LoRa and no error when two ends disagree: a mismatched spreading
+factor, a mismatched CRC setting and a missing antenna all sound alike, which is
+silence. The defaults are the ones the link has been made to work with — the
+values in `lora-node.ino`, which are Waveshare's example's — so change one end and
+the other in the same breath, and one thing at a time. The sending end is
+`pico-sleeper`, with `TRANSPORT` and the `LORA_*` values in its `config.h`.
+
+Like the Bluetooth scanner, it degrades to a warning: a Pi with no radio wired to
+it still runs everything else.
+
 ## Tests
 
 ```bash
 mvn test
 ```
 
-Sixty of them, and they are the part that can be checked without a Pi and a
-tag on the table:
+Seventy-three of them, and they are the part that can be checked without a Pi and
+a tag on the table:
 
 | | |
 |---|---|
 | `DataFormat5Test` | decoding, against **Ruuvi's own published test vectors** — this is the third implementation of that format in this repository, and a test written from my own reading of the spec would agree with my own misreading of it |
 | `MeasurementPacketTest` | the bytes that leave the machine, against a packet written out by hand |
 | `ProtocolSyncTest` | the constants and scaling, read out of the firmware's `Protocol.h`, so the three implementations cannot drift apart quietly |
-| `TagRegistryTest` | out of order advertisements, staleness, and two tags landing on one identifier |
+| `TagRegistryTest` | out of order advertisements, staleness, two tags landing on one identifier, and a Thingy kept alongside them |
+| `ThingyReadingTest` | the Thingy's two encodings, including below zero, and the identifier that keeps it apart from a RuuviTag |
 | `SensorNamesTest` | the file, including commas, quotes and hand edits |
 | `ReadingHistoryTest` | the sampling, the day long window, and one curve per tag |
 | `BleScannerBytesTest` | every shape D-Bus might hand the advertisement over in |
-| `LocalViewTest` | the page itself, browserless: naming a tag, a missing value, a tag gone quiet, and when a curve is worth drawing |
+| `StartupTest` | that the application boots at all, with the real `application.properties` — the one test that would have caught a config value which cannot be converted, and did not exist until one took the service down |
+| `LocalViewTest` | the page itself, browserless: naming a tag, a missing value, a tag gone quiet, when a curve is worth drawing, and what a LoRa arrival says about its signal strength |
 
 `ProtocolSyncTest` already earned its keep. Java's `Math.round` rounds a half
 towards positive infinity and C's `lroundf` rounds it away from zero, so -12.345 °C
@@ -147,12 +220,27 @@ the supplementary groups when the unit starts, not when `usermod` runs:
 ```ini
 [Service]
 User=ereader1
-SupplementaryGroups=bluetooth
+SupplementaryGroups=bluetooth spi gpio
 ```
 
 ```bash
 sudo systemctl daemon-reload && sudo systemctl restart <service>
 ```
+
+`spi` and `gpio` are for the LoRa radio, and it needs **both** — which is the part
+worth knowing in advance. The driver opens `/dev/spidev0.0` for the bus and
+`/dev/gpiochip0` for reset, busy and DIO9, and they are owned by different groups
+on Raspberry Pi OS. Granting only `spi` gets you past the first failure and
+straight into an identical one:
+
+```
+The LoRa radio is not available (Lr11xxException: open(/dev/spidev0.0) failed,
+errno 13 (EACCES: permission denied)). Everything else still works.
+```
+
+`EACCES` rather than `ENOENT` is itself the good news: the device exists, so SPI is
+enabled in `config.txt` and only the permission is missing. `ENOENT` would mean
+`dtparam=spi=on` instead.
 
 The decisive check, without deploying anything, is to do what the application does
 as the user it runs as:

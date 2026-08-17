@@ -12,8 +12,13 @@ pico-sleeper/build/
 .DS_Store
 
 # A repository of its own, so that it can be published on its own. Ignored here
-# rather than tracked as a submodule: nothing in this project builds against it
-# yet, and a gitlink pointing at unpublished commits helps nobody.
+# rather than tracked as a submodule: a gitlink pointing at unpublished commits
+# helps nobody.
+#
+# pi-reader does now build against it, so it has to be installed into the local
+# Maven repository first — "mvn -f ../lr1121-java install". Until the artifact is
+# published somewhere, a fresh clone of this repository cannot build pi-reader
+# without also having that one.
 lr1121-java/
 
 # IDE

@@ -9,7 +9,11 @@
     <description>Reads RuuviTags over BLE on a Raspberry Pi, shows them locally and forwards them to ScrewCloud</description>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
+        <!--
+           25 rather than 21: the LoRa driver reaches the kernel with the Foreign
+           Function and Memory API, which became final in 22.
+        -->
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
@@ -93,6 +97,17 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-hibernate-validator</artifactId>
+        </dependency>
+
+        <!--
+           The LoRa radio, which reaches spidev and the GPIO character device
+           through the Foreign Function and Memory API — so nothing native has to
+           be built or installed alongside this application either.
+        -->
+        <dependency>
+            <groupId>in.virit.iot</groupId>
+            <artifactId>lr1121-java</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
         </dependency>
 
         <dependency>

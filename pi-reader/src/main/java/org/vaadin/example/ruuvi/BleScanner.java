@@ -83,6 +83,17 @@ public class BleScanner {
     /** Whether anything has ever been decoded, which decides how loud this is. */
     private volatile boolean reported;
 
+    /**
+     * BlueZ, once this has managed to reach it.
+     *
+     * <p>Shared rather than created twice. {@code DeviceManager} owns the D-Bus
+     * connection and the discovery session, and a second instance would be a
+     * second of both — so anything else in this application that needs BlueZ,
+     * {@link org.vaadin.example.thingy.ThingyReader} today, borrows this one and
+     * gets the discovery this scanner is already running for free.
+     */
+    private volatile DeviceManager deviceManager;
+
     private long polls;
     private long failures;
     private long refusals;
@@ -107,11 +118,17 @@ public class BleScanner {
         return status;
     }
 
+    /** BlueZ, for anything else that needs it, or empty until the scanner is up. */
+    public Optional<DeviceManager> deviceManager() {
+        return Optional.ofNullable(deviceManager);
+    }
+
     private void scan() {
         DeviceManager manager;
         BluetoothAdapter adapter;
         try {
             manager = DeviceManager.createInstance(false);
+            deviceManager = manager;
             adapter = manager.getAdapter();
             if (adapter == null) {
                 status = "No Bluetooth adapter";

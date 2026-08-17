@@ -24,7 +24,7 @@ import in.virit.TemperatureGauge;
 
 import org.vaadin.example.history.HistoryPoint;
 import org.vaadin.example.names.SensorNames;
-import org.vaadin.example.ruuvi.RuuviReading;
+import org.vaadin.example.sensor.Reading;
 import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
@@ -56,9 +56,9 @@ class SensorCard extends Card {
        its unit, so a text copy of a reading that exists would be the same number
        twice.
     */
-    private final Reading noTemperature = new Reading();
-    private final Reading humidity = new Reading();
-    private final Reading age = new Reading();
+    private final SecondaryLine noTemperature = new SecondaryLine();
+    private final SecondaryLine humidity = new SecondaryLine();
+    private final SecondaryLine age = new SecondaryLine();
 
     /*
        The same badge the server marks an offline device with, rather than a colour
@@ -104,7 +104,7 @@ class SensorCard extends Card {
         add(noTemperature, humidity, age, quiet, sparkLine);
     }
 
-    void update(RuuviReading reading, List<HistoryPoint> history, Instant now) {
+    void update(Reading reading, List<HistoryPoint> history, Instant now) {
         /*
            A gauge showing zero would be indistinguishable from a real zero, so it
            is hidden rather than zeroed when there is no reading, and the dash takes
@@ -169,7 +169,7 @@ class SensorCard extends Card {
         return dialog;
     }
 
-    private static String ageText(RuuviReading reading, Instant now) {
+    private static String ageText(Reading reading, Instant now) {
         Duration since = Duration.between(reading.receivedAt(), now);
         if (since.toSeconds() < 60) {
             return "just now";
@@ -207,8 +207,8 @@ class SensorCard extends Card {
      * One line of secondary text on the card. Block display because these are spans
      * and each belongs on its own line; the size is the theme's.
      */
-    private static class Reading extends Span {
-        Reading() {
+    private static class SecondaryLine extends Span {
+        SecondaryLine() {
             getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
             getStyle().setDisplay(Style.Display.BLOCK);
         }

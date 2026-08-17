@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 import com.vaadin.browserless.BrowserlessApplicationContext;
@@ -23,10 +24,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import org.vaadin.example.history.ReadingHistory;
+import org.vaadin.example.lora.LoraPacket;
+import org.vaadin.example.lora.LoraReceiver;
 import org.vaadin.example.names.SensorNames;
+import org.vaadin.example.protocol.MeasurementPacket;
+import org.vaadin.example.protocol.SensorReading;
 import org.vaadin.example.ruuvi.BleScanner;
 import org.vaadin.example.ruuvi.RuuviReading;
 import org.vaadin.example.ruuvi.TagRegistry;
+import org.vaadin.example.thingy.ThingyReader;
 import org.vaadin.example.upstream.ScrewCloudSender;
 
 /**
@@ -43,6 +49,13 @@ class LocalViewTest {
     /** Opens the page with these readings already heard, in history and registry. */
     private void inView(Path namesFile, BiConsumer<BrowserlessUIContext, ReadingHistory> body,
                         RuuviReading... heard) {
+        inView(namesFile, new LoraReceiver(), body, heard);
+    }
+
+    /** The same, with a LoRa radio that has heard something over the air. */
+    private void inView(Path namesFile, LoraReceiver lora,
+                        BiConsumer<BrowserlessUIContext, ReadingHistory> body,
+                        RuuviReading... heard) {
         TagRegistry registry = new TagRegistry();
         ReadingHistory history = new ReadingHistory();
         for (RuuviReading reading : heard) {
@@ -53,7 +66,8 @@ class LocalViewTest {
 
         try (BrowserlessApplicationContext app = BrowserlessApplicationContext.forComponent(
                 () -> new LocalView(registry, history, names,
-                        new BleScanner(), new ScrewCloudSender("PI01")))) {
+                        new BleScanner(), new ScrewCloudSender("PI01"), lora,
+                        new ThingyReader()))) {
             body.accept(app.newUser().newWindow(), history);
         }
     }
@@ -124,6 +138,49 @@ class LocalViewTest {
                     "the identifier the packets carry is the one thing here that cannot"
                     + " be worked out by looking at the tags");
         });
+    }
+
+    /**
+     * The signal strength of what arrives over the air is on the page.
+     *
+     * <p>This is the number a field test is made of: it is what changes as
+     * somebody walks away from the Pi with a node in their hand, and it is the
+     * only way to tell a link that is comfortable from one that is about to stop
+     * working. The device that sent the packet is named alongside it, because a
+     * strength with nothing attached to it says nothing when two nodes are out.
+     */
+    @Test
+    void whatTheLoraRadioHeardIsOnThePageWithItsSignalStrength(@TempDir Path directory) {
+        LoraReceiver lora = LoraReceiver.alreadyListening(measurementFrom("SLP1", -97, 7.5));
+
+        inView(directory.resolve("names.csv"), lora, (ui, history) -> {
+            assertTrue(ui.findSpan().withTextContaining("LoRa:").exists());
+            assertTrue(ui.findSpan().withTextContaining("RSSI -97 dBm").exists());
+            assertTrue(ui.findSpan().withTextContaining("SLP1").exists(),
+                    "the strength belongs to a device, and there may be more than one");
+        });
+    }
+
+    /**
+     * A listening radio that has heard nothing says so.
+     *
+     * <p>Standing in a field, "listening and silent" and "not listening" are
+     * entirely different situations — one means walk closer, the other means go
+     * back and look at the Pi — and empty space under a status line does not
+     * tell them apart.
+     */
+    @Test
+    void aLoraRadioThatHasHeardNothingSaysSoRatherThanShowingNothing(@TempDir Path directory) {
+        inView(directory.resolve("names.csv"), LoraReceiver.alreadyListening(), (ui, history) -> {
+            assertTrue(ui.findSpan().withTextContaining("Nothing heard over the air").exists());
+        });
+    }
+
+    /** A packet as a node would send it, heard at the given strength. */
+    private static LoraPacket measurementFrom(String deviceId, int rssiDbm, double snrDb) {
+        byte[] bytes = MeasurementPacket.encode(deviceId, 1,
+                List.of(new SensorReading("CPU", 21.5, null)));
+        return new LoraPacket(bytes, rssiDbm, snrDb);
     }
 
     /**

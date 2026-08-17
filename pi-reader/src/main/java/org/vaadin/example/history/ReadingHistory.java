@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
-import org.vaadin.example.ruuvi.RuuviReading;
+import org.vaadin.example.sensor.Reading;
 
 /**
  * The last day of readings, in memory.
@@ -43,7 +43,7 @@ public class ReadingHistory {
      * Records a reading, unless one was taken for this tag less than
      * {@link #SAMPLE_INTERVAL} ago.
      */
-    public void add(RuuviReading reading) {
+    public void add(Reading reading) {
         Deque<HistoryPoint> points =
                 byAddress.computeIfAbsent(reading.macAddress(), key -> new ArrayDeque<>());
         synchronized (points) {

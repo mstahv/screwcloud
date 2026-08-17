@@ -9,8 +9,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
+import org.vaadin.example.sensor.Reading;
+
 /**
- * The latest reading from every tag heard, kept in memory.
+ * The latest reading from every sensor heard, kept in memory.
+ *
+ * <p>Holds whatever implements {@link Reading}: RuuviTags heard over the air and
+ * the Thingy:52 this reader connects to, in one place, because everything
+ * downstream wants them in one place and none of it cares which is which.
  *
  * <p>Keyed by address rather than by sensor identifier. The identifier is derived
  * from twelve bits of the address, so two tags can in principle share one, and
@@ -27,28 +33,28 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 public class TagRegistry {
 
-    private final Map<String, RuuviReading> byAddress = new ConcurrentHashMap<>();
+    private final Map<String, Reading> byAddress = new ConcurrentHashMap<>();
 
     /** Keeps the newer of the two, so an advertisement arriving late cannot win. */
-    public void store(RuuviReading reading) {
+    public void store(Reading reading) {
         byAddress.merge(reading.macAddress(), reading,
                 (existing, arriving) -> arriving.receivedAt().isBefore(existing.receivedAt())
                         ? existing : arriving);
     }
 
-    /** Every tag heard since startup, in a stable order. */
-    public List<RuuviReading> readings() {
+    /** Every sensor heard since startup, in a stable order. */
+    public List<Reading> readings() {
         return byAddress.values().stream()
-                .sorted(Comparator.comparing(RuuviReading::sensorId)
-                        .thenComparing(RuuviReading::macAddress))
+                .sorted(Comparator.comparing(Reading::sensorId)
+                        .thenComparing(Reading::macAddress))
                 .toList();
     }
 
     /** The ones heard recently enough to be worth reporting, newest first. */
-    public List<RuuviReading> heardWithin(Duration age, Instant now) {
+    public List<Reading> heardWithin(Duration age, Instant now) {
         return readings().stream()
                 .filter(reading -> !reading.isOlderThan(age, now))
-                .sorted(Comparator.comparing(RuuviReading::receivedAt).reversed())
+                .sorted(Comparator.comparing(Reading::receivedAt).reversed())
                 .toList();
     }
 
@@ -60,7 +66,7 @@ public class TagRegistry {
      */
     public List<String> duplicateSensorIds() {
         return readings().stream()
-                .collect(java.util.stream.Collectors.groupingBy(RuuviReading::sensorId))
+                .collect(java.util.stream.Collectors.groupingBy(Reading::sensorId))
                 .entrySet().stream()
                 .filter(entry -> entry.getValue().size() > 1)
                 .map(Map.Entry::getKey)
