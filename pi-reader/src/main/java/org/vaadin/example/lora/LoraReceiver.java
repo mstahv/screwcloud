@@ -10,15 +10,7 @@ import java.util.Optional;
 import com.pi4j.Pi4J;
 import com.pi4j.context.Context;
 import com.pi4j.drivers.radio.lora.lr11xx.Lr1121Driver;
-import com.pi4j.io.gpio.digital.DigitalInput;
-import com.pi4j.io.gpio.digital.DigitalInputConfigBuilder;
-import com.pi4j.io.gpio.digital.DigitalOutput;
-import com.pi4j.io.gpio.digital.DigitalOutputConfigBuilder;
-import com.pi4j.io.gpio.digital.DigitalState;
-import com.pi4j.io.spi.Spi;
 import com.pi4j.io.spi.SpiChipSelect;
-import com.pi4j.io.spi.SpiConfigBuilder;
-import com.pi4j.io.spi.SpiMode;
 
 import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.runtime.StartupEvent;
@@ -162,20 +154,26 @@ public class LoraReceiver {
 
     private void listen() {
         /*
-           Built field by field rather than from defaults(), because the CRC has
-           to be settable and that is the one field with no wither. The rest are
-           the defaults' own values, which the sender also uses: 125 kHz, 4/5, the
-           private sync word, an 8 symbol preamble, an explicit header — the
-           length travels in the packet — and no IQ inversion.
+           Only what differs from the defaults. The rest of them are what the sender
+           uses too: 125 kHz, 4/5, the private sync word, an 8 symbol preamble, an
+           explicit header — the length travels in the packet — and no IQ inversion.
         */
-        Lr1121Driver.LoraSettings settings = new Lr1121Driver.LoraSettings(
-                spreadingFactor, Lr1121Driver.LoraSettings.BW_125_KHZ,
-                Lr1121Driver.LoraSettings.CR_4_5, Lr1121Driver.LoraSettings.SYNC_WORD_PRIVATE,
-                8, true, crc, false);
+        Lr1121Driver.LoraSettings settings = Lr1121Driver.LoraSettings.defaults()
+                .withSpreadingFactor(spreadingFactor)
+                .withCrc(crc);
 
+        /*
+           The pins are all this has to say. Everything else about the bus and the
+           three lines is the radio's business, and the driver sets it — including
+           the two settings that are wrong by default and fail silently.
+        */
         Context pi4j = Pi4J.newAutoContext();
-        try (Lr1121Driver radio = new Lr1121Driver(spi(pi4j), resetLine(pi4j),
-                inputLine(pi4j, "lora-busy", BUSY_PIN), inputLine(pi4j, "lora-irq", IRQ_PIN))) {
+        try (Lr1121Driver radio = Lr1121Driver.on(pi4j)
+                .spi(0, SpiChipSelect.CS_0)
+                .resetPin(22)
+                .busyPin(24)
+                .interruptPin(23)
+                .open()) {
             Lr1121Driver.Version version = radio.version();
             LOG.infof("LoRa radio: %s", version);
 
@@ -204,59 +202,6 @@ public class LoraReceiver {
             listening = false;
             pi4j.shutdown();
         }
-    }
-
-    /*
-       The wiring, which is this machine's business rather than the driver's — the
-       driver takes the bus and the three lines and knows nothing about which pins
-       they came from. These are Waveshare's own numbers for the Core1121.
-    */
-    private static final int RESET_PIN = 22;
-    private static final int BUSY_PIN = 24;
-    private static final int IRQ_PIN = 23;
-
-    /**
-     * 2 MHz rather than the 10 MHz the vendor's demo uses. Ten is fine down a short
-     * ribbon to a HAT; over jumper wires with no ground return beside each signal it
-     * is marginal, and marginal SPI does not fail cleanly — it corrupts the odd byte
-     * into a plausible number, such as a version that reads 0x14 instead of 0x22.
-     */
-    private static Spi spi(Context pi4j) {
-        return pi4j.create(SpiConfigBuilder.newInstance(pi4j)
-                .id("lora-spi")
-                .bus(0)
-                .chipSelect(SpiChipSelect.CS_0)
-                .mode(SpiMode.MODE_0)
-                .baud(2_000_000)
-                .build());
-    }
-
-    /**
-     * High from the moment the line is claimed. Reset is active low, so an output
-     * that comes up at zero holds the radio in reset — after which it answers
-     * nothing, its busy line never falls, and every symptom points at the wiring.
-     */
-    private static DigitalOutput resetLine(Context pi4j) {
-        return pi4j.create(DigitalOutputConfigBuilder.newInstance(pi4j)
-                .id("lora-reset")
-                .bcm(RESET_PIN)
-                .initial(DigitalState.HIGH)
-                .shutdown(DigitalState.HIGH)
-                .build());
-    }
-
-    /**
-     * Debounce off, explicitly. Pi4J defaults it to 10 000 microseconds, which is a
-     * sensible guard for a pushbutton and ten milliseconds of damage here: these
-     * lines carry a radio announcing an arrived packet, and two packets inside one
-     * debounce window would be delivered as one.
-     */
-    private static DigitalInput inputLine(Context pi4j, String id, int pin) {
-        return pi4j.create(DigitalInputConfigBuilder.newInstance(pi4j)
-                .id(id)
-                .bcm(pin)
-                .debounce(0L)
-                .build());
     }
 
     private void relay(Lr1121Driver.ReceivedPacket received) {
