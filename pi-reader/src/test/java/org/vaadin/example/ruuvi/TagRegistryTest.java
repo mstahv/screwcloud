@@ -9,6 +9,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import org.vaadin.example.lora.RelayedReading;
 import org.vaadin.example.sensor.Reading;
 import org.vaadin.example.thingy.ThingyReading;
 
@@ -86,6 +87,31 @@ class TagRegistryTest {
                 "both are worth sending, under identifiers that cannot be confused");
         assertEquals(2, registry.heardWithin(Duration.ofMinutes(1), NOW).size());
         assertTrue(registry.duplicateSensorIds().isEmpty());
+    }
+
+    /**
+     * A relayed reading is shown but never sent again.
+     *
+     * <p>This is the one that would be expensive to get wrong. The relay has already
+     * forwarded those bytes to the server as the device that measured them, with its
+     * own identifier and its own sequence numbers. If they also went into this
+     * reader's packet the server would file one thermometer under two devices and
+     * have no way to tell they were the same — and the mistake would look like
+     * working software.
+     */
+    @Test
+    void aRelayedReadingIsShownButNotSentOnAgain() {
+        registry.store(reading("CB:B8:33:4C:88:4F", 21.0, NOW));
+        registry.storeRelayed(
+                new RelayedReading("SLP1", "CPU", true, 19.6, null, (short) -97, NOW));
+
+        assertEquals(List.of("LoRa SLP1", "R84F"),
+                registry.readings().stream().map(Reading::sensorId).sorted().toList(),
+                "both belong on the page");
+        assertEquals(List.of("R84F"),
+                registry.heardWithin(Duration.ofMinutes(1), NOW).stream()
+                        .map(Reading::sensorId).toList(),
+                "only what this machine heard itself belongs in its own packet");
     }
 
     /**

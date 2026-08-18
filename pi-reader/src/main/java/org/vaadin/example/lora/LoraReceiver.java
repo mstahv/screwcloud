@@ -21,6 +21,8 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
+import org.vaadin.example.history.ReadingHistory;
+import org.vaadin.example.ruuvi.TagRegistry;
 import org.vaadin.example.upstream.ScrewCloudSender;
 
 /**
@@ -52,6 +54,12 @@ public class LoraReceiver {
 
     @Inject
     ScrewCloudSender sender;
+
+    @Inject
+    TagRegistry registry;
+
+    @Inject
+    ReadingHistory history;
 
     @ConfigProperty(name = "screwcloud.lora.enabled", defaultValue = "false")
     boolean enabled;
@@ -206,6 +214,22 @@ public class LoraReceiver {
 
         LOG.infof("Relaying %s", packet.describe());
         sender.forward(packet.bytes());
+
+        /*
+           And decoded for this machine's own page, which is a separate job from
+           relaying and happens after it. The bytes went to the server untouched;
+           these are so that a node out of WiFi range gets a card here too, rather
+           than only a line saying that a packet went past.
+
+           storeRelayed rather than store: these must not end up in this reader's own
+           packet, or the same measurement reaches the server twice under two device
+           identifiers. TagRegistry says the same thing where it matters.
+        */
+        Instant at = Instant.now();
+        for (RelayedReading reading : packet.readings(at)) {
+            registry.storeRelayed(reading);
+            history.add(reading);
+        }
     }
 
     private synchronized void remember(LoraPacket packet) {

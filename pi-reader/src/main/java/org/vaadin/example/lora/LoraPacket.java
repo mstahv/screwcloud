@@ -1,6 +1,9 @@
 package org.vaadin.example.lora;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.vaadin.example.protocol.Protocol;
 
@@ -50,6 +53,44 @@ public record LoraPacket(byte[] bytes, int rssiDbm, double snrDb) {
             return false;
         }
         return bytes.length == Protocol.HEADER_SIZE + sensorCount() * Protocol.SENSOR_SIZE;
+    }
+
+    /**
+     * The sensors inside, decoded, so they can be shown on this machine's page.
+     *
+     * <p>This is the one place where the relay looks inside a packet, and it changes
+     * nothing about the relay: {@link #bytes()} still leaves untouched. Decoding here
+     * is for the local display only, which is the half of this application that has
+     * to keep working when the server cannot be reached — and a page that showed
+     * "16 bytes arrived" while a thermometer sat unread in those bytes would be a
+     * poor version of that.
+     *
+     * <p>Empty for anything that does not look like one of ours. A packet from
+     * somebody else's device on the same frequency is still relayed, because the
+     * server is the one that decides what it can read; it is simply not put on this
+     * page as though it were a temperature.
+     *
+     * @param at when the packet arrived
+     */
+    public List<RelayedReading> readings(Instant at) {
+        if (!looksLikeAMeasurement()) {
+            return List.of();
+        }
+        List<RelayedReading> readings = new ArrayList<>(sensorCount());
+        for (int i = 0; i < sensorCount(); i++) {
+            int at0 = Protocol.HEADER_SIZE + i * Protocol.SENSOR_SIZE;
+            String sensorId = new String(bytes, at0, Protocol.ID_SIZE,
+                    StandardCharsets.US_ASCII).trim();
+
+            short rawTemperature = (short) (((bytes[at0 + 4] & 0xFF) << 8) | (bytes[at0 + 5] & 0xFF));
+            int rawHumidity = ((bytes[at0 + 6] & 0xFF) << 8) | (bytes[at0 + 7] & 0xFF);
+
+            readings.add(new RelayedReading(deviceId(), sensorId, sensorCount() == 1,
+                    rawTemperature == Protocol.TEMPERATURE_INVALID ? null : rawTemperature / 100.0,
+                    rawHumidity == Protocol.HUMIDITY_INVALID ? null : rawHumidity / 100.0,
+                    (short) rssiDbm, at));
+        }
+        return readings;
     }
 
     /** One line for the page, in the terms a reader cares about. */

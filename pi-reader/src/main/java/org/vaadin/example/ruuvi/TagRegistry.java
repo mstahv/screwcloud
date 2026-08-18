@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -35,6 +36,19 @@ public class TagRegistry {
 
     private final Map<String, Reading> byAddress = new ConcurrentHashMap<>();
 
+    /**
+     * Readings that arrived over the air for some other device, kept apart.
+     *
+     * <p>They belong on the page — a node out of WiFi range is exactly what somebody
+     * standing at the Pi wants to see — and they must never reach {@link
+     * #heardWithin}, which is what fills this reader's own packet. The relay has
+     * already sent them to the server as themselves, with their own device
+     * identifier and their own sequence numbers. Sending them again inside this
+     * machine's packet would file one measurement under two devices, and the server
+     * would have no way to know they were the same.
+     */
+    private final Map<String, Reading> relayed = new ConcurrentHashMap<>();
+
     /** Keeps the newer of the two, so an advertisement arriving late cannot win. */
     public void store(Reading reading) {
         byAddress.merge(reading.macAddress(), reading,
@@ -42,17 +56,35 @@ public class TagRegistry {
                         ? existing : arriving);
     }
 
-    /** Every sensor heard since startup, in a stable order. */
+    /**
+     * Stores something heard on behalf of another device, for the page only.
+     *
+     * <p>Separate from {@link #store} on purpose; see the field it goes into.
+     */
+    public void storeRelayed(Reading reading) {
+        relayed.merge(reading.macAddress(), reading,
+                (existing, arriving) -> arriving.receivedAt().isBefore(existing.receivedAt())
+                        ? existing : arriving);
+    }
+
+    /** Everything to show: what this machine heard itself, and what it relayed. */
     public List<Reading> readings() {
-        return byAddress.values().stream()
+        return Stream.concat(byAddress.values().stream(), relayed.values().stream())
                 .sorted(Comparator.comparing(Reading::sensorId)
                         .thenComparing(Reading::macAddress))
                 .toList();
     }
 
-    /** The ones heard recently enough to be worth reporting, newest first. */
+    /**
+     * The ones worth putting in this reader's own packet, newest first.
+     *
+     * <p>Its own only. Relayed readings are deliberately absent — they have been
+     * sent already, by the relay, as the device that measured them.
+     */
     public List<Reading> heardWithin(Duration age, Instant now) {
-        return readings().stream()
+        return byAddress.values().stream()
+                .sorted(Comparator.comparing(Reading::sensorId)
+                        .thenComparing(Reading::macAddress))
                 .filter(reading -> !reading.isOlderThan(age, now))
                 .sorted(Comparator.comparing(Reading::receivedAt).reversed())
                 .toList();
@@ -75,6 +107,6 @@ public class TagRegistry {
     }
 
     public int size() {
-        return byAddress.size();
+        return byAddress.size() + relayed.size();
     }
 }
