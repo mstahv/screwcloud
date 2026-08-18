@@ -14,6 +14,7 @@ import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayoutVariant;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
@@ -110,7 +111,14 @@ class HeatSumCounterForm extends VerticalLayout {
 
             // The length limit comes from the record's @Size, via the binder.
             comment.setPlaceholder("What is hanging");
-            comment.setWidthFull();
+            /*
+               Flexible with a floor rather than the full width. Full width makes the
+               field the whole row, so on a wrapping row everything else would always
+               be pushed to the next line; this way the row stays one line while
+               there is room for all of it and breaks only when there is not.
+            */
+            comment.setWidth(null);
+            comment.getStyle().set("flex", "1 1 11em");
 
             /*
                Saved as the reader types, and only when what they typed leaves the
@@ -130,15 +138,17 @@ class HeatSumCounterForm extends VerticalLayout {
             stop.addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
             stop.setAriaLabel("Stop this counter");
 
-            HorizontalLayout row = new HorizontalLayout(comment, target, stop);
+            HorizontalLayout row = new HorizontalLayout(comment, targetAnd(target, stop));
             row.setAlignItems(Alignment.BASELINE);
             row.setWidthFull();
             row.setPadding(false);
+            row.addThemeVariants(HorizontalLayoutVariant.WRAP);
 
             HorizontalLayout alerts = new HorizontalLayout(new Caption("Notify:"),
                     alertBeforeTarget, alertAtTarget);
             alerts.setAlignItems(Alignment.CENTER);
             alerts.setPadding(false);
+            alerts.addThemeVariants(HorizontalLayoutVariant.WRAP);
 
             VerticalLayout layout = new VerticalLayout(row, alerts,
                     new Started(counter.getStartedAt()));
@@ -170,7 +180,14 @@ class HeatSumCounterForm extends VerticalLayout {
 
             // The length limit comes from the record's @Size, via the binder.
             comment.setPlaceholder("What is hanging");
-            comment.setWidthFull();
+            /*
+               Flexible with a floor rather than the full width. Full width makes the
+               field the whole row, so on a wrapping row everything else would always
+               be pushed to the next line; this way the row stays one line while
+               there is room for all of it and breaks only when there is not.
+            */
+            comment.setWidth(null);
+            comment.getStyle().set("flex", "1 1 11em");
 
             setSaveCaption("Start");
             setSavedHandler(started -> {
@@ -191,10 +208,17 @@ class HeatSumCounterForm extends VerticalLayout {
 
         @Override
         protected Component createContent() {
-            HorizontalLayout row = new HorizontalLayout(comment, target, getSaveButton());
+            HorizontalLayout row = new HorizontalLayout(comment, targetAnd(target, getSaveButton()));
             row.setAlignItems(Alignment.BASELINE);
             row.setWidthFull();
             row.setPadding(false);
+            /*
+               Wraps rather than overflows. This form lives in a popover, and a
+               popover on a phone is narrower than a text field, a number field and a
+               button standing side by side — which showed as a scrollbar under the
+               row and the button off the right-hand edge.
+            */
+            row.addThemeVariants(HorizontalLayoutVariant.WRAP);
 
             VerticalLayout layout = new VerticalLayout(row, getClassLevelViolationsDisplay(),
                     new Hint("Degree-days: temperature multiplied by time. Forty is the usual "
@@ -227,6 +251,21 @@ class HeatSumCounterForm extends VerticalLayout {
     }
 
     /** The target in degree-days, in both rows. */
+    /**
+     * The target and the button that acts on it, kept together.
+     *
+     * <p>They wrap as one thing, so a row with no room for all three parts breaks
+     * after the comment — "what is hanging" on its own line, the number and the
+     * button on the next — rather than leaving the button stranded on a line by
+     * itself under two fields.
+     */
+    private static HorizontalLayout targetAnd(NumberField target, Component action) {
+        HorizontalLayout group = new HorizontalLayout(target, action);
+        group.setAlignItems(Alignment.BASELINE);
+        group.setPadding(false);
+        return group;
+    }
+
     private static class TargetField extends NumberField {
         TargetField() {
             setAriaLabel("Target in degree-days");

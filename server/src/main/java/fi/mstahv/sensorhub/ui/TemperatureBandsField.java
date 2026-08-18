@@ -3,6 +3,7 @@ package fi.mstahv.sensorhub.ui;
 import com.vaadin.flow.component.customfield.CustomField;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayoutVariant;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 
@@ -108,12 +109,29 @@ class TemperatureBandsField extends CustomField<SensorThresholds> {
             setSpacing(true);
             setAlignItems(Alignment.BASELINE);
             setWidthFull();
+            /*
+               Wraps rather than overflows: on the narrowest phones the caption and
+               the two limits do not fit on one line inside a popover, and what used
+               to happen there was a scrollbar under the row.
+            */
+            addThemeVariants(HorizontalLayoutVariant.WRAP);
 
             Span caption = new Span(label);
             // Kept: the two rows' fields line up only if the captions share a width.
             caption.getStyle().setMinWidth("9rem");
 
-            add(caption, low, new RangeSeparator(), high);
+            /*
+               The pair is one thing, so it wraps as one. Left as three siblings, a
+               row with no room for all of it broke between the dash and the second
+               field — a range with its two halves on different lines, which reads as
+               two unrelated numbers, which is exactly what the dash is there to
+               prevent.
+            */
+            HorizontalLayout pair = new HorizontalLayout(low, new RangeSeparator(), high);
+            pair.setPadding(false);
+            pair.setAlignItems(Alignment.BASELINE);
+
+            add(caption, pair);
         }
     }
 
