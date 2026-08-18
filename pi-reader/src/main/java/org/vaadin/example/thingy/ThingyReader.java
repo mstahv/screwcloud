@@ -20,6 +20,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import org.vaadin.example.history.ReadingHistory;
+import org.vaadin.example.updates.ReadingUpdates;
 import org.vaadin.example.ruuvi.BleScanner;
 import org.vaadin.example.ruuvi.TagRegistry;
 
@@ -79,6 +80,9 @@ public class ThingyReader {
 
     @Inject
     ReadingHistory history;
+
+    @Inject
+    ReadingUpdates updates;
 
     @Inject
     BleScanner scanner;
@@ -209,6 +213,7 @@ public class ThingyReader {
 
         registry.store(reading);
         history.add(reading);
+        updates.changed();
 
         status = "Connected to %s as %s".formatted(device.getAddress(), reading.sensorId());
         if (!reported) {

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
 import fi.mstahv.sensorhub.store.ClientDeviceStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
+import fi.mstahv.sensorhub.updates.DeviceUpdates;
 
 /**
  * Watches for devices that have stopped reporting.
@@ -52,6 +53,7 @@ public class ConnectionMonitor {
     private final ClientDeviceStore clientDevices;
     private final AlertSubscriptionStore subscriptions;
     private final WebPushService webPush;
+    private final DeviceUpdates updates;
     private final Clock clock;
 
     /**
@@ -74,17 +76,20 @@ public class ConnectionMonitor {
     */
     @Autowired
     ConnectionMonitor(MeasurementStore measurements, ClientDeviceStore clientDevices,
-                      AlertSubscriptionStore subscriptions, WebPushService webPush) {
-        this(measurements, clientDevices, subscriptions, webPush, Clock.systemUTC());
+                      AlertSubscriptionStore subscriptions, WebPushService webPush,
+                      DeviceUpdates updates) {
+        this(measurements, clientDevices, subscriptions, webPush, updates, Clock.systemUTC());
     }
 
     /** Visible for tests, which need to decide what "now" is. */
     ConnectionMonitor(MeasurementStore measurements, ClientDeviceStore clientDevices,
-                      AlertSubscriptionStore subscriptions, WebPushService webPush, Clock clock) {
+                      AlertSubscriptionStore subscriptions, WebPushService webPush,
+                      DeviceUpdates updates, Clock clock) {
         this.measurements = measurements;
         this.clientDevices = clientDevices;
         this.subscriptions = subscriptions;
         this.webPush = webPush;
+        this.updates = updates;
         this.clock = clock;
     }
 
@@ -104,15 +109,26 @@ public class ConnectionMonitor {
 
     @Scheduled(fixedDelay = SWEEP_INTERVAL_MS, initialDelay = SWEEP_INTERVAL_MS)
     void sweep() {
-        if (!webPush.isEnabled()) {
-            return;
-        }
         try {
-            clientDevices.clientsWatchingForSilence().forEach(this::check);
+            /*
+               Only the notifications need this part, and only when they can be sent
+               at all; the pages are told either way, below.
+            */
+            if (webPush.isEnabled()) {
+                clientDevices.clientsWatchingForSilence().forEach(this::check);
+            }
         } catch (RuntimeException e) {
             // A scheduled task that throws is never run again. Not worth that.
             log.warn("The connection sweep failed: {}", e.getMessage());
         }
+
+        /*
+           A device going quiet is the one change no packet announces, so an open page
+           would never hear about it: everything else on these pages arrives as an
+           arrival. This is where the badge comes from, and it is a single timer on
+           the server rather than one poll per open browser.
+        */
+        updates.swept();
     }
 
     private void check(String deviceId, List<String> watchers) {

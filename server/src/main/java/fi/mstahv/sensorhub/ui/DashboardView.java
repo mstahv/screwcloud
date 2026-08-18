@@ -5,8 +5,6 @@ import java.time.Instant;
 import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
 
 import com.vaadin.flow.component.AttachEvent;
-import com.vaadin.flow.component.DetachEvent;
-import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
 import com.vaadin.flow.component.dependency.StyleSheet;
@@ -32,6 +30,7 @@ import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
 import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
+import fi.mstahv.sensorhub.updates.DeviceUpdates;
 import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
@@ -42,8 +41,10 @@ import org.vaadin.firitin.util.style.VaadinCssProps;
  * knowing the address is enough. That is a deliberate choice — the device list is
  * a convenience, not access control.
  *
- * <p>Updates are polled rather than pushed: devices send every five minutes, so a
- * few seconds of latency is irrelevant and polling saves one thing to configure.
+ * <p>Updates are pushed. The view subscribes to {@link DeviceUpdates} for the
+ * device it is showing, and is woken when a packet for it arrives — and once a
+ * minute by the sweep that decides whether a device has gone quiet, which is the one
+ * change no packet announces.
  */
 @Route("device")
 @StyleSheet(Aura.STYLESHEET)
@@ -52,10 +53,10 @@ import org.vaadin.firitin.util.style.VaadinCssProps;
 public class DashboardView extends VerticalLayout
         implements HasUrlParameter<String>, HasDynamicTitle {
 
-    private static final int POLL_INTERVAL_MS = 5000;
 
     private final MeasurementStore store;
     private final ConnectionMonitor connections;
+    private final DeviceUpdates updates;
     private final SensorCardLayout cards;
     private final H2 heading = new H2();
     private final Span deviceStatus = new Span();
@@ -63,7 +64,8 @@ public class DashboardView extends VerticalLayout
     private final Badge offline = new Badge();
     private final Span emptyState = new Span();
 
-    private Registration pollRegistration;
+    /** This view's interest in one device, dropped when it switches to another. */
+    private Registration subscription;
     private String deviceId;
 
     /** The last packet rendered, so an unchanged state can be skipped. */
@@ -71,9 +73,11 @@ public class DashboardView extends VerticalLayout
 
     public DashboardView(MeasurementStore store, SensorSettingsStore settings,
                          AlertSubscriptionStore alerts, HeatSumCounterStore heatSums,
-                         WebPushService webPush, ConnectionMonitor connections) {
+                         WebPushService webPush, ConnectionMonitor connections,
+                         DeviceUpdates updates) {
         this.store = store;
         this.connections = connections;
+        this.updates = updates;
         this.cards = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
         offline.addThemeVariants(BadgeVariant.ERROR);
         offline.setVisible(false);
@@ -106,6 +110,7 @@ public class DashboardView extends VerticalLayout
         this.renderedReceivedAt = null;
         cards.clear();
         heading.setText(deviceId != null ? deviceId : "No device selected");
+        subscribe();
         refresh();
     }
 
@@ -118,32 +123,42 @@ public class DashboardView extends VerticalLayout
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);
-        UI ui = attachEvent.getUI();
-        ui.setPollInterval(POLL_INTERVAL_MS);
-        pollRegistration = ui.addPollListener(event -> refresh());
+        /*
+           setParameter runs before the first attach, so the subscription it asked
+           for could not be made then — there was no UI to push through yet. This is
+           the first chance, and the reason subscribe() is idempotent.
+        */
+        subscribe();
 
         /*
            The token is only needed by the per-sensor alert settings, which are
            behind a popover, so the cards do not wait for it.
         */
-        ClientId.resolve(ui, cards::setClientId);
-    }
-
-    @Override
-    protected void onDetach(DetachEvent detachEvent) {
-        if (pollRegistration != null) {
-            pollRegistration.remove();
-            pollRegistration = null;
-        }
-        detachEvent.getUI().setPollInterval(-1);
-        super.onDetach(detachEvent);
+        ClientId.resolve(attachEvent.getUI(), cards::setClientId);
     }
 
     /*
-       The cards and their history queries only run when the packet has changed.
-       Devices send every five minutes while the view polls every five seconds,
-       so the vast majority of polls bring nothing new. The age text is still
-       refreshed every time, because it changes every second.
+       There is no onDetach here any more. DeviceUpdates drops a subscription when
+       its view detaches, which is one fewer thing that can be forgotten; what is
+       left is the case it cannot see — this view staying on screen and changing
+       which device it is about.
+    */
+    private void subscribe() {
+        if (subscription != null) {
+            subscription.remove();
+            subscription = null;
+        }
+        if (deviceId == null || getUI().isEmpty()) {
+            return;
+        }
+        subscription = updates.forDevice(this, deviceId, this::refresh);
+    }
+
+    /*
+       Runs when a packet for this device arrives, and once a minute when the sweep
+       that judges silence has run. The cards and their history queries still go
+       through the "has the packet changed" gate, because the sweep brings nothing
+       new for a device that is reporting normally.
     */
     private void refresh() {
         if (deviceId == null) {
@@ -159,9 +174,10 @@ public class DashboardView extends VerticalLayout
 
             /*
                The same judgement the notifications use, so the page and the phone
-               never say different things. Refreshed on every poll rather than only
-               on a new packet: going offline is precisely the case where no packet
-               arrives to trigger anything.
+               never say different things. Re-read on every wake-up rather than only
+               when a packet arrives: going offline is precisely the case where no
+               packet arrives to trigger anything, which is what the minute sweep is
+               for.
             */
             DeviceActivity activity = connections.activityOf(deviceId);
             offline.setVisible(activity.silent());

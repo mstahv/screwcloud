@@ -22,6 +22,7 @@ import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
 import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.store.ClientDeviceStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
+import fi.mstahv.sensorhub.updates.DeviceUpdates;
 import fi.mstahv.sensorhub.validation.DeviceId;
 import org.vaadin.firitin.form.BeanValidationForm;
 import org.vaadin.firitin.util.style.VaadinCssProps;
@@ -50,6 +51,7 @@ public class DeviceListView extends VerticalLayout {
     private final MeasurementStore measurements;
     private final ClientDeviceStore clientDevices;
     private final ConnectionMonitor connections;
+    private final DeviceUpdates updates;
 
     private final NotificationSwitch notifications;
     private final FlexLayout deviceCards = new FlexLayout();
@@ -69,10 +71,12 @@ public class DeviceListView extends VerticalLayout {
     }
 
     public DeviceListView(MeasurementStore measurements, ClientDeviceStore clientDevices,
-                          WebPushService webPush, ConnectionMonitor connections) {
+                          WebPushService webPush, ConnectionMonitor connections,
+                          DeviceUpdates updates) {
         this.measurements = measurements;
         this.clientDevices = clientDevices;
         this.connections = connections;
+        this.updates = updates;
         this.notifications = new NotificationSwitch(webPush, () -> clientId);
 
         /*
@@ -247,6 +251,14 @@ public class DeviceListView extends VerticalLayout {
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);
+        /*
+           Any device, not one: this page shows several, and a device reporting for
+           the first time is exactly the case where there is no identifier here to
+           have subscribed to. The subscription ends with the page, so there is
+           nothing to undo in onDetach.
+        */
+        updates.forEveryDevice(this, this::refresh);
+
         ClientId.resolve(attachEvent.getUI(), resolved -> {
             clientId = resolved;
             refresh();

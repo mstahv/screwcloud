@@ -279,7 +279,7 @@ class SensorCard extends Card {
            A section left open has to keep up, otherwise it silently stays at the
            rows it had when it was opened. This runs only when a new packet has
            arrived — the view skips the update entirely when nothing changed — so
-           it is one refresh per measurement, not one per poll.
+           it is one refresh per measurement, and the minute sweep costs nothing.
         */
         if (openMeasurements != null) {
             openMeasurements.refresh();

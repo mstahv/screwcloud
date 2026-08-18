@@ -59,8 +59,8 @@ class BrandHeader extends HorizontalLayout {
     }
 
     /**
-     * Opens in a new tab: leaving the page would drop the poll and the reader's
-     * place, and following a source link is not leaving the application.
+     * Opens in a new tab: leaving the page would drop its live connection and the
+     * reader's place, and following a source link is not leaving the application.
      */
     private static class SourceLink extends Anchor {
         SourceLink() {

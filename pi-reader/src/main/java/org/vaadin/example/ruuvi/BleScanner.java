@@ -29,6 +29,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import org.vaadin.example.history.ReadingHistory;
+import org.vaadin.example.updates.ReadingUpdates;
 
 /**
  * Listens for RuuviTag advertisements through BlueZ and feeds them to the
@@ -60,6 +61,9 @@ public class BleScanner {
 
     @Inject
     ReadingHistory history;
+
+    @Inject
+    ReadingUpdates updates;
 
     @ConfigProperty(name = "screwcloud.ble.enabled", defaultValue = "true")
     boolean enabled;
@@ -243,6 +247,12 @@ public class BleScanner {
             if (isNewBroadcast(reading.get())) {
                 registry.store(reading.get());
                 history.add(reading.get());
+                /*
+                   The page hears about it from here rather than asking every five
+                   seconds. Tags advertise several times a second between them, so
+                   this is called often; ReadingUpdates is what makes that cheap.
+                */
+                updates.changed();
                 if (!reported) {
                     reported = true;
                     LOG.infof("First reading: %s %s %.2f C", reading.get().sensorId(),

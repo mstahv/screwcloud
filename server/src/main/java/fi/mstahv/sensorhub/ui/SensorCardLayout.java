@@ -27,7 +27,7 @@ import org.vaadin.firitin.util.style.VaadinCssProps;
  * <p>Cards are kept in a map keyed by sensor id and updated in place. Components
  * are only added or removed when the set of sensors actually changes — in
  * practice when switching devices or when a new sensor appears, not on every
- * poll.
+ * update.
  */
 class SensorCardLayout extends FlexLayout {
 

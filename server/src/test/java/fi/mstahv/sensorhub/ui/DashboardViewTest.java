@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.List;
 
 import com.vaadin.browserless.BrowserlessUIContext;
+import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.component.badge.Badge;
 
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
 import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
+import fi.mstahv.sensorhub.updates.DeviceUpdates;
 
 /**
  * One device's measurements, driven through the view.
@@ -36,6 +38,9 @@ class DashboardViewTest {
 
     @Autowired
     private SensorSettingsStore settings;
+
+    @Autowired
+    private DeviceUpdates updates;
 
     @Test
     void everySensorInThePacketGetsACard(@Autowired BrowserlessUIContext ui) {
@@ -345,6 +350,46 @@ class DashboardViewTest {
                 new SensorMeasurement("DHT", dht, 45.0),
                 new SensorMeasurement(SensorMeasurement.INTERNAL_SENSOR_ID, chip, null),
                 new SensorMeasurement("RBF", 21.0, 40.0))));
+    }
+
+    /**
+     * A reading that arrives while the page is open reaches the page.
+     *
+     * <p>This is what replaced the poll, and it is worth a test of its own because
+     * the failure is silent: a page that is never told simply keeps showing the last
+     * thing it was told, which is indistinguishable from a device that has not
+     * reported. The packet is stored and announced the way the UDP thread does it —
+     * from outside the session lock — and the assertion is that the new sensor has a
+     * card without anybody navigating again.
+     */
+    @Test
+    void aPacketArrivingWhileThePageIsOpenReachesIt(@Autowired BrowserlessUIContext ui) {
+        store("PUSH", Instant.now(), 6.5, 21.0);
+        ui.navigate(DashboardView.class, "PUSH");
+        assertEquals(List.of("DHT", "RBF"), sensorCardTitles(ui));
+
+        measurements.store(new DeviceMeasurement("PUSH", 2, Instant.now(), List.of(
+                new SensorMeasurement("DHT", 6.5, 45.0),
+                new SensorMeasurement("RBF", 21.0, 40.0),
+                new SensorMeasurement("NEW", 12.0, 55.0))));
+        deliver(ui, () -> updates.arrived("PUSH"));
+
+        assertEquals(List.of("DHT", "NEW", "RBF"), sensorCardTitles(ui),
+                "the new sensor should be on the page without navigating again");
+    }
+
+    /**
+     * Publishes the way the receiving thread does, then runs what UI.access queued.
+     *
+     * <p>The queue is the part that needs saying. Work handed to a UI belongs to
+     * whoever holds the session lock, and in a test that is the test itself, for its
+     * whole length — so nothing runs until it is asked to. In production the push
+     * connection's thread does this on unlocking.
+     */
+    private static void deliver(BrowserlessUIContext ui, Runnable event) {
+        event.run();
+        VaadinSession session = ui.getUI().getSession();
+        session.getService().runPendingAccessTasks(session);
     }
 
     private void store(String deviceId, Instant at, double dht, double ruuvi) {

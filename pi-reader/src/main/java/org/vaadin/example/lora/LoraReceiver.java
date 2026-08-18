@@ -23,6 +23,7 @@ import org.jboss.logging.Logger;
 
 import org.vaadin.example.history.ReadingHistory;
 import org.vaadin.example.ruuvi.TagRegistry;
+import org.vaadin.example.updates.ReadingUpdates;
 import org.vaadin.example.upstream.ScrewCloudSender;
 
 /**
@@ -60,6 +61,9 @@ public class LoraReceiver {
 
     @Inject
     ReadingHistory history;
+
+    @Inject
+    ReadingUpdates updates;
 
     @ConfigProperty(name = "screwcloud.lora.enabled", defaultValue = "false")
     boolean enabled;
@@ -230,6 +234,9 @@ public class LoraReceiver {
             registry.storeRelayed(reading);
             history.add(reading);
         }
+
+        // Including a packet that decoded to nothing: the arrivals list shows it.
+        updates.changed();
     }
 
     private synchronized void remember(LoraPacket packet) {

@@ -34,6 +34,7 @@ import org.vaadin.example.protocol.SensorReading;
 import org.vaadin.example.ruuvi.BleScanner;
 import org.vaadin.example.ruuvi.RuuviReading;
 import org.vaadin.example.ruuvi.TagRegistry;
+import org.vaadin.example.updates.ReadingUpdates;
 import org.vaadin.example.thingy.ThingyReader;
 import org.vaadin.example.upstream.ScrewCloudSender;
 
@@ -47,6 +48,13 @@ import org.vaadin.example.upstream.ScrewCloudSender;
 class LocalViewTest {
 
     private static final Instant NOW = Instant.now();
+
+    /*
+       Real rather than mocked. The page subscribes to it on attach, and a test that
+       swapped it out would stop covering the one line that decides whether an open
+       page ever hears anything.
+    */
+    private final ReadingUpdates updates = new ReadingUpdates();
 
     /** Opens the page with these readings already heard, in history and registry. */
     private void inView(Path namesFile, BiConsumer<BrowserlessUIContext, ReadingHistory> body,
@@ -69,9 +77,26 @@ class LocalViewTest {
         try (BrowserlessApplicationContext app = BrowserlessApplicationContext.forComponent(
                 () -> new LocalView(registry, history, names,
                         new BleScanner(), new ScrewCloudSender("PI01"), lora,
-                        new ThingyReader()))) {
+                        new ThingyReader(), updates))) {
             body.accept(app.newUser().newWindow(), history);
         }
+    }
+
+    /**
+     * The page is told rather than asking, which is the whole of what replaced the
+     * poll — and the wiring worth pinning down, because both halves fail silently. A
+     * page that never subscribed simply shows the readings it had when it opened,
+     * and a subscription left behind by a closed page is a leak nobody sees.
+     */
+    @Test
+    void thePageSubscribesInsteadOfPolling(@TempDir Path directory) {
+        inView(directory.resolve("names.csv"), (ui, history) -> {
+            assertEquals(1, updates.subscriberCount(), "the page should be listening");
+            assertEquals(-1, ui.getUI().getPollInterval(),
+                    "and it should not be polling as well");
+        }, reading("CB:B8:33:4C:88:4F", 21.5, 45.0, NOW));
+
+        assertEquals(0, updates.subscriberCount(), "and it should let go when it closes");
     }
 
     /** A tag that has been heard gets a card, titled with what it is called. */

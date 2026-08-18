@@ -28,6 +28,7 @@ import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
 import fi.mstahv.sensorhub.store.ClientDeviceStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.PushSubscription;
+import fi.mstahv.sensorhub.updates.DeviceUpdates;
 
 /**
  * No Spring context and no database: the stores are mocks and the clock is a
@@ -46,9 +47,12 @@ class ConnectionMonitorTest {
     private final AlertSubscriptionStore subscriptions = mock(AlertSubscriptionStore.class);
     private final WebPushService webPush = mock(WebPushService.class);
 
+    /* Real rather than mocked: with no page subscribed it does nothing at all. */
+    private final DeviceUpdates updates = new DeviceUpdates();
+
     private final MutableClock clock = new MutableClock(NOON);
-    private final ConnectionMonitor monitor =
-            new ConnectionMonitor(measurements, clientDevices, subscriptions, webPush, clock);
+    private final ConnectionMonitor monitor = new ConnectionMonitor(
+            measurements, clientDevices, subscriptions, webPush, updates, clock);
 
     @BeforeEach
     void setUp() {

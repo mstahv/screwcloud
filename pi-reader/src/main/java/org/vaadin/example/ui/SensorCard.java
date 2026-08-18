@@ -65,9 +65,9 @@ class SensorCard extends Card {
     /*
        When the reading arrived, rendered by the browser rather than by us. The
        component takes an instant and says "2 minutes ago" in the reader's own
-       language, and keeps saying the right thing between polls — which the string we
-       used to build could not: it was written at poll time and was wrong by however
-       long the page had been sitting there.
+       language, and keeps saying the right thing between updates — which the string
+       we used to build could not: it was written when the page last heard anything
+       and was wrong by however long it had been sitting there since.
 
        Wrapped in a line of its own because the component is a bare custom element
        with no styling of its own; the wrapper is what makes it secondary text.

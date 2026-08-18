@@ -17,6 +17,7 @@ import fi.mstahv.sensorhub.alerts.TemperatureAlerts;
 import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
 import fi.mstahv.sensorhub.protocol.PacketDecoder;
 import fi.mstahv.sensorhub.store.MeasurementStore;
+import fi.mstahv.sensorhub.updates.DeviceUpdates;
 
 /**
  * Listens on a UDP port and stores the contents of decoded packets.
@@ -43,6 +44,7 @@ public class UdpReceiver implements SmartLifecycle {
     private final MeasurementStore store;
     private final TemperatureAlerts alerts;
     private final HeatSumAlerts heatSums;
+    private final DeviceUpdates updates;
     private final int port;
 
     private volatile boolean running;
@@ -50,10 +52,11 @@ public class UdpReceiver implements SmartLifecycle {
     private Thread thread;
 
     UdpReceiver(MeasurementStore store, TemperatureAlerts alerts, HeatSumAlerts heatSums,
-                @Value("${sensorhub.udp.port}") int port) {
+                DeviceUpdates updates, @Value("${sensorhub.udp.port}") int port) {
         this.store = store;
         this.alerts = alerts;
         this.heatSums = heatSums;
+        this.updates = updates;
         this.port = port;
     }
 
@@ -106,6 +109,13 @@ public class UdpReceiver implements SmartLifecycle {
                 store.store(measurement);
                 log.info("Received from {}: {} sensors, sequence {}",
                         measurement.deviceId(), measurement.sensors().size(), measurement.sequence());
+                /*
+                   Straight after storing, so a page showing this device has its new
+                   reading before the alerts have finished deciding what to say about
+                   it. Anyone with the page open is the one person who does not need
+                   a notification.
+                */
+                updates.arrived(measurement.deviceId());
                 /*
                    After storing, because the alert compares the reading with the
                    previous one from the database. Sending itself happens on

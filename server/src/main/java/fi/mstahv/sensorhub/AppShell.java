@@ -1,10 +1,11 @@
 package fi.mstahv.sensorhub;
 
 import com.vaadin.flow.component.page.AppShellConfigurator;
+import com.vaadin.flow.component.page.Push;
 import com.vaadin.flow.server.PWA;
 
 /**
- * App shell configuration, currently just the PWA.
+ * App shell configuration: how the pages are updated, and the PWA.
  *
  * <p>Its own class rather than the application class: {@code
  * AppShellConfigurator} may only be implemented once, and this keeps the
@@ -27,7 +28,15 @@ import com.vaadin.flow.server.PWA;
  * caches the application shell, not the measurements, which arrive over Vaadin's
  * own channel at runtime. Opened with no connection, the app loads its frame and
  * says it has no connection — it does not show yesterday's readings.
+ *
+ * <p><b>Push is what the views are built on.</b> Each of them used to poll every
+ * five seconds; a measurement now travels from the UDP thread to the open browsers
+ * as it is stored, and {@code DeviceUpdates} is what they subscribe to. The
+ * transport is left at its default — a websocket where one can be opened, long
+ * polling where a proxy will not allow one — because this runs behind whatever the
+ * reader happens to have between them and the server.
  */
+@Push
 @PWA(name = "ScrewCloud – temperature monitoring",
         shortName = "ScrewCloud",
         description = "OSS web app to monitor temperature sensors like Ruuvi Tags and other custom sensors.",

@@ -8,7 +8,6 @@ import java.util.Map;
 import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
 
 import com.vaadin.flow.component.AttachEvent;
-import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.dependency.StyleSheet;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
@@ -16,7 +15,6 @@ import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.theme.aura.Aura;
 
 import org.vaadin.example.history.ReadingHistory;
@@ -24,6 +22,7 @@ import org.vaadin.example.lora.LoraReceiver;
 import org.vaadin.example.names.SensorNames;
 import org.vaadin.example.ruuvi.BleScanner;
 import org.vaadin.example.ruuvi.TagRegistry;
+import org.vaadin.example.updates.ReadingUpdates;
 import org.vaadin.example.sensor.Reading;
 import org.vaadin.example.thingy.ThingyReader;
 import org.vaadin.example.upstream.ScrewCloudSender;
@@ -44,10 +43,12 @@ import jakarta.inject.Inject;
  * the same person about the same sensors — a different look would suggest a
  * different system.
  *
- * <p>It polls rather than pushes. A reading changes every few seconds at most, a
- * poll costs one request against a server with a handful of clients on a home
- * network, and it is one moving part fewer than a websocket that has to survive a
- * sleeping phone.
+ * <p>It is pushed to rather than polling. The radios hear something and the page is
+ * told, through {@link ReadingUpdates} — which is also what keeps that affordable,
+ * since between them the tags in a house advertise several times a second and the
+ * page redraws once for a burst of those. A phone that sleeps and comes back
+ * reconnects and asks for the state it missed, which is what the poll was doing for
+ * it before, once every five seconds, forever.
  */
 @Route("")
 @PageTitle("ScrewCloud local")
@@ -58,7 +59,6 @@ import jakarta.inject.Inject;
 @StyleSheet("/styles/sunset-glass.css")
 public class LocalView extends VerticalLayout {
 
-    private static final int POLL_INTERVAL_MS = 5000;
 
     private final TagRegistry registry;
     private final ReadingHistory history;
@@ -67,6 +67,7 @@ public class LocalView extends VerticalLayout {
     private final ScrewCloudSender sender;
     private final LoraReceiver lora;
     private final ThingyReader thingy;
+    private final ReadingUpdates updates;
 
     private final FlexLayout cards = new FlexLayout();
     private final Span emptyState = new Span();
@@ -96,12 +97,10 @@ public class LocalView extends VerticalLayout {
     /** One card per tag, kept in place and updated. Insertion order is display order. */
     private final Map<String, SensorCard> cardsByAddress = new LinkedHashMap<>();
 
-    private Registration pollRegistration;
-
     @Inject
     public LocalView(TagRegistry registry, ReadingHistory history, SensorNames names,
                      BleScanner scanner, ScrewCloudSender sender, LoraReceiver lora,
-                     ThingyReader thingy) {
+                     ThingyReader thingy, ReadingUpdates updates) {
         this.registry = registry;
         this.history = history;
         this.names = names;
@@ -109,6 +108,7 @@ public class LocalView extends VerticalLayout {
         this.sender = sender;
         this.lora = lora;
         this.thingy = thingy;
+        this.updates = updates;
 
         /*
            A floor rather than a fixed height: a view the exact height of the viewport
@@ -139,19 +139,13 @@ public class LocalView extends VerticalLayout {
     @Override
     protected void onAttach(AttachEvent event) {
         super.onAttach(event);
-        event.getUI().setPollInterval(POLL_INTERVAL_MS);
-        pollRegistration = event.getUI().addPollListener(poll -> refresh());
+        /*
+           Told rather than asking. The subscription ends with the page, so there is
+           no onDetach to keep in step with this line — which is the half of a poll
+           that was easy to get wrong.
+        */
+        updates.onChange(this, this::refresh);
         refresh();
-    }
-
-    @Override
-    protected void onDetach(DetachEvent event) {
-        if (pollRegistration != null) {
-            pollRegistration.remove();
-            pollRegistration = null;
-        }
-        event.getUI().setPollInterval(-1);
-        super.onDetach(event);
     }
 
     private void refresh() {
