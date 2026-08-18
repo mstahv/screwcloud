@@ -78,12 +78,45 @@ class NotificationSwitch extends VerticalLayout {
         if (!webPush.isEnabled()) {
             return;
         }
-        webPush.isSubscribedInBrowser(ui, subscribed -> {
-            toggle.setValue(subscribed);
-            hint.setText(subscribed
-                    ? "Alerts you have chosen per sensor will arrive as notifications."
-                    : "Choose which alerts you want in each sensor's settings.");
+        /*
+           Whether the browser can do this at all, before asking it anything else.
+           Reading the subscription of a browser with no push support throws in the
+           browser and arrives here as a stack trace about an "unexpected error",
+           which is neither unexpected nor an error: a page opened over plain HTTP
+           from another machine on the network has no service worker, and that is a
+           normal way to look at this application while setting it up.
+        */
+        webPush.checkBrowserSupport(ui, support -> {
+            if (support != WebPushService.BrowserSupport.AVAILABLE) {
+                toggle.setEnabled(false);
+                hint.setText(explain(support));
+                return;
+            }
+            webPush.isSubscribedInBrowser(ui, subscribed -> {
+                toggle.setValue(subscribed);
+                hint.setText(subscribed
+                        ? "Alerts you have chosen per sensor will arrive as notifications."
+                        : "Choose which alerts you want in each sensor's settings.");
+            });
         });
+    }
+
+    /**
+     * Why this browser cannot, in the terms of what the reader would have to change.
+     *
+     * <p>Each of these is a different thing to do about it, which is the reason the
+     * check does not answer yes or no: "notifications are unavailable" would leave
+     * somebody looking for a setting that is not the problem.
+     */
+    private static String explain(WebPushService.BrowserSupport support) {
+        return switch (support) {
+            case NEEDS_SECURE_CONNECTION -> "Notifications need a secure connection. Open this "
+                    + "page over HTTPS, or at localhost on the machine running the server.";
+            case NOT_OFFERED_BY_BROWSER -> "This browser does not offer notifications for a page "
+                    + "in a tab. In Safari, add this site to the Dock or the home screen first.";
+            default -> "This browser has no service worker for this page, which is what receives "
+                    + "a notification while the page is closed.";
+        };
     }
 
     private void apply(boolean wanted) {

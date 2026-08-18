@@ -165,12 +165,71 @@ public class WebPushService {
     }
 
     /**
+     * What a browser is able to do about notifications, which is not always
+     * "everything" and not always "nothing".
+     */
+    public enum BrowserSupport {
+        /** A subscription can be made. */
+        AVAILABLE,
+        /**
+         * Plain HTTP somewhere other than localhost. There is no service worker at
+         * all, which is every "let me open this from my phone on the LAN" moment.
+         */
+        NEEDS_SECURE_CONNECTION,
+        /**
+         * A secure page, but no service worker registered for it — the thing that
+         * receives a notification when the tab is closed.
+         */
+        NO_SERVICE_WORKER,
+        /**
+         * A service worker without a push manager, which is Safari: it offers web
+         * push only to a site the reader has added to the Dock or the home screen.
+         */
+        NOT_OFFERED_BY_BROWSER
+    }
+
+    /**
+     * What this browser can do, asked before anything else is.
+     *
+     * <p>The rest of the web push API assumes the answer is "everything" and fails
+     * loudly when it is not: {@code registrationStatus} reaches for
+     * {@code registration.pushManager}, and where that does not exist the browser
+     * throws a {@code TypeError} which arrives on the server as
+     *
+     * <pre>Unexpected error: Unable to execute web push command. JS error is
+     * 'TypeError: undefined is not an object'</pre>
+     *
+     * <p>— a stack trace, logged at ERROR, about a browser that simply does not do
+     * this. Both ways of getting there are ordinary rather than exceptional, and
+     * they need different things said to the reader, which is why this answers with
+     * a reason rather than a boolean.
+     *
+     * <p>The checks run in the browser, in the order that a failing one makes the
+     * next meaningless. Nothing here depends on whether this server has keys — that
+     * is a separate answer, {@link #isEnabled()}, and the caller decides which of the
+     * two it wants to say first.
+     */
+    public void checkBrowserSupport(UI ui, java.util.function.Consumer<BrowserSupport> onKnown) {
+        ui.getPage().executeJs(
+                        "if (!window.isSecureContext) return 'NEEDS_SECURE_CONNECTION';"
+                        + "if (!navigator.serviceWorker) return 'NO_SERVICE_WORKER';"
+                        + "return navigator.serviceWorker.getRegistration().then(r =>"
+                        + "  !r ? 'NO_SERVICE_WORKER'"
+                        + "  : !r.pushManager ? 'NOT_OFFERED_BY_BROWSER'"
+                        + "  : 'AVAILABLE');")
+                .then(String.class, answer -> onKnown.accept(BrowserSupport.valueOf(answer)));
+    }
+
+    /**
      * Whether this browser currently has a push subscription according to the
      * browser itself.
      *
      * <p>The browser is the authority, not the database: notifications can be
      * revoked in browser settings without this server hearing about it, and the
      * switch would then show on while nothing would ever arrive.
+     *
+     * <p>Only ask after {@link #checkBrowserSupport} has answered
+     * {@link BrowserSupport#AVAILABLE}.
      */
     public void isSubscribedInBrowser(UI ui, java.util.function.Consumer<Boolean> onKnown) {
         if (!isEnabled()) {
