@@ -5,6 +5,9 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
+
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
 import com.vaadin.flow.component.button.Button;
@@ -14,7 +17,11 @@ import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.card.CardVariant;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.RouterLink;
+
+import org.vaadin.firitin.util.style.VaadinCssProps;
 
 import fi.mstahv.sensorhub.alerts.DeviceActivity;
 import fi.mstahv.sensorhub.alerts.Elapsed;
@@ -36,22 +43,55 @@ class DeviceLinkCard extends Card {
                    boolean silenceAlertEnabled, Consumer<Boolean> onSilenceAlertChanged,
                    Runnable onRemove) {
         addThemeVariants(CardVariant.OUTLINED);
-        setWidth("15rem");
+
+        /*
+           The width is in sunset-glass.css rather than here, because it depends on
+           how much room there is: one of these fills a phone's screen and four sit
+           in a row on a desktop. Java can only set it as an inline style, which no
+           media query can then answer.
+        */
+        addClassName("device-card");
+
+        /*
+           No motif here, unlike the sensor cards. These carried one for a while, and
+           the band it needed was the whole of the card's media slot — which on a card
+           whose content is three short lines is a picture with nothing standing in
+           it. A sensor card's motif is a background for the dial; a device card has
+           no dial, so the band read as decoration that had wandered in.
+        */
 
         setTitle(new RouterLink(deviceId, DashboardView.class, deviceId));
-        setSubtitle(latest.map(DeviceLinkCard::describe).orElse("No measurements yet"));
+        latest.ifPresentOrElse(
+                measurement -> setSubtitle(summarise(measurement)),
+                () -> setSubtitle("No measurements yet"));
 
         Button remove = new Button(VaadinIcon.TRASH.create(), event -> onRemove.run());
         remove.addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
         remove.setAriaLabel("Remove device from the list");
         setHeaderSuffix(remove);
 
-        add(new Span(latest.map(DeviceLinkCard::sensorCount).orElse("—")));
+        /*
+           A column, rather than three things added to the card directly. A card's
+           content slot is a plain block, so what goes into it flows the way text
+           does: while the card was 15rem wide the sensor count and the checkbox each
+           took a line because two would not fit, and the first phone-width card put
+           them side by side. Which line something is on should not depend on how
+           much room there happens to be.
 
+           Aligned to the start so the badge stays the width of its own text; a
+           stretched badge reads as a coloured bar across the card.
+        */
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        content.setAlignItems(FlexComponent.Alignment.START);
+        content.getStyle().setGap(VaadinCssProps.GAP_XS.var());
+
+        content.add(new Span(latest.map(DeviceLinkCard::sensorCount).orElse("—")));
         if (activity.silent()) {
-            add(new OfflineBadge(activity));
+            content.add(new OfflineBadge(activity));
         }
-        add(new SilenceAlertToggle(silenceAlertEnabled, onSilenceAlertChanged));
+        content.add(new SilenceAlertToggle(silenceAlertEnabled, onSilenceAlertChanged));
+        add(content);
     }
 
     /**
@@ -91,15 +131,32 @@ class DeviceLinkCard extends Card {
         return count == 1 ? "1 sensor" : count + " sensors";
     }
 
-    /** Package private for its test: the ordering is the part worth pinning down. */
-    static String describe(DeviceMeasurement measurement) {
-        String age = Ages.format(measurement.receivedAt());
+    /**
+     * The device in one line: the reading that stands for it, and when that arrived.
+     *
+     * <p>The time is a component rather than a formatted string. The front page is a
+     * page somebody leaves open — it refreshes only when they add or remove a device
+     * — so an age written into the DOM once was simply wrong by however long they had
+     * been looking at it. This one is rendered by the browser and stays right.
+     */
+    private static Component summarise(DeviceMeasurement measurement) {
+        Span line = new Span();
+        describe(measurement).ifPresent(reading -> line.add(new Span(reading + " · ")));
+        line.add(new RelativeTime(measurement.receivedAt()));
+        return line;
+    }
+
+    /**
+     * Package private for its test: which reading stands for the device is the part
+     * worth pinning down. Empty when the device measured no temperature at all —
+     * the arrival time is then the whole of what there is to say, and the caller
+     * shows that on its own.
+     */
+    static Optional<String> describe(DeviceMeasurement measurement) {
         return measurement.sensors().stream()
                 .filter(sensor -> sensor.temperature() != null)
                 .min(Comparator.comparingInt(DeviceLinkCard::previewRank))
-                .map(sensor -> String.format(Locale.ROOT, "%.1f °C · %s",
-                        sensor.temperature(), age))
-                .orElse(age);
+                .map(sensor -> String.format(Locale.ROOT, "%.1f °C", sensor.temperature()));
     }
 
     /**

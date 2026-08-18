@@ -38,3 +38,8 @@ replay_pid*.log
 # repository does not carry someone's host and account; delete this line if you
 # want yours in version control.
 vmhosting.conf
+
+# Full-resolution motif originals: re-downloadable, and 16 MB of them.
+# See tools/motif-sources/README.md.
+tools/motif-sources/*.jpg
+tools/motif-sources/cropped/

@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
+import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
+
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -247,7 +249,13 @@ class HeatSumCounterForm extends VerticalLayout {
      */
     private static class Started extends Secondary {
         Started(Instant startedAt) {
-            super("Started " + Ages.format(startedAt));
+            super("Started ");
+            /*
+               A counter runs for weeks, and this form is opened and left open while
+               somebody sets the next one up. The time therefore keeps itself current
+               rather than being written once when the popover was built.
+            */
+            add(new RelativeTime(startedAt));
         }
     }
 

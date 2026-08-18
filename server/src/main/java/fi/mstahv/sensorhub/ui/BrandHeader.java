@@ -31,13 +31,29 @@ class BrandHeader extends HorizontalLayout {
     static final String SOURCE_URL = "https://github.com/mstahv/screwcloud";
 
     BrandHeader() {
-        setAlignItems(Alignment.CENTER);
-        setSpacing(true);
+        /*
+           Aligned to the top rather than centred. Centring is right for a mark and
+           one line of text, and this is a mark and four: on a phone the tagline
+           wraps to three lines and the logo drifted to the middle of them, sitting
+           opposite the words rather than beside the name it belongs to. From the
+           top it lines up with "ScrewCloud", which is the thing it is the mark for.
+        */
+        setAlignItems(Alignment.START);
         setPadding(false);
 
+        /*
+           Room, in moderation. The block had none: the name sat directly on the
+           tagline and the tagline on the link, so four different things — a mark, a
+           name, a sentence and a link — read as one paragraph of unequal type. A
+           step of space between them is enough to separate them; more would make a
+           masthead of what is only a heading.
+        */
+        getStyle().setGap(VaadinCssProps.GAP_L.var());
+        getStyle().set("padding-block", VaadinCssProps.PADDING_S.var());
+
         Image logo = new Image("icons/screwcloud.svg", "ScrewCloud");
-        logo.setWidth("3.5rem");
-        logo.setHeight("3.5rem");
+        logo.setWidth("4rem");
+        logo.setHeight("4rem");
 
         add(logo, new NameAndTagline());
     }
@@ -55,8 +71,8 @@ class BrandHeader extends HorizontalLayout {
 
     private static class NameAndTagline extends VerticalLayout {
         NameAndTagline() {
-            setSpacing(false);
             setPadding(false);
+            getStyle().setGap(VaadinCssProps.GAP_XS.var());
 
             H1 name = new H1("ScrewCloud");
             // An H1's default margins would push the logo out of line with it.

@@ -116,6 +116,42 @@ class SensorCard extends Card {
        The content is built only when opened, so the field always shows the
        stored name without any separate synchronisation.
     */
+    /** How many motifs the stylesheet has. */
+    private static final int MOTIFS = 4;
+
+    /**
+     * Gives this card its background motif, from its position among the device's
+     * sensors.
+     *
+     * <p>The point is recognition without reading: somebody who checks the same
+     * sensors every morning learns where each one is by its shape long before they
+     * would have read "R0BF". Two things have to hold for that to work, and they
+     * pull in opposite directions.
+     *
+     * <p><b>No two sensors on a device may share a motif</b>, or the shape stops
+     * identifying anything. Hashing the sensor's own name was the first attempt and
+     * it fails badly at this scale: four sensors drawing from four motifs collide
+     * about ninety per cent of the time. Position in the sorted list cannot collide
+     * at all, as long as there are no more sensors than motifs.
+     *
+     * <p><b>And it has to be the same motif tomorrow.</b> The list is sorted by
+     * sensor id, so the position is stable across restarts and identical on every
+     * machine. The device's own name shifts where the sequence starts, so two
+     * devices with the same number of sensors do not look like each other.
+     *
+     * <p>What this gives up is that adding a sensor can renumber the ones sorting
+     * after it. That is the honest cost of the guarantee, and it is the cheaper of
+     * the two: a motif that moves on the rare day a sensor is added is better than
+     * two sensors that are indistinguishable every day.
+     *
+     * @param position this card's index among the device's sensors, sorted by id
+     */
+    void setMotif(int position) {
+        int offset = Math.floorMod(deviceId.hashCode(), MOTIFS);
+        getElement().setAttribute("data-motif",
+                String.valueOf(Math.floorMod(offset + position, MOTIFS)));
+    }
+
     private Component createSettingsForm() {
         String clientId = context.clientId().get();
         SensorSettingsForm.AlertOptions alerts = alertOptions(clientId);

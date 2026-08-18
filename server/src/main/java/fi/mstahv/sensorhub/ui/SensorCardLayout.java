@@ -100,6 +100,12 @@ class SensorCardLayout extends FlexLayout {
                 */
                 addComponentAtIndex(index, card);
             }
+            /*
+               Set on every pass rather than at creation: the motif depends on the
+               card's position among this device's sensors, so a sensor appearing or
+               going away has to be able to move the others.
+            */
+            card.setMotif(index);
             card.update(sensor, store.history(device.deviceId(), sensor.sensorId(), from));
             index++;
         }

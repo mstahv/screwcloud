@@ -10,8 +10,10 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
+import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
 import com.vaadin.browserless.BrowserlessApplicationContext;
 import com.vaadin.browserless.BrowserlessUIContext;
 import com.vaadin.flow.component.badge.Badge;
@@ -141,6 +143,32 @@ class LocalViewTest {
     }
 
     /**
+     * Each card carries a motif, and no two on the page carry the same one.
+     *
+     * <p>The picture is there so a sensor can be recognised without reading its
+     * name, which fails entirely if two of them share one — and hashing the sensor's
+     * own name, the obvious way to do it, collides about nine times in ten at this
+     * scale. So the assignment comes from position in the sorted list, and this is
+     * the assertion that says so.
+     */
+    @Test
+    void everySensorOnThePageGetsItsOwnMotif(@TempDir Path directory) {
+        inView(directory.resolve("names.csv"), (ui, history) -> {
+            List<String> motifs = ui.find(Card.class).all().stream()
+                    .map(card -> card.getElement().getAttribute("data-motif"))
+                    .toList();
+
+            assertEquals(3, motifs.size());
+            assertFalse(motifs.contains(null), "every card should have been given a motif");
+            assertEquals(motifs.size(), Set.copyOf(motifs).size(),
+                    "two sensors sharing a motif makes the picture identify nothing: " + motifs);
+        },
+                reading("CB:B8:33:4C:88:4F", 21.5, 45.0, NOW),
+                reading("CB:B8:33:4C:88:5F", 4.2, 78.0, NOW),
+                reading("CB:B8:33:4C:88:6F", 18.0, 40.0, NOW));
+    }
+
+    /**
      * The signal strength of what arrives over the air is on the page.
      *
      * <p>This is the number a field test is made of: it is what changes as
@@ -191,17 +219,27 @@ class LocalViewTest {
     void aTagThatHasGoneQuietIsMarked(@TempDir Path directory) {
         inView(directory.resolve("names.csv"), (ui, history) -> {
             assertTrue(ui.find(Card.class).exists(), "the card stays");
-            assertTrue(ui.find(Badge.class).withTextContaining("Nothing heard for").exists(),
+            /*
+               The badge's own text is only the words: how long it has been silent is
+               a component inside it, rendered by the browser, so there is nothing in
+               this tree to match on beyond the phrase and the instant.
+            */
+            assertTrue(ui.find(Badge.class).first().getElement().getTextRecursively()
+                            .contains("Nothing heard for"),
                     "and it says the reading is old");
         }, reading("CB:B8:33:4C:88:4F", 4.0, 80.0, NOW.minusSeconds(7200)));
     }
 
-    /** A tag heard a moment ago is not marked. */
+    /**
+     * A tag heard a moment ago is not marked, and its card carries the moment it was
+     * heard rather than a sentence about it — the words are the browser's to choose,
+     * and it keeps them current without this page being polled.
+     */
     @Test
     void aTagStillReportingIsNotMarked(@TempDir Path directory) {
         inView(directory.resolve("names.csv"), (ui, history) -> {
             assertFalse(ui.find(Badge.class).exists());
-            assertTrue(ui.findSpan().withText("just now").exists());
+            assertEquals(NOW, ui.find(RelativeTime.class).first().getDateTime());
         }, reading("CB:B8:33:4C:88:4F", 21.5, 45.0, NOW));
     }
 

@@ -2,6 +2,8 @@ package fi.mstahv.sensorhub.ui;
 
 import java.time.Instant;
 
+import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
+
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
@@ -45,6 +47,8 @@ import org.vaadin.firitin.util.style.VaadinCssProps;
  */
 @Route("device")
 @StyleSheet(Aura.STYLESHEET)
+// After Aura, because it sets the tokens Aura reads. See the file.
+@StyleSheet("/styles/sunset-glass.css")
 public class DashboardView extends VerticalLayout
         implements HasUrlParameter<String>, HasDynamicTitle {
 
@@ -73,7 +77,18 @@ public class DashboardView extends VerticalLayout
         this.cards = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
         offline.addThemeVariants(BadgeVariant.ERROR);
         offline.setVisible(false);
-        setSizeFull();
+        /*
+           Width full and a floor for the height, rather than setSizeFull(). A view
+           pinned to the viewport's height ends there and takes its bottom padding
+           with it: with three sensors the cards carried on past the bottom of that
+           box, so the last one finished flush against the end of the document while
+           the page's own margin sat a screenful above it. On a phone that reads as a
+           page that has been cut off rather than one that has ended. A minimum keeps
+           what full height was for — a short page still fills the screen — and lets
+           the box grow when there is more than a screenful to show.
+        */
+        setWidthFull();
+        setMinHeight("100%");
 
         deviceStatus.getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
 
@@ -140,7 +155,7 @@ public class DashboardView extends VerticalLayout
 
         store.findLatest(deviceId).ifPresentOrElse(device -> {
             emptyState.setVisible(false);
-            deviceStatus.setText(statusOf(device));
+            showStatus(device);
 
             /*
                The same judgement the notifications use, so the page and the phone
@@ -164,7 +179,7 @@ public class DashboardView extends VerticalLayout
             offline.setVisible(false);
             emptyState.setText("No measurements from %s yet.".formatted(deviceId));
             emptyState.setVisible(true);
-            deviceStatus.setText("");
+            deviceStatus.removeAll();
             cards.clear();
             renderedReceivedAt = null;
         });
@@ -179,9 +194,19 @@ public class DashboardView extends VerticalLayout
      * measuring point somebody placed deliberately, with a heading, a sparkline and
      * alert settings, none of which anyone wants for it.
      */
+    private void showStatus(DeviceMeasurement device) {
+        deviceStatus.removeAll();
+        /*
+           The time is a component so that it stays true between packets: a device
+           that reports hourly leaves this line on screen for an hour, and a written
+           "Updated 2 min ago" would spend fifty-eight of those minutes lying.
+        */
+        deviceStatus.add(new Span("Updated "), new RelativeTime(device.receivedAt()),
+                new Span(statusOf(device)));
+    }
+
     private static String statusOf(DeviceMeasurement device) {
-        String status = "Updated %s · sequence %d"
-                .formatted(Ages.format(device.receivedAt()), device.sequence());
+        String status = " · sequence %d".formatted(device.sequence());
         /*
            Not when the chip is the only thing this device measures: it has a card
            of its own then, and the same number in two places on one screen reads

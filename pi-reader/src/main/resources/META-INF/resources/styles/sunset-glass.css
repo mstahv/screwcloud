@@ -1,0 +1,479 @@
+/*
+  Sunset Glass: the Aura theme's tokens, set once for the whole application.
+
+  Aura is configured through custom properties rather than by overriding rules,
+  which is why almost everything here is a variable. Loaded after aura.css — the
+  order of the @StyleSheet annotations on the views is what decides that — so
+  these win.
+
+  Both schemes are declared. `color-scheme: light dark` means the browser picks by
+  the reader's own setting, and this application is looked at both ways: from a
+  phone in a dark kitchen at six in the morning and from a desk in daylight.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap');
+
+html {
+  --aura-accent-color-dark: #615FFF;
+  --aura-accent-color-light: #4F39F6;
+  --aura-background-color-dark: #0C0B2F;
+  --aura-background-color-light: #D0DAFF;
+  --aura-base-font-size: 15;
+  --aura-base-radius: 7;
+  --aura-content-color-scheme: light dark;
+  --aura-font-family: "Manrope", var(--aura-font-family-system);
+  --aura-notification-color-scheme: light dark;
+  --aura-surface-level: 2;
+  color-scheme: light dark;
+}
+
+/*
+   Manrope's regular is light for a screen read at a glance from across a room,
+   so everything moves up one step. The component-level weights are named
+   individually because Aura's own tokens do not reach inside them.
+*/
+html {
+  --aura-font-weight-regular: 500;
+  --aura-font-weight-medium: 600;
+  --aura-font-weight-semibold: 700;
+  --vaadin-button-font-weight: 600;
+  --vaadin-input-field-value-font-weight: 500;
+  --vaadin-checkbox-font-weight: 600;
+  --vaadin-radio-button-font-weight: 600;
+  --vaadin-message-name-font-weight: 600;
+  --vaadin-grid-header-font-weight: 600;
+}
+
+/*
+   Cards lift off the page. The surface level is what gives Aura its glass, and a
+   sensor card is the thing on this page that should look like an object rather
+   than a region.
+*/
+vaadin-card,
+vaadin-dashboard-widget {
+  --aura-surface-level: 4;
+}
+
+/*
+   Two components that were drawn before this theme existed and do not know about
+   it. Both are addons rendering their own SVG, so the fix is here rather than in
+   their Java API.
+
+   Note the !important on several of them. The gauge sets fill, background and
+   text-shadow as inline styles, and an inline style beats a stylesheet rule that
+   does not say !important. Getting that wrong is not a no-op: the declaration
+   that does land — usually an opacity — then applies to the addon's own hardcoded
+   colour instead of to the theme's, which dims something already too light and
+   leaves it harder to read than before the theme touched it. That happened twice
+   while writing this file, so if you add a rule here, check the computed value
+   rather than the screenshot.
+*/
+
+/*
+   The gauge paints an opaque rgb(40, 44, 52) behind itself — a dark grey chosen
+   for a dark grey page. On a card it reads as a rectangle stuck to the top of the
+   card rather than as part of it. The card is already a surface; the gauge only
+   needs to sit on it.
+*/
+react-gauge,
+react-gauge > div {
+  background: transparent !important;
+}
+
+/*
+   Two more things about the gauge, both about it being drawn for a page of its
+   own rather than for a card.
+
+   Its scale labels — the two range ends — sit on the very bottom edge of its
+   SVG, and an SVG clips its own overflow by default, so they were sliced in
+   half. Letting them out and giving the element room below is enough.
+
+   And it grows to whatever width it is given, which on a wide card is most of
+   the card: a dial the size of a saucer above two lines of text. Capped, it
+   reads as one element of a card rather than as the card's reason for existing.
+*/
+react-gauge > div > svg {
+  overflow: visible;
+}
+
+/*
+   The cap is two numbers because a card is not one width. On a desktop the card is
+   at its 35rem maximum and 24rem is what stops the dial being the card's reason for
+   existing. On a phone the card is the width of the screen and 24rem is more than
+   that, so the cap did nothing: the dial ran edge to edge, its two scale labels sat
+   against the card's outline, and the strip above it — fixed at half the card's
+   width — was filled almost to the top. Whichever is smaller therefore wins, and the
+   percentage is what leaves a margin at the sizes where there was none.
+*/
+react-gauge {
+  display: block;
+  max-width: min(24rem, 84%);
+  margin: 0 auto;
+  padding-bottom: 0.75rem;
+}
+
+/*
+   The card's media slot is 16:9, which is right for the photograph the slot was
+   designed around and too tall for a dial: on a 560 pixel card that reserved 315
+   pixels for a gauge 203 tall, and the difference showed as a hole between the dial
+   and the sensor's name.
+
+   2:1 rather than either. It is a little taller than the dial needs, and that slack
+   is the point now — with a motif behind it the extra height reads as the picture
+   the dial is standing in rather than as a gap. It also loses less of the motif:
+   the plates are cropped by hand at about 1.4:1, and covering a 2.8:1 strip with
+   one of those takes the animal's head off.
+
+   Every rule here is on [data-motif] rather than on vaadin-card, and that matters:
+   an unqualified ::part(media) reaches every card in the application, and the ones
+   with nothing in that slot — the device cards on the front page — got a blank band
+   of exactly this height instead.
+
+   ::part is the supported way in: the slot is in the component's shadow root, so
+   no selector from here would otherwise reach it.
+*/
+vaadin-card[data-motif]::part(media) {
+  aspect-ratio: 2 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /*
+     The media part's box is exactly the card's outer box, and a child's background
+     paints above its parent's border — so an opaque background here covers the
+     card's 1px outline along the top and the two sides, and the outline appears to
+     break where the motif starts. One pixel of padding with the background clipped
+     to it hands those three edges back.
+  */
+  box-sizing: border-box;
+  padding: 1px 1px 0;
+  background-clip: content-box;
+}
+
+/*
+   The sparkline strokes itself black. That is fine on paper and invisible on this
+   background, which is a bug rather than a preference: in dark mode the last 24
+   hours simply were not there. currentColor inherits the card's own text colour,
+   so it follows the scheme without naming either.
+*/
+vaadin-card > svg path {
+  stroke: var(--spark-line);
+  stroke-width: 1.25;
+}
+
+/* The min and max guides are furniture, not data — present but quieter. */
+vaadin-card > svg line {
+  stroke: currentColor;
+  opacity: 0.25;
+}
+
+vaadin-card > svg text {
+  fill: currentColor;
+  opacity: 0.65;
+}
+
+/*
+   The sparkline draws slightly outside its own box — its axis labels sit on the
+   bottom edge and its curve reaches a few units above the top — so it needs
+   `overflow: visible` or the descenders are sliced off.
+
+   Which then lets it escape the card, because the card does not clip either. So the
+   card clips instead: nothing inside a card has any business being drawn outside it,
+   and this also tidies the motif into the rounded corners. The settings popover is
+   an overlay rather than a child, so it is not affected.
+*/
+vaadin-card > svg {
+  overflow: visible;
+}
+
+vaadin-card {
+  overflow: hidden;
+}
+
+/*
+   And the same problem in the gauge, where it is worse: the reading itself is a
+   fixed white with a black text-shadow around it, set inline — a treatment for text
+   that has to survive being drawn over an arbitrary colour. This reading is not: it
+   sits in the hole in the middle of the dial, on the card. So on the light scheme it
+   was white text on a pale card, saved only by the shadow, and the shadow is the
+   reason it looked outlined.
+
+   !important because the addon sets both inline, and a stylesheet does not
+   otherwise get a say. The gauge marks its parts with classes, which is what makes
+   the rest of this reachable at all.
+*/
+react-gauge g.value-text text {
+  fill: currentColor !important;
+  text-shadow: none !important;
+}
+
+/*
+   The two range ends, also set inline by the addon, also a fixed light grey.
+   !important for the same reason as above — and this one is worth stating,
+   because getting it wrong is worse than leaving it alone: without !important
+   the fill stays that fixed grey and only the opacity lands, which dims a colour
+   that was already too light and makes the labels harder to read than before
+   the theme touched them.
+
+   0.7 rather than the 0.55 the sparkline's labels use. These are smaller, they
+   sit against the dial rather than against a plain area, and they are the only
+   thing on the card that says what the dial's span is.
+*/
+react-gauge g.tick-value text {
+  fill: currentColor !important;
+  opacity: 0.7;
+}
+
+react-gauge path.tick-line {
+  stroke: currentColor;
+  opacity: 0.3;
+}
+
+/*
+   The unreached part of the dial is a solid mid grey — a heavy block on a pale
+   card, and on a dark one a second colour competing with the band it sits next to.
+   It is not data; it is the space the reading has not got to. A wash of the card's
+   own colour says that and nothing more.
+
+   The two arcs are the filled part and the remainder, in that order, so this picks
+   the second. If a future version of the addon emits only one at the extremes, the
+   worst case is a translucent coloured arc rather than a wrong reading.
+*/
+react-gauge g.subArc + g.subArc path {
+  fill: currentColor !important;
+  opacity: 0.12;
+}
+
+/* ------------------------------------------------------------------------
+   The motif behind the dial
+   ------------------------------------------------------------------------
+
+   The temperature is the point of the card, and on a dark page a dial floating
+   on a flat surface has nothing holding it. So the media area gets a picture —
+   quiet, duotone, and always the same one for the same sensor.
+
+   Recognition is the whole reason. Somebody who checks the same four sensors
+   every morning learns them by shape long before they would read "R0BF", and that
+   only works if no two sensors on a device share one and if none of them ever
+   changes. SensorCard.setMotif explains how both are arranged; there are four
+   motifs because a device rarely has more sensors than that.
+
+   Duotone, and not for style. These are 19th century engravings — the moose and the
+   roe deer are from the Iconographia Zoologica, the capercaillie from Skandinaviens
+   fugle — and they are stored greyscale, carrying only luminance. The colour comes from
+   here, which means all four sit in the same palette however different the
+   originals were, and it follows the light and dark schemes without a second set
+   of files. See media/CREDITS.md for what each one is and where it came from.
+
+   How strong is a judgement, and the first version got it wrong in the safe
+   direction: dimmed until it was texture rather than an animal, which gives up
+   the recognition that is the reason for having it. It has to be readable as a
+   moose at a glance and still lose to the number, which is what somebody came to
+   the page for — so it is the number that is white and large, and the plate that
+   is a wash. --motif-wash is where that balance is set.
+*/
+
+vaadin-card[data-motif]::part(media) {
+  /*
+     Three layers, top first, and the blend modes matter more than the colours:
+
+       1  a wash of the base tone, blended normally, which is what dims the whole
+          thing. Alpha here is the one number to turn if the motifs are too loud.
+       2  a flat tint, blended `color`. That mode takes hue and saturation from the
+          top layer and luminance from what is underneath, which is the definition
+          of a duotone — and it is why `multiply` and `screen` were wrong: those
+          only darken or lighten, so the plates came out grey with a film over them
+          rather than in the theme's colours.
+       3  the plate itself, greyscale, supplying nothing but luminance.
+
+     Under all of it a base tone rather than white or transparent, because the
+     motifs are scaled to fit rather than cropped to fill: whatever the plate's
+     shape, the rest of the strip is this colour instead of a hole.
+  */
+  background-color: var(--motif-base);
+
+  background-blend-mode: normal, color, normal;
+
+  /*
+     `cover` is exact rather than a crop: the motifs are prepared at 760x380, which
+     is this strip's own 2:1, so nothing is cut off. They also carry their own
+     feathered alpha edge and their own padding — see tools/motif-sources — which is
+     why there is no gradient here dissolving the seams. Four plates from three
+     different books meet the base tone the same way because the files say so, not
+     because a stylesheet is compensating for each of them.
+  */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+vaadin-card[data-motif="0"]::part(media) {
+  background-image:
+      linear-gradient(var(--motif-wash)),
+      linear-gradient(var(--motif-tint)),
+      url("/media/moose.webp");
+}
+vaadin-card[data-motif="1"]::part(media) {
+  background-image:
+      linear-gradient(var(--motif-wash)),
+      linear-gradient(var(--motif-tint)),
+      url("/media/roe-deer.webp");
+}
+vaadin-card[data-motif="2"]::part(media) {
+  background-image:
+      linear-gradient(var(--motif-wash)),
+      linear-gradient(var(--motif-tint)),
+      url("/media/hare.webp");
+}
+vaadin-card[data-motif="3"]::part(media) {
+  background-image:
+      linear-gradient(var(--motif-wash)),
+      linear-gradient(var(--motif-tint)),
+      url("/media/capercaillie.webp");
+}
+
+/*
+   The three colours, per scheme.
+
+   base   what the strip is where the plate does not reach. Exactly the card's own
+          surface — #1b1c45 and #e9edff, both sampled off a rendered screenshot
+          rather than guessed, because being close is what makes the media area read
+          as a panel stuck on the card instead of as part of it.
+   tint   the hue the duotone lands on. Kept in the theme's indigo family: the point
+          of duotone here is that four plates from three different 19th century books
+          end up looking like one set.
+   wash   how much of the base is laid back over the result. This is the dimmer, and
+          the only number to turn when the motifs are too loud or too faint.
+
+          It used to be much higher, because it was doing two jobs: dimming, and
+          hiding the pale rectangle the plate's paper made. The paper is gone from
+          the files now — the alpha comes from the ink — so this only has to dim, and
+          it can be gentle enough that the animal is actually visible.
+
+          The dark scheme goes further than the light one, and not by symmetry: it
+          is a bigger step because it had further to come. The ink is lighter than
+          the card there while on the light scheme it is darker, and a difference of
+          that size is simply harder to see against a near-black surface than
+          against a pale one. The same wash on both schemes therefore does not look
+          like the same picture, which is why these two lines are not the same
+          number.
+*/
+html {
+  /*
+     The day's curve, which was borrowing the body text's colour and reading as a
+     line of prose that had come loose. It is data, and the only data on the lower
+     half of the card, so it gets the theme's own indigo — the same family as the
+     motif's tint, a shade stronger, because this one is meant to be read.
+  */
+  --spark-line: #4a4f9e;
+
+  --motif-base: #e9edff;
+  --motif-tint: #5a5fae, #5a5fae;
+  --motif-wash: rgb(233 237 255 / 0.70), rgb(233 237 255 / 0.78);
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    --spark-line: #a2a9ea;
+
+    --motif-base: #1b1c45;
+    --motif-tint: #8a91e0, #8a91e0;
+    --motif-wash: rgb(27 28 69 / 0.62), rgb(27 28 69 / 0.74);
+  }
+}
+
+/* ------------------------------------------------------------------------
+   The page's own background, in the dark scheme
+   ------------------------------------------------------------------------
+
+   Aura paints the page from a gradient it derives from --aura-background-color:
+   a wash towards a lighter, hue-rotated version of it, with a brighter corner at
+   the top left. On the light scheme that is the nicest thing on the page — pale
+   blue sliding into lilac. On the dark scheme it is very nearly a flat rectangle,
+   and nothing is broken: the derivation rotates the hue by an amount that scales
+   with the colour's own lightness (`h + 180 * l * c * 4`), so this near-black
+   indigo at l = 0.18 turns nine degrees where the light background turns
+   thirty-three. The dark scheme was being given the same gradient with nine tenths
+   of it taken out.
+
+   So it gets its own, built the same way and from the same token — one colour is
+   still all there is to change — with the lift and the rotation stated instead of
+   derived. The light scheme is untouched; it never needed the help.
+*/
+@media (prefers-color-scheme: dark) {
+  html {
+    --_sunset-far: oklch(from var(--aura-background-color-dark)
+        calc(l + 0.10) calc(c * 1.35) calc(h + 38));
+    --_sunset-corner: oklch(from var(--aura-background-color-dark)
+        calc(l + 0.13) calc(c * 1.5) calc(h - 6));
+
+    --aura-app-background:
+        radial-gradient(circle at 0% 0%, var(--_sunset-corner), transparent 42%),
+        radial-gradient(circle at 25% 0% in oklab,
+            var(--aura-background-color-dark) 30%, var(--_sunset-far))
+        var(--aura-background-color-dark);
+  }
+}
+
+/* ------------------------------------------------------------------------
+   The front page's device cards
+   ------------------------------------------------------------------------
+
+   15rem each, wrapping across whatever width there is — except where a second one
+   cannot fit beside them anyway, and there they take the row. A 15rem card on a
+   phone leaves a third of the row empty next to it, which reads as a layout that
+   has not finished loading rather than as a chosen size.
+
+   34rem is the first step above where the second card fits: two cards are 480px,
+   the gap between them 12, and the page's own margins 32, so 524px is the width at
+   which a row of two becomes possible. Both numbers are 16px rem — a media query
+   resolves rem against the browser's initial font size rather than the document's,
+   and this theme leaves the document's alone, so the two agree.
+
+   Here rather than in DeviceLinkCard because Java can only set a width as an inline
+   style, and an inline style is not something a media query can answer.
+*/
+vaadin-card.device-card {
+  width: 15rem;
+}
+
+@media (max-width: 34rem) {
+  vaadin-card.device-card {
+    width: 100%;
+  }
+}
+
+/* ------------------------------------------------------------------------
+   Making the page's background stay put
+   ------------------------------------------------------------------------
+
+   Aura paints the gradient on the root element with `background-attachment: fixed`
+   and `background-size: 100vw 100vh`. On a desktop browser that is one gradient
+   filling the window whatever the page does. On a phone it is not: `fixed`
+   attachment is the one background property mobile Safari has never honoured, and
+   with the size pinned to one screen and `repeat` still at its default, the whole
+   gradient starts again exactly one screen down. Three sensor cards is enough to
+   scroll past that line, and what you see there is the sunset ending and beginning
+   again — which reads as a rendering fault, because it is one.
+
+   A fixed-position layer instead of a fixed-attachment background. Position
+   `fixed` is honoured everywhere, so the gradient covers the viewport and stays
+   there while the page scrolls over it, on every browser and at any page length.
+   `z-index: -1` puts it behind the content but still in front of the root's own
+   background, which is left as the flat base colour — that is what shows under an
+   overscroll bounce, and it should be a colour rather than the middle of a gradient.
+*/
+html {
+  background: var(--aura-background-color);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--aura-app-background);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}

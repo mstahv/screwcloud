@@ -4,13 +4,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.List;
 
+import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
 import com.vaadin.browserless.BrowserlessUIContext;
 import com.vaadin.flow.component.button.Button;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
+import fi.mstahv.sensorhub.protocol.SensorMeasurement;
+import fi.mstahv.sensorhub.store.MeasurementStore;
 
 /**
  * The front page, driven the way a reader drives it: type an identifier, press Add,
@@ -20,6 +26,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 class DeviceListViewTest {
 
     private static final String EMPTY_STATE = "No devices yet — add one below.";
+
+    @Autowired
+    private MeasurementStore measurements;
 
     /*
        The reading order is the point of the layout, so it is asserted rather than
@@ -197,6 +206,33 @@ class DeviceListViewTest {
         assertTrue(ui.findCheckbox().withLabel("Notify if it stops reporting")
                 .component().getValue());
         assertTrue(ui.findNotification().exists(), "The choice should be confirmed");
+    }
+
+    /**
+     * The arrival time is a component in the card's subtitle, not words in it.
+     *
+     * <p>What this pins down is that the card hands over the instant and stops
+     * there. The front page is rebuilt only when somebody adds or removes a device,
+     * so an age written into the subtitle would be wrong for as long as the page
+     * stayed open; the browser now says how long ago that was, in its own language.
+     */
+    @Test
+    void aCardCarriesTheArrivalTimeAsALiveComponent(@Autowired BrowserlessUIContext ui) {
+        Instant arrived = Instant.parse("2026-08-14T09:00:00Z");
+        measurements.store(new DeviceMeasurement("LAHT", 1, arrived,
+                List.of(new SensorMeasurement("REBF", 4.0, 80.0))));
+
+        openFrontPage(ui);
+        add(ui, "LAHT");
+
+        /*
+           Through Slots: the subtitle is a slotted child, which the locators do not
+           traverse.
+        */
+        RelativeTime arrival = Slots.require(
+                ui.find(DeviceLinkCard.class).first(), RelativeTime.class);
+
+        assertEquals(arrived, arrival.getDateTime());
     }
 
     private static void openFrontPage(BrowserlessUIContext ui) {

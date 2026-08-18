@@ -26,70 +26,76 @@ class DeviceLinkCardTest {
 
     @Test
     void aTagIsPreferredOverEverythingElse() {
-        String summary = DeviceLinkCard.describe(packet(
+        String summary = summaryOf(packet(
                 new SensorMeasurement("DHT", 22.0, 45.0),
                 new SensorMeasurement("CPU", 48.0, null),
                 new SensorMeasurement("REBF", 4.0, 80.0)));
 
-        assertTrue(summary.startsWith("4.0 °C"), summary);
+        assertEquals("4.0 °C", summary);
     }
 
     /** Even when the tag is last in the packet, which is where the firmware puts it. */
     @Test
     void theOrderInThePacketDoesNotDecide() {
-        String summary = DeviceLinkCard.describe(packet(
+        String summary = summaryOf(packet(
                 new SensorMeasurement("CPU", 48.0, null),
                 new SensorMeasurement("REBF", 4.0, 80.0)));
 
-        assertTrue(summary.startsWith("4.0 °C"), summary);
+        assertEquals("4.0 °C", summary);
     }
 
     /** With no tag, anything measuring a room still beats the box measuring itself. */
     @Test
     void theChipComesAfterAWiredSensor() {
-        String summary = DeviceLinkCard.describe(packet(
+        String summary = summaryOf(packet(
                 new SensorMeasurement("CPU", 48.0, null),
                 new SensorMeasurement("DHT", 22.0, 45.0)));
 
-        assertTrue(summary.startsWith("22.0 °C"), summary);
+        assertEquals("22.0 °C", summary);
     }
 
     /** And is shown when it is all there is, rather than showing nothing. */
     @Test
     void theChipIsBetterThanNoReadingAtAll() {
-        String summary = DeviceLinkCard.describe(packet(
+        String summary = summaryOf(packet(
                 new SensorMeasurement("CPU", 48.0, null)));
 
-        assertTrue(summary.startsWith("48.0 °C"), summary);
+        assertEquals("48.0 °C", summary);
     }
 
     /** Two tags: the first the device reported, as before. */
     @Test
     void betweenTwoTagsThePacketOrderStillDecides() {
-        String summary = DeviceLinkCard.describe(packet(
+        String summary = summaryOf(packet(
                 new SensorMeasurement("REBF", 4.0, 80.0),
                 new SensorMeasurement("R1AC", 21.0, 45.0)));
 
-        assertTrue(summary.startsWith("4.0 °C"), summary);
+        assertEquals("4.0 °C", summary);
     }
 
     /** A sensor with no temperature is not a candidate, whatever it is. */
     @Test
     void aSensorWithNoTemperatureIsSkipped() {
-        String summary = DeviceLinkCard.describe(packet(
+        String summary = summaryOf(packet(
                 new SensorMeasurement("REBF", null, 80.0),
                 new SensorMeasurement("DHT", 22.0, 45.0)));
 
-        assertTrue(summary.startsWith("22.0 °C"), summary);
+        assertEquals("22.0 °C", summary);
     }
 
-    /** With nothing measured at all, the age is still worth saying. */
+    /**
+     * With nothing measured at all there is no reading to name, and the card is left
+     * with the arrival time alone — which it shows as a component, so there is
+     * nothing here for this method to return.
+     */
     @Test
-    void aDeviceWithNoTemperaturesShowsOnlyItsAge() {
-        String summary = DeviceLinkCard.describe(packet(
-                new SensorMeasurement("REBF", null, 80.0)));
+    void aDeviceWithNoTemperaturesHasNoReadingToShow() {
+        assertTrue(DeviceLinkCard.describe(packet(
+                new SensorMeasurement("REBF", null, 80.0))).isEmpty());
+    }
 
-        assertTrue(summary.contains("ago") || summary.contains("now"), summary);
+    private static String summaryOf(DeviceMeasurement measurement) {
+        return DeviceLinkCard.describe(measurement).orElseThrow();
     }
 
     // ------------------------------------------------------------------

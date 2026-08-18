@@ -1,10 +1,11 @@
 package org.vaadin.example.ui;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
 
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.DetachEvent;
@@ -51,6 +52,10 @@ import jakarta.inject.Inject;
 @Route("")
 @PageTitle("ScrewCloud local")
 @StyleSheet(Aura.STYLESHEET)
+// After Aura, because it sets the tokens Aura reads. The same file the
+// server uses: the two are looked at by the same person about the same
+// sensors, and a different look would suggest a different system.
+@StyleSheet("/styles/sunset-glass.css")
 public class LocalView extends VerticalLayout {
 
     private static final int POLL_INTERVAL_MS = 5000;
@@ -105,7 +110,15 @@ public class LocalView extends VerticalLayout {
         this.lora = lora;
         this.thingy = thingy;
 
-        setSizeFull();
+        /*
+           A floor rather than a fixed height: a view the exact height of the viewport
+           ends there, and its bottom padding with it, so anything past one screenful
+           finishes flush against the end of the document — which on a phone reads as
+           a page cut off rather than one that has ended. The server's views are set
+           the same way and for the same reason.
+        */
+        setWidthFull();
+        setMinHeight("100%");
         cards.setFlexWrap(FlexLayout.FlexWrap.WRAP);
         cards.setWidthFull();
         cards.getStyle().setGap(VaadinCssProps.GAP_M.var());
@@ -145,14 +158,21 @@ public class LocalView extends VerticalLayout {
         Instant now = Instant.now();
         List<Reading> readings = registry.readings();
 
+        int position = 0;
         for (Reading reading : readings) {
-            cardsByAddress
+            SensorCard card = cardsByAddress
                     .computeIfAbsent(reading.macAddress(), address -> {
-                        SensorCard card = new SensorCard(reading.sensorId(), names, this::refresh);
-                        cards.add(card);
-                        return card;
-                    })
-                    .update(reading, history.pointsFor(reading.macAddress()), now);
+                        SensorCard fresh = new SensorCard(reading.sensorId(), names, this::refresh);
+                        cards.add(fresh);
+                        return fresh;
+                    });
+            /*
+               Set on every refresh rather than at creation: the motif depends on the
+               card's position among the sensors, so a sensor appearing has to be
+               able to move the others.
+            */
+            card.setMotif(position++);
+            card.update(reading, history.pointsFor(reading.macAddress()), now);
         }
 
         emptyState.setVisible(readings.isEmpty());
@@ -160,7 +180,7 @@ public class LocalView extends VerticalLayout {
 
         radioStatus.setText("Bluetooth: " + scanner.status());
         thingyStatus.setText("Thingy: " + thingy.status());
-        showLoraArrivals(now);
+        showLoraArrivals();
         uploadStatus.setText("ScrewCloud: %s · sending as device %s"
                 .formatted(sender.status(), sender.deviceId()));
     }
@@ -172,7 +192,7 @@ public class LocalView extends VerticalLayout {
      * their ages change every second, so keeping components to update would buy
      * nothing but somewhere for a stale line to hide.
      */
-    private void showLoraArrivals(Instant now) {
+    private void showLoraArrivals() {
         loraStatus.setText("LoRa: " + lora.status());
 
         loraArrivals.removeAll();
@@ -194,23 +214,18 @@ public class LocalView extends VerticalLayout {
         }
 
         for (LoraReceiver.Arrival arrival : recent) {
-            Span line = new Span("%s — %s".formatted(
-                    ageText(arrival.at(), now), arrival.packet().describe()));
+            /*
+               The time is a component rather than part of the string. These lines
+               are rebuilt on every poll anyway, but a packet that arrived seconds
+               ago is exactly the case where a five second old "0 s ago" reads as
+               wrong — and it is the browser that knows what second it is.
+            */
+            Span line = new Span();
+            line.add(new RelativeTime(arrival.at()),
+                    new Span(" — " + arrival.packet().describe()));
             secondary(line);
             loraArrivals.add(line);
         }
-    }
-
-    /** How long ago, in the words a glance wants. */
-    private static String ageText(Instant at, Instant now) {
-        Duration age = Duration.between(at, now);
-        if (age.toSeconds() < 60) {
-            return age.toSeconds() + " s ago";
-        }
-        if (age.toMinutes() < 60) {
-            return age.toMinutes() + " min ago";
-        }
-        return age.toHours() + " h ago";
     }
 
     private static void secondary(Span span) {

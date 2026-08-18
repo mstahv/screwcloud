@@ -43,6 +43,8 @@ import org.vaadin.firitin.util.style.VaadinCssProps;
 @Route("")
 @PageTitle("ScrewCloud")
 @StyleSheet(Aura.STYLESHEET)
+// After Aura, because it sets the tokens Aura reads. See the file.
+@StyleSheet("/styles/sunset-glass.css")
 public class DeviceListView extends VerticalLayout {
 
     private final MeasurementStore measurements;
@@ -73,7 +75,13 @@ public class DeviceListView extends VerticalLayout {
         this.connections = connections;
         this.notifications = new NotificationSwitch(webPush, () -> clientId);
 
-        setSizeFull();
+        /*
+           A floor rather than a fixed height: a view the exact height of the viewport
+           ends there, and its bottom padding with it, so anything past one screenful
+           finishes flush against the end of the document. See DashboardView.
+        */
+        setWidthFull();
+        setMinHeight("100%");
         /*
            Full width and left aligned, like the measurement view. A centred column
            left a wide left margin with an empty half beside it, and it made the

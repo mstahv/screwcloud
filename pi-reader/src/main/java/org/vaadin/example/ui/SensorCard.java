@@ -5,6 +5,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
+import com.flowingcode.vaadin.addons.relativetime.Format;
+import com.flowingcode.vaadin.addons.relativetime.Precision;
+import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
+
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
 import com.vaadin.flow.component.button.Button;
@@ -18,7 +22,6 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.dom.Style;
 
-import com.vaadin.flow.component.AttachEvent;
 
 import in.virit.TemperatureGauge;
 
@@ -49,7 +52,7 @@ class SensorCard extends Card {
     /** Past this, the reading is still shown but its age is marked. */
     private static final Duration QUIET = Duration.ofMinutes(1);
 
-    private final TemperatureGauge gauge = new DarkGauge();
+    private final TemperatureGauge gauge = new TemperatureGauge();
 
     /*
        Only shown when there is no temperature. The gauge renders the value with
@@ -58,7 +61,25 @@ class SensorCard extends Card {
     */
     private final SecondaryLine noTemperature = new SecondaryLine();
     private final SecondaryLine humidity = new SecondaryLine();
+
+    /*
+       When the reading arrived, rendered by the browser rather than by us. The
+       component takes an instant and says "2 minutes ago" in the reader's own
+       language, and keeps saying the right thing between polls — which the string we
+       used to build could not: it was written at poll time and was wrong by however
+       long the page had been sitting there.
+
+       Wrapped in a line of its own because the component is a bare custom element
+       with no styling of its own; the wrapper is what makes it secondary text.
+    */
+    private final RelativeTime heardAt = new RelativeTime();
     private final SecondaryLine age = new SecondaryLine();
+
+    /** The same instant as a duration: "Nothing heard for 2 hours". */
+    private final RelativeTime silentFor = new RelativeTime()
+            .setFormat(Format.DURATION)
+            .setPrecision(Precision.MINUTE)
+            .setNoTitle(true);
 
     /*
        The same badge the server marks an offline device with, rather than a colour
@@ -100,6 +121,14 @@ class SensorCard extends Card {
 
         quiet.addThemeVariants(BadgeVariant.ERROR);
         quiet.setVisible(false);
+        /*
+           setContent rather than setText: the duration is a component now, and a
+           Badge holds one thing — so the words and the component go in together as
+           one span.
+        */
+        quiet.setContent(new Span(new Span("Nothing heard for "), silentFor));
+
+        age.add(heardAt);
 
         add(noTemperature, humidity, age, quiet, sparkLine);
     }
@@ -125,13 +154,34 @@ class SensorCard extends Card {
            measured a moment ago.
         */
         boolean stale = reading.isOlderThan(QUIET, now);
-        String since = ageText(reading, now);
+        heardAt.setDateTime(reading.receivedAt());
+        silentFor.setDateTime(reading.receivedAt());
         age.setVisible(!stale);
-        age.setText(since);
         quiet.setVisible(stale);
-        quiet.setText("Nothing heard for " + since.replace(" ago", ""));
 
         sparkLine.setHistory(history);
+    }
+
+    /** How many motifs the stylesheet has. */
+    private static final int MOTIFS = 4;
+
+    /**
+     * Gives this card its background motif, from its position among the sensors on
+     * screen.
+     *
+     * <p>The same arrangement as the server's card, and for the same reason: the
+     * picture is there so somebody knows which sensor they are looking at without
+     * reading the name, which only works if no two on the page share one and if none
+     * of them changes between visits. Position in a list sorted by sensor id gives
+     * both, as long as there are no more sensors than motifs.
+     *
+     * <p>No device offset here, unlike the server. There is only one device on this
+     * page — this machine — so there is nothing to tell apart.
+     *
+     * @param position this card's index among the sensors, sorted by id
+     */
+    void setMotif(int position) {
+        getElement().setAttribute("data-motif", String.valueOf(Math.floorMod(position, MOTIFS)));
     }
 
     /**
@@ -167,40 +217,6 @@ class SensorCard extends Card {
                     onRenamed.run();
                 }));
         return dialog;
-    }
-
-    private static String ageText(Reading reading, Instant now) {
-        Duration since = Duration.between(reading.receivedAt(), now);
-        if (since.toSeconds() < 60) {
-            return "just now";
-        }
-        if (since.toMinutes() < 60) {
-            return since.toMinutes() + " min ago";
-        }
-        if (since.toHours() < 24) {
-            return since.toHours() + " h ago";
-        }
-        return since.toDays() + " d ago";
-    }
-
-    /**
-     * The gauge draws itself on a white background whatever the theme, which on a
-     * dark page is a bright rectangle in the middle of a card. Painting its first
-     * child after render is the workaround; the server module carries the same one,
-     * with the same colour and the same reservation — it belongs in the component
-     * rather than here.
-     *
-     * <p>The timeout is what makes it work at all: the element paints itself
-     * asynchronously and there is nothing to colour until it has.
-     */
-    private static class DarkGauge extends TemperatureGauge {
-        @Override
-        protected void onAttach(AttachEvent event) {
-            super.onAttach(event);
-            getElement().executeJs(
-                    "var el = this; setTimeout(() => {"
-                    + "el.firstChild.style.background = 'rgb(40 44 52)';}, 100);");
-        }
     }
 
     /**

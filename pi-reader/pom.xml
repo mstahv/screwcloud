@@ -83,6 +83,22 @@
             <version>1.0.0</version>
         </dependency>
 
+        <!--
+            Timestamps that keep themselves current, in the reader's own locale and
+            zone. Built against Vaadin 24 and used here on 25: it is a Tag, an
+            NpmPackage and the Element API, none of which moved between the two.
+
+            The component is GitHub's <relative-time>, which does the formatting in
+            the browser with Intl.RelativeTimeFormat. That is the point of it — the
+            page no longer has to be polled to keep "2 min ago" honest, and the
+            wording is right in a language nobody here wrote a formatter for.
+        -->
+        <dependency>
+            <groupId>com.flowingcode.vaadin.addons</groupId>
+            <artifactId>relative-time-addon</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-scheduler</artifactId>
