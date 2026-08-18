@@ -477,3 +477,48 @@ body::before {
   background-repeat: no-repeat;
   pointer-events: none;
 }
+
+/* ------------------------------------------------------------------------
+   The settings popover
+   ------------------------------------------------------------------------
+
+   A card's settings open in a popover, and on this theme it arrived as a white
+   sheet with the content against its edges. Three things, none of them about the
+   form inside it.
+
+   It was the wrong white. Aura gives an overlay a surface a step above the page,
+   which on the dark scheme reads as raised and on the light one — where the page is
+   already pale — reads as a hole with nothing in it: the fields inside are white
+   too, so the panel and the inputs were the same colour and only the field outlines
+   said where anything was. Here it takes the card's own tone instead, so the fields
+   sit on it rather than in it, and the edge and the shadow are what say it is above
+   the page.
+
+   It was too tight. The component's own padding is --vaadin-padding-s, which is
+   right for a menu of three lines and not for a form with headings and hints; a step
+   up is enough to stop the text touching the edge.
+
+   Both are set as the component's own custom properties rather than through
+   ::part(), so the arrow gets the same colour without a second rule: the arrow reads
+   --vaadin-popover-background too.
+*/
+html {
+  --vaadin-popover-padding: var(--vaadin-padding-l);
+  --vaadin-popover-background: #e9edff;
+  --vaadin-popover-border-color: rgb(90 95 174 / 0.35);
+  --vaadin-popover-border-width: 1px;
+  --vaadin-popover-shadow: 0 16px 40px -12px rgb(20 21 43 / 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    /*
+       A step lighter than the card rather than the same tone. On the dark scheme
+       "above" is lighter, and a popover the colour of the card it opens from would
+       have nothing but its outline to say it is a separate thing.
+    */
+    --vaadin-popover-background: #23245a;
+    --vaadin-popover-border-color: rgb(162 169 234 / 0.28);
+    --vaadin-popover-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.6);
+  }
+}

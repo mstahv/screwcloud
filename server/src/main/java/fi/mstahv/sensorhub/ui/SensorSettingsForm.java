@@ -127,7 +127,15 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
     protected Component createContent() {
         VerticalLayout layout = new VerticalLayout();
         layout.setPadding(false);
-        layout.setWidth("23rem");
+        /*
+           23rem is what the two limit rows need to line up. On a phone that is wider
+           than the screen, and a popover sizes itself to its content — so the form
+           kept its width, the overlay could not, and the right-hand end of every row
+           was behind a horizontal scrollbar. Whichever is smaller therefore wins; the
+           subtraction is the popover's own padding and the margin it keeps from the
+           edge of the screen.
+        */
+        layout.setWidth("min(23rem, calc(100vw - 5rem))");
 
         layout.add(name, new SectionLabel("Temperature bands (°C)"), thresholds);
         /*
@@ -165,6 +173,13 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
         SectionLabel(String text) {
             super(text);
             getStyle().setFontWeight(com.vaadin.flow.dom.Style.FontWeight.BOLD);
+            /*
+               A heading needs more space above it than below, or it reads as
+               belonging to the hint it follows rather than to the fields it heads.
+               The layout's own gap is the same on both sides, which is what made
+               three sections read as one column of text.
+            */
+            getStyle().setMarginTop(VaadinCssProps.GAP_S.var());
         }
     }
 
