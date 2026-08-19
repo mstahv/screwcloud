@@ -4,12 +4,10 @@ import java.util.function.Supplier;
 
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.checkbox.Checkbox;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import fi.mstahv.sensorhub.alerts.WebPushService;
-import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * One switch for all notifications to this browser.
@@ -35,15 +33,13 @@ class NotificationSwitch extends VerticalLayout {
        of the three.
     */
     private final Checkbox toggle = new Checkbox("Notifications on this browser");
-    private final Span hint = new Span();
+    private final SecondaryText hint = new SecondaryText();
 
     NotificationSwitch(WebPushService webPush, Supplier<String> clientId) {
         this.webPush = webPush;
         this.clientId = clientId;
 
         setPadding(false);
-
-        hint.getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
 
         /*
            isFromClient() matters: reading the state back from the browser sets

@@ -2,14 +2,11 @@ package fi.mstahv.sensorhub.ui;
 
 import com.vaadin.flow.component.customfield.CustomField;
 import com.vaadin.flow.component.html.Span;
-import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.orderedlayout.HorizontalLayoutVariant;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 
 import fi.mstahv.sensorhub.store.SensorThresholds;
 import org.vaadin.firitin.form.FormBinder;
-import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * The four temperature limits, edited as one value.
@@ -103,49 +100,23 @@ class TemperatureBandsField extends CustomField<SensorThresholds> {
      * A caption and a pair of limits, separated by a dash so the two fields read
      * as one range rather than two unrelated numbers.
      */
-    private static class LimitRow extends HorizontalLayout {
+    private static class LimitRow extends FieldRow {
         LimitRow(String label, NumberField low, NumberField high) {
-            setPadding(false);
-            setSpacing(true);
-            setAlignItems(Alignment.BASELINE);
-            setWidthFull();
-            /*
-               Wraps rather than overflows: on the narrowest phones the caption and
-               the two limits do not fit on one line inside a popover, and what used
-               to happen there was a scrollbar under the row.
-            */
-            addThemeVariants(HorizontalLayoutVariant.WRAP);
-
-            Span caption = new Span(label);
-            // Kept: the two rows' fields line up only if the captions share a width.
-            caption.getStyle().setMinWidth("9rem");
-
-            /*
-               The pair is one thing, so it wraps as one. Left as three siblings, a
-               row with no room for all of it broke between the dash and the second
-               field — a range with its two halves on different lines, which reads as
-               two unrelated numbers, which is exactly what the dash is there to
-               prevent.
-            */
-            HorizontalLayout pair = new HorizontalLayout(low, new RangeSeparator(), high);
-            pair.setPadding(false);
-            pair.setAlignItems(Alignment.BASELINE);
-
-            add(caption, pair);
+            add(new RowCaption(label), low, new RangeSeparator(), high);
         }
     }
 
-    private static class RangeSeparator extends Span {
+    /** Kept at a shared width so the two rows' fields line up. */
+    private static class RowCaption extends Span {
+        RowCaption(String label) {
+            super(label);
+            getStyle().setMinWidth("9rem");
+        }
+    }
+
+    private static class RangeSeparator extends SecondaryText {
         RangeSeparator() {
             super("–");
-            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
-        }
-    }
-
-    private static class Hint extends Span {
-        Hint(String text) {
-            super(text);
-            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
         }
     }
 }

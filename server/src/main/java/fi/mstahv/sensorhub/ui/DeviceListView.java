@@ -55,7 +55,7 @@ public class DeviceListView extends VerticalLayout {
 
     private final NotificationSwitch notifications;
     private final FlexLayout deviceCards = new FlexLayout();
-    private final Span emptyState = new Span("No devices yet — add one below.");
+    private final Span emptyState = new SecondaryText("No devices yet — add one below.");
 
     private String clientId;
 
@@ -119,8 +119,6 @@ public class DeviceListView extends VerticalLayout {
         Devices() {
             setPadding(false);
             setWidthFull();
-
-            emptyState.getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
 
             add(new SectionHeading("Devices"), emptyState, deviceCards);
         }
@@ -232,13 +230,6 @@ public class DeviceListView extends VerticalLayout {
      * <p>Smaller than the default H2, which at nearly the size of the brand name
      * left no visible hierarchy between them.
      */
-    private static class Hint extends Span {
-        Hint(String text) {
-            super(text);
-            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
-        }
-    }
-
     private static class SectionHeading extends H2 {
         SectionHeading(String text) {
             super(text);

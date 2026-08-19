@@ -183,10 +183,4 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
         }
     }
 
-    private static class Hint extends Span {
-        Hint(String text) {
-            super(text);
-            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
-        }
-    }
 }

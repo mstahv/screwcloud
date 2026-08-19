@@ -13,7 +13,6 @@ import com.vaadin.flow.component.progressbar.ProgressBar;
 import fi.mstahv.sensorhub.alerts.HeatSum;
 import fi.mstahv.sensorhub.alerts.Elapsed;
 import fi.mstahv.sensorhub.store.HeatSumCounter;
-import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * The degree-day counters running on one sensor, on its card.
@@ -74,10 +73,9 @@ class HeatSumPanel extends VerticalLayout {
          * What is left, in the terms the reader thinks in: a date and time when it
          * will be done, not a number of degree-days.
          */
-        private static class Forecast extends Span {
+        private static class Forecast extends SecondaryText {
             Forecast(HeatSum sum, double target) {
                 super(describe(sum, target));
-                getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
             }
 
             private static String describe(HeatSum sum, double target) {

@@ -70,9 +70,9 @@ public class LocalView extends VerticalLayout {
     private final ReadingUpdates updates;
 
     private final FlexLayout cards = new FlexLayout();
-    private final Span emptyState = new Span();
-    private final Span radioStatus = new Span();
-    private final Span uploadStatus = new Span();
+    private final StatusLine emptyState = new StatusLine();
+    private final StatusLine radioStatus = new StatusLine();
+    private final StatusLine uploadStatus = new StatusLine();
 
     /**
      * The Thingy:52, which reports separately from the Bluetooth line above it.
@@ -81,7 +81,7 @@ public class LocalView extends VerticalLayout {
      * listening perfectly while the Thingy is asleep, out of range, or held by the
      * phone app — and "Bluetooth: listening" would say nothing about any of that.
      */
-    private final Span thingyStatus = new Span();
+    private final StatusLine thingyStatus = new StatusLine();
 
     /**
      * What the LoRa radio has heard, most recent first.
@@ -91,7 +91,7 @@ public class LocalView extends VerticalLayout {
      * a node in one hand wants from this page is whether it is being heard, and
      * how well — which is a number that changes as they walk.
      */
-    private final Span loraStatus = new Span();
+    private final StatusLine loraStatus = new StatusLine();
     private final VerticalLayout loraArrivals = new VerticalLayout();
 
     /** One card per tag, kept in place and updated. Insertion order is display order. */
@@ -122,12 +122,6 @@ public class LocalView extends VerticalLayout {
         cards.setFlexWrap(FlexLayout.FlexWrap.WRAP);
         cards.setWidthFull();
         cards.getStyle().setGap(VaadinCssProps.GAP_M.var());
-
-        secondary(emptyState);
-        secondary(radioStatus);
-        secondary(uploadStatus);
-        secondary(thingyStatus);
-        secondary(loraStatus);
 
         loraArrivals.setPadding(false);
         loraArrivals.setSpacing(false);
@@ -200,9 +194,7 @@ public class LocalView extends VerticalLayout {
         */
         if (recent.isEmpty()) {
             if (lora.listening()) {
-                Span line = new Span("Nothing heard over the air yet.");
-                secondary(line);
-                loraArrivals.add(line);
+                loraArrivals.add(new StatusLine("Nothing heard over the air yet."));
             }
             return;
         }
@@ -214,17 +206,28 @@ public class LocalView extends VerticalLayout {
                ago is exactly the case where a five second old "0 s ago" reads as
                wrong — and it is the browser that knows what second it is.
             */
-            Span line = new Span();
+            StatusLine line = new StatusLine();
             line.add(new RelativeTime(arrival.at()),
                     new Span(" — " + arrival.packet().describe()));
-            secondary(line);
             loraArrivals.add(line);
         }
     }
 
-    private static void secondary(Span span) {
-        span.getStyle()
-                .setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var())
-                .setFontSize("0.875rem");
+    /**
+     * One line about the machine itself — a radio, the upload, a packet that went
+     * past. Secondary and a step smaller than the readings, because these are the
+     * page's margins rather than what anyone came to read.
+     */
+    private static class StatusLine extends Span {
+        StatusLine() {
+            getStyle()
+                    .setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var())
+                    .setFontSize("0.875rem");
+        }
+
+        StatusLine(String text) {
+            this();
+            setText(text);
+        }
     }
 }

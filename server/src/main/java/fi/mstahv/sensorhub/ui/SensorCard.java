@@ -19,7 +19,6 @@ import fi.mstahv.sensorhub.alerts.HeatSum;
 import fi.mstahv.sensorhub.store.HistoryPoint;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
 import fi.mstahv.sensorhub.store.SensorThresholds;
-import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * One sensor's readings and its temperature curve. The temperature is the gauge
@@ -311,12 +310,11 @@ class SensorCard extends Card {
     }
 
     /**
-     * One line of secondary text in the card. Block display because these are spans
-     * and each belongs on its own line; the size is the theme's.
+     * One line of a sensor's readings. Block display because these are spans in the
+     * card's content slot, and each belongs on a line of its own.
      */
-    private static class Reading extends Span {
+    private static class Reading extends SecondaryText {
         Reading() {
-            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
             getStyle().setDisplay(Style.Display.BLOCK);
         }
     }

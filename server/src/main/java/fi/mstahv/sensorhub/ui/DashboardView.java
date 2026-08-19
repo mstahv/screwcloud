@@ -31,7 +31,6 @@ import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
 import fi.mstahv.sensorhub.updates.DeviceUpdates;
-import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * One device's latest readings. The device comes from a URL parameter, for
@@ -59,7 +58,7 @@ public class DashboardView extends VerticalLayout
     private final DeviceUpdates updates;
     private final SensorCardLayout cards;
     private final H2 heading = new H2();
-    private final Span deviceStatus = new Span();
+    private final SecondaryText deviceStatus = new SecondaryText();
     /** Shown only when the device is late; see DeviceActivity for what late means. */
     private final Badge offline = new Badge();
     private final Span emptyState = new Span();
@@ -93,8 +92,6 @@ public class DashboardView extends VerticalLayout
         */
         setWidthFull();
         setMinHeight("100%");
-
-        deviceStatus.getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
 
         add(new RouterLink("← Devices", DeviceListView.class),
                 heading, deviceStatus, offline, emptyState, cards);

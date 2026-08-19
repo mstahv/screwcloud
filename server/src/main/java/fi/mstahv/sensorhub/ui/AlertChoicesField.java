@@ -2,12 +2,10 @@ package fi.mstahv.sensorhub.ui;
 
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.customfield.CustomField;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import fi.mstahv.sensorhub.store.AlertPreferences;
 import org.vaadin.firitin.form.FormBinder;
-import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * Which of a sensor's alerts this browser wants, edited as one value.
@@ -73,10 +71,4 @@ class AlertChoicesField extends CustomField<AlertPreferences> {
         binder.setValue(preferences == null ? AlertPreferences.NONE : preferences);
     }
 
-    private static class Hint extends Span {
-        Hint(String text) {
-            super(text);
-            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
-        }
-    }
 }

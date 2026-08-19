@@ -3,10 +3,8 @@ package fi.mstahv.sensorhub.ui;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Image;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.dom.Style;
 import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
@@ -69,6 +67,15 @@ class BrandHeader extends HorizontalLayout {
         }
     }
 
+    private static class Tagline extends SecondaryText {
+        Tagline() {
+            super(TAGLINE);
+            // A sentence this long needs a line length, or it runs the width of a
+            // desktop window.
+            getStyle().setMaxWidth("34rem");
+        }
+    }
+
     private static class NameAndTagline extends VerticalLayout {
         NameAndTagline() {
             setPadding(false);
@@ -78,14 +85,7 @@ class BrandHeader extends HorizontalLayout {
             // An H1's default margins would push the logo out of line with it.
             name.getStyle().setMargin("0");
 
-            Span tagline = new Span(TAGLINE);
-            Style taglineStyle = tagline.getStyle();
-            taglineStyle.setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
-            // A sentence this long needs a line length, or it runs the width of a
-            // desktop window.
-            taglineStyle.setMaxWidth("34rem");
-
-            add(name, tagline, new SourceLink());
+            add(name, new Tagline(), new SourceLink());
         }
     }
 }
