@@ -28,7 +28,6 @@ import in.virit.TemperatureGauge;
 import org.vaadin.example.history.HistoryPoint;
 import org.vaadin.example.names.SensorNames;
 import org.vaadin.example.sensor.Reading;
-import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
  * One tag's card: the temperature on a gauge, the humidity and the age under it,
@@ -104,7 +103,7 @@ class SensorCard extends Card {
         setWidthFull();
         applyName();
 
-        Button rename = new Button(VaadinIcon.PENCIL.create(), click -> renameDialog().open());
+        Button rename = new Button(VaadinIcon.PENCIL.create(), click -> new RenameDialog().open());
         rename.addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
         rename.setAriaLabel("Rename this sensor");
         setHeaderSuffix(rename);
@@ -198,34 +197,43 @@ class SensorCard extends Card {
         setSubtitle(name.equals(sensorId) ? null : new Span(sensorId));
     }
 
-    private Dialog renameDialog() {
-        Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Name for " + sensorId);
+    /**
+     * The one thing this page edits: what a sensor is called.
+     *
+     * <p>An empty value is how a name is removed — the card then shows the
+     * identifier again, as the field's helper below the input says.
+     */
+    private class RenameDialog extends Dialog {
 
-        TextField field = new TextField();
-        field.setPlaceholder("Cold room");
-        field.setValue(names.nameFor(sensorId).orElse(""));
-        field.setWidthFull();
+        private final TextField field = new TextField();
 
-        dialog.add(new VerticalLayout(field));
-        dialog.getFooter().add(
-                new Button("Cancel", click -> dialog.close()),
-                new Button("Save", click -> {
-                    names.rename(sensorId, field.getValue());
-                    applyName();
-                    dialog.close();
-                    onRenamed.run();
-                }));
-        return dialog;
+        RenameDialog() {
+            setHeaderTitle("Name for " + sensorId);
+
+            field.setPlaceholder("Cold room");
+            field.setValue(names.nameFor(sensorId).orElse(""));
+            field.setWidthFull();
+            add(new VerticalLayout(field));
+
+            getFooter().add(
+                    new Button("Cancel", click -> close()),
+                    new Button("Save", click -> save()));
+        }
+
+        private void save() {
+            names.rename(sensorId, field.getValue());
+            applyName();
+            close();
+            onRenamed.run();
+        }
     }
 
     /**
-     * One line of secondary text on the card. Block display because these are spans
-     * and each belongs on its own line; the size is the theme's.
+     * One line of a sensor's readings. Block display because these are spans in the
+     * card's content slot, and each belongs on a line of its own.
      */
-    private static class SecondaryLine extends Span {
+    private static class SecondaryLine extends SecondaryText {
         SecondaryLine() {
-            getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
             getStyle().setDisplay(Style.Display.BLOCK);
         }
     }

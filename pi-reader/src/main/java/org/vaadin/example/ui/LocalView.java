@@ -218,11 +218,9 @@ public class LocalView extends VerticalLayout {
      * past. Secondary and a step smaller than the readings, because these are the
      * page's margins rather than what anyone came to read.
      */
-    private static class StatusLine extends Span {
+    private static class StatusLine extends SecondaryText {
         StatusLine() {
-            getStyle()
-                    .setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var())
-                    .setFontSize("0.875rem");
+            getStyle().setFontSize("0.875rem");
         }
 
         StatusLine(String text) {
