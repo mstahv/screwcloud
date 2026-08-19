@@ -88,6 +88,57 @@ java -jar target/quarkus-app/quarkus-run.jar
 | `screwcloud.lora.crc` | `false` | the same |
 | `screwcloud.names.file` | `~/.screwcloud-sensors.csv` | where the names live |
 
+### Deploying to the Pi: boot2vm
+
+Probably the easiest way to run this on a Pi — especially without a Java toolchain
+on the Pi or much appetite for one anywhere — is
+[boot2vm](https://github.com/mstahv/boot2vm). It is a single-file JBang tool: the
+build runs on your workstation, and only the application itself goes over to the
+Pi, where it runs as a systemd service that starts on boot and restarts on failure.
+
+The workstation side needs a JDK, Maven and JBang. If none of that is installed
+yet, [SDKMAN](https://sdkman.io) covers all three with one installer (macOS,
+Linux, or WSL on Windows):
+
+```bash
+curl -s "https://get.sdkman.io" | bash     # then open a new terminal
+sdk install java && sdk install maven && sdk install jbang
+```
+
+Then:
+
+```bash
+jbang app install https://github.com/mstahv/boot2vm/blob/main/Deploy.java
+
+cd pi-reader
+Deploy init        # asks for the Pi's address, sets it up, deploys
+Deploy             # redeploys after a change: build here, rsync, restart
+```
+
+`Deploy init` asks a handful of questions; the app type is detected as Quarkus
+from the build. For a Pi on a home network, answering `none` to the reverse proxy
+is the sensible choice — the local page is then <http://pi-address:8080/>, and
+there is no public DNS name for automatic HTTPS to work against anyway.
+Redeployments are quick because only changed files are transferred: the dependency
+jars in `quarkus-app/lib` rarely change, so an ordinary code change moves a few
+hundred kilobytes.
+
+The configuration above goes in through the same tool, and lives on the Pi rather
+than in this repository:
+
+```bash
+Deploy env set SCREWCLOUD_DEVICE_ID=PI01 SCREWCLOUD_THINGY_ENABLED=true
+Deploy env set JDK_JAVA_OPTIONS=--enable-native-access=ALL-UNNAMED   # for the LoRa driver
+Deploy logs        # journalctl over SSH, to see what it thinks
+```
+
+Two things boot2vm cannot know about this application: the app user it creates
+needs the Bluetooth and LoRa group memberships described in
+[When it hears nothing](#when-it-hears-nothing) — `usermod` on the Pi, once — and
+the LoRa build still needs the pi4j-drivers branch installed locally first, as
+above. `Deploy init` writes its connection details to `vmhosting.conf`, which this
+repository's `.gitignore` already keeps out of version control.
+
 ### On the Pi
 
 BlueZ has to be running and the process needs to be allowed to talk to it. On

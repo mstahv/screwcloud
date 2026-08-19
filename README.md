@@ -2106,6 +2106,14 @@ the device's `SERVER_PORT` setting.
 The first start takes minutes, because Vaadin downloads Node.js into `~/.vaadin`
 and builds the frontend bundle.
 
+For putting it on a real server, [boot2vm](https://github.com/mstahv/boot2vm) is
+what this repository's own instance runs under: `Deploy init` once against a plain
+Debian-ish VM, `Deploy` after that, and the VAPID keys and database settings go in
+with `Deploy env set` so they never touch this repository. PostgreSQL it does not
+install — that is the one piece to arrange yourself. Its `vmhosting.conf` is
+already in `.gitignore`. The pi-reader README says more, because there the same
+tool is doing a job that is otherwise genuinely fiddly.
+
 ### Testing without a device
 
 ```bash
