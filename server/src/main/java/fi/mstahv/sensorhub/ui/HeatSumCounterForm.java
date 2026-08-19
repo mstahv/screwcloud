@@ -23,6 +23,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import fi.mstahv.sensorhub.store.HeatSumCounter;
+import org.vaadin.firitin.form.BeanValidationForm;
 
 /**
  * Starting, adjusting and stopping the degree-day counters on one sensor.
@@ -87,7 +88,7 @@ class HeatSumCounterForm extends VerticalLayout {
      * would be one keystroke away from storing a half-typed value, since emptying
      * the field is what happens on the way to typing a new number.
      */
-    private static class ExistingCounter extends RowForm<ChangedCounter> {
+    private static class ExistingCounter extends BeanValidationForm<ChangedCounter> {
 
         private final TextField comment = new CommentField();
         private final NumberField target = new TargetField();
@@ -100,6 +101,7 @@ class HeatSumCounterForm extends VerticalLayout {
         ExistingCounter(HeatSumCounter counter, Consumer<ChangedCounter> onChange,
                         Consumer<Long> onStop) {
             super(ChangedCounter.class);
+            asSection();
             this.counter = counter;
             this.onStop = onStop;
 
@@ -136,13 +138,14 @@ class HeatSumCounterForm extends VerticalLayout {
      * goes up, and backdating it is the rare case — the target can be adjusted
      * instead, which comes to the same thing.
      */
-    private static class StartCounter extends RowForm<NewCounter> {
+    private static class StartCounter extends BeanValidationForm<NewCounter> {
 
         private final TextField comment = new CommentField();
         private final NumberField target = new TargetField();
 
         StartCounter(Consumer<NewCounter> onStart) {
             super(NewCounter.class);
+            asSection();
 
             setSaveCaption("Start");
             setSavedHandler(started -> {
@@ -176,10 +179,12 @@ class HeatSumCounterForm extends VerticalLayout {
         }
 
         /*
-           A plain button rather than the Viritin default one the form would make.
-           That default hooks itself to ENTER, and this form shares a popover with
-           the settings form's Save — which does the same, and is the one that should
-           have it. Two of them would mean one keypress doing two things.
+           A plain tertiary button rather than the form's DefaultButton, for two
+           reasons that are really one: this starts a row among the popover's
+           content, and the popover's verdict is the settings form's Save above.
+           Tertiary styling says the first; skipping DefaultButton's ENTER shortcut
+           says the second — a form keeping the default look would say it with
+           setSaveOnEnter(false).
         */
         @Override
         protected Button createSaveButton() {

@@ -38,7 +38,7 @@ import org.vaadin.firitin.util.style.VaadinCssProps;
  * reaches the store and comes back as a toast — the reader is told where they are
  * standing, before they press anything.
  */
-class SensorSettingsForm extends RowForm<SensorSettingsForm.Values> {
+class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
 
     /**
      * Everything the form collects: the two domain values as they are, not taken
@@ -94,6 +94,8 @@ class SensorSettingsForm extends RowForm<SensorSettingsForm.Values> {
     SensorSettingsForm(String sensorId, String currentName, SensorThresholds currentThresholds,
                        AlertOptions alertOptions, Component counters, Consumer<Values> onSave) {
         super(Values.class);
+        // In a popover, which sizes itself by its content; see asSection's javadoc.
+        asSection();
         this.alertOptions = alertOptions;
         this.alerts = new AlertChoicesField(alertOptions.pushSubscribed());
         this.counters = counters;

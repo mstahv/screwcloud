@@ -23,6 +23,7 @@ import fi.mstahv.sensorhub.store.ClientDeviceStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.updates.DeviceUpdates;
 import fi.mstahv.sensorhub.validation.DeviceId;
+import org.vaadin.firitin.form.BeanValidationForm;
 import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
@@ -131,7 +132,7 @@ public class DeviceListView extends VerticalLayout {
      * they are typing it and with the reason under it, instead of being accepted by
      * a button that then produces a toast.
      */
-    private class AddDevice extends RowForm<NewDevice> {
+    private class AddDevice extends BeanValidationForm<NewDevice> {
 
         /*
            Named after the record's component, which is how FormBinder finds it. It
@@ -142,6 +143,8 @@ public class DeviceListView extends VerticalLayout {
 
         AddDevice() {
             super(NewDevice.class);
+            // One section of the page, not the page.
+            asSection();
 
             deviceId.setPlaceholder("Device ID");
             /*

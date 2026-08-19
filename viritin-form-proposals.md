@@ -16,6 +16,17 @@ None of the notes below touch that half.
 
 Written against Viritin 3.8.0.
 
+**Status:** proposals 1, 2 and 4 are implemented on the `form-embedding` branch of
+the `./flow-viritin` checkout (one commit on top of master), built locally as
+`3.8.1-SNAPSHOT`, and this server module now runs against it: `RowForm` is gone,
+the four forms call `asSection()` and carry no empty `getFormComponents()`, and the
+ENTER flow was exercised end to end in a browser — including reopening the popover,
+which used to stack a new shortcut registration per attach (a real DefaultButton
+bug found while wiring this; fixed in the same commit). Proposal 3, the
+`BoundForm` split, is deliberately left as a sketch: it is a larger reshaping of a
+class marked experimental, and the first three remove most of its practical
+motivation.
+
 ---
 
 ## 1. The Composite is size-full by default

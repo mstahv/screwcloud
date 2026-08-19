@@ -43,3 +43,7 @@ vmhosting.conf
 # See tools/motif-sources/README.md.
 tools/motif-sources/*.jpg
 tools/motif-sources/cropped/
+
+# A working checkout of the Viritin add-on, its own git repository: the form
+# API proposals in viritin-form-proposals.md are implemented and built there.
+flow-viritin/

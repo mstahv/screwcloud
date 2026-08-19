@@ -138,10 +138,18 @@
             <artifactId>flow-webpush</artifactId>
         </dependency>
 
+        <!--
+            A snapshot, deliberately: the form-embedding additions this application
+            exercises (asSection, non-abstract getFormComponents, setSaveOnEnter)
+            live on a branch in ./flow-viritin. Until they are released, build them
+            locally first:
+
+                mvn -f ../flow-viritin/pom.xml install -DskipTests
+        -->
         <dependency>
             <groupId>in.virit</groupId>
             <artifactId>viritin</artifactId>
-            <version>3.8.0</version>
+            <version>3.8.1-SNAPSHOT</version>
         </dependency>
 
         <dependency>
