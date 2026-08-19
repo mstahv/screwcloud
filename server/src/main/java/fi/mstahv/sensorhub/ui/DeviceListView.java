@@ -1,6 +1,5 @@
 package fi.mstahv.sensorhub.ui;
 
-import java.util.List;
 
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
@@ -24,7 +23,6 @@ import fi.mstahv.sensorhub.store.ClientDeviceStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.updates.DeviceUpdates;
 import fi.mstahv.sensorhub.validation.DeviceId;
-import org.vaadin.firitin.form.BeanValidationForm;
 import org.vaadin.firitin.util.style.VaadinCssProps;
 
 /**
@@ -133,7 +131,7 @@ public class DeviceListView extends VerticalLayout {
      * they are typing it and with the reason under it, instead of being accepted by
      * a button that then produces a toast.
      */
-    private class AddDevice extends BeanValidationForm<NewDevice> {
+    private class AddDevice extends RowForm<NewDevice> {
 
         /*
            Named after the record's component, which is how FormBinder finds it. It
@@ -144,13 +142,6 @@ public class DeviceListView extends VerticalLayout {
 
         AddDevice() {
             super(NewDevice.class);
-            /*
-               One section of the page, not the page: the Div a Composite wraps is
-               size full by default, and a full height section here would push the
-               ones below it off the screen.
-            */
-            getContent().setWidthFull();
-            getContent().setHeight(null);
 
             deviceId.setPlaceholder("Device ID");
             /*
@@ -195,11 +186,6 @@ public class DeviceListView extends VerticalLayout {
             layout.setPadding(false);
             layout.setWidthFull();
             return layout;
-        }
-
-        @Override
-        protected List<Component> getFormComponents() {
-            return List.of();
         }
     }
 

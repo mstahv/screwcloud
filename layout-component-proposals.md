@@ -575,8 +575,11 @@ Viritin is the part of this stack that behaved. What it suggests:
 3. **`FormBinder` / `BeanValidationForm` are the reason the forms in this application
    are short.** One trap: `Composite`'s `Div` is size-full by default, so a form used
    as one section of a page pushes everything below it off screen until you write
-   `getContent().setHeight(null)`. A section-sized default, or a documented
-   `setSectionSized()`, would remove a surprise that only shows up on a long page.
+   `getContent().setHeight(null)`. That trap and three related ones — the abstract
+   `getFormComponents()` every custom-content form declines with an empty override,
+   the layout half and the binding half being one class, and the default save button
+   claiming ENTER for the whole page — are worked through with example code in
+   `viritin-form-proposals.md`.
 4. **`VSvg`** should inherit colour the way the sparkline needs (see above) — the fix
    probably belongs here rather than in each visualisation built on it.
 

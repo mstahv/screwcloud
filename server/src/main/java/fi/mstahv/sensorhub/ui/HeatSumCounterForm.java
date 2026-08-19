@@ -23,7 +23,6 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import fi.mstahv.sensorhub.store.HeatSumCounter;
-import org.vaadin.firitin.form.BeanValidationForm;
 
 /**
  * Starting, adjusting and stopping the degree-day counters on one sensor.
@@ -130,11 +129,6 @@ class HeatSumCounterForm extends VerticalLayout {
             layout.setWidthFull();
             return layout;
         }
-
-        @Override
-        protected List<Component> getFormComponents() {
-            return List.of();
-        }
     }
 
     /**
@@ -181,11 +175,6 @@ class HeatSumCounterForm extends VerticalLayout {
             return layout;
         }
 
-        @Override
-        protected List<Component> getFormComponents() {
-            return List.of();
-        }
-
         /*
            A plain button rather than the Viritin default one the form would make.
            That default hooks itself to ENTER, and this form shares a popover with
@@ -198,20 +187,6 @@ class HeatSumCounterForm extends VerticalLayout {
             start.addThemeVariants(ButtonVariant.TERTIARY);
             start.setVisible(false);
             return start;
-        }
-    }
-
-    /**
-     * A row rather than a page: the {@code Div} a Viritin Composite wraps is size
-     * full by default, and a full height child in a popover — which sizes itself to
-     * its content — is a child with no height at all. Said once, here, instead of as
-     * two setter calls with the same comment in each subclass.
-     */
-    private abstract static class RowForm<T> extends BeanValidationForm<T> {
-        RowForm(Class<T> type) {
-            super(type);
-            getContent().setWidthFull();
-            getContent().setHeight(null);
         }
     }
 

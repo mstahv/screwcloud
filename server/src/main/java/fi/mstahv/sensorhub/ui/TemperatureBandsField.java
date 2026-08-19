@@ -2,6 +2,7 @@ package fi.mstahv.sensorhub.ui;
 
 import com.vaadin.flow.component.customfield.CustomField;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 
@@ -97,12 +98,29 @@ class TemperatureBandsField extends CustomField<SensorThresholds> {
     }
 
     /**
-     * A caption and a pair of limits, separated by a dash so the two fields read
-     * as one range rather than two unrelated numbers.
+     * A caption and a range. Two children rather than four: the caption may take
+     * its own line on a narrow popover, and the range is what moves below it.
      */
     private static class LimitRow extends FieldRow {
         LimitRow(String label, NumberField low, NumberField high) {
-            add(new RowCaption(label), low, new RangeSeparator(), high);
+            add(new RowCaption(label), new Range(low, high));
+        }
+    }
+
+    /**
+     * Two limits and the dash that makes them one thing.
+     *
+     * <p>This is the one grouping in these forms that earns its keep. Left as loose
+     * siblings in the wrapping row, the break landed between the dash and the second
+     * field on a 375 pixel screen — a dash hanging at the end of one line and an
+     * orphan field starting the next, which looks like a rendering fault rather
+     * than a range. A button wraps wherever it likes; a dash does not.
+     */
+    private static class Range extends HorizontalLayout {
+        Range(NumberField low, NumberField high) {
+            add(low, new RangeSeparator(), high);
+            setAlignItems(Alignment.BASELINE);
+            setPadding(false);
         }
     }
 

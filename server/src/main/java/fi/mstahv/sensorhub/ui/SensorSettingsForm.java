@@ -1,6 +1,5 @@
 package fi.mstahv.sensorhub.ui;
 
-import java.util.List;
 import java.util.function.Consumer;
 
 import com.vaadin.flow.component.Component;
@@ -39,7 +38,7 @@ import org.vaadin.firitin.util.style.VaadinCssProps;
  * reaches the store and comes back as a toast — the reader is told where they are
  * standing, before they press anything.
  */
-class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
+class SensorSettingsForm extends RowForm<SensorSettingsForm.Values> {
 
     /**
      * Everything the form collects: the two domain values as they are, not taken
@@ -98,12 +97,6 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
         this.alertOptions = alertOptions;
         this.alerts = new AlertChoicesField(alertOptions.pushSubscribed());
         this.counters = counters;
-        /*
-           The form is a Composite over a Div, and that Div is size full by
-           default. In a popover, which sizes itself to its content, a full height
-           child is a child with no height at all.
-        */
-        getContent().setSizeUndefined();
 
         name.setPlaceholder(sensorId);
         name.setHelperText("Empty = show the identifier " + sensorId);
@@ -153,15 +146,6 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
         }
         layout.add(getSaveButton());
         return layout;
-    }
-
-    /**
-     * Unused: {@link #createContent()} is overridden, since these fields do not go
-     * into a form layout one after another — two of them share a row.
-     */
-    @Override
-    protected List<Component> getFormComponents() {
-        return List.of();
     }
 
     /**
