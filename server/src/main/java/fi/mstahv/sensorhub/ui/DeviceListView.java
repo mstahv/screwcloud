@@ -5,6 +5,7 @@ import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.dependency.StyleSheet;
 import com.vaadin.flow.component.html.H2;
+import com.vaadin.flow.component.html.Section;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -114,11 +115,16 @@ public class DeviceListView extends VerticalLayout {
                 new BrowserSettings());
     }
 
-    /** The content: the heading and the devices it heads, with nothing in between. */
-    private class Devices extends VerticalLayout {
+    /**
+     * The content: the heading and the devices it heads, with nothing in between.
+     *
+     * <p>A {@code <section>}, because that is what it is — this element and its two
+     * siblings below are the page's outline, and the document should say so rather
+     * than showing three anonymous layout divs. The space between a section's
+     * pieces comes from the stylesheet, which is where a document's rhythm belongs.
+     */
+    private class Devices extends Section {
         Devices() {
-            setPadding(false);
-
             add(new SectionHeading("Devices"), emptyState, deviceCards);
         }
     }
@@ -183,10 +189,8 @@ public class DeviceListView extends VerticalLayout {
                text, which is as wide as the field and broke the sentence across two
                lines mid-phrase.
             */
-            VerticalLayout layout = new VerticalLayout(new SectionHeading("Add a device"), form,
+            return new Section(new SectionHeading("Add a device"), form,
                     new Hint("The same 4 characters as DEVICE_ID in config.h"));
-            layout.setPadding(false);
-            return layout;
         }
     }
 
@@ -199,10 +203,8 @@ public class DeviceListView extends VerticalLayout {
      * account — is true but not what a reader is looking for in a heading; the switch
      * itself says where they apply.
      */
-    private class BrowserSettings extends VerticalLayout {
+    private class BrowserSettings extends Section {
         BrowserSettings() {
-            setPadding(false);
-
             add(new SectionHeading("Your settings"), notifications);
         }
     }

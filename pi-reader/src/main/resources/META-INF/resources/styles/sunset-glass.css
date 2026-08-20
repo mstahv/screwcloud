@@ -522,3 +522,22 @@ html {
     --vaadin-popover-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.6);
   }
 }
+
+/* ------------------------------------------------------------------------
+   Sections
+   ------------------------------------------------------------------------
+
+   The front page's regions are <section> elements — the document's outline,
+   said in the markup rather than as anonymous layout divs. What a section does
+   not carry is its own spacing, so the rhythm between a heading and what it
+   heads is set here: a column with the theme's gap, which is exactly what each
+   of these regions used to build out of a VerticalLayout and two setter calls.
+
+   Sections inside components' shadow roots are out of reach of this rule by
+   definition, so it touches only the page's own.
+*/
+section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vaadin-gap-m);
+}
