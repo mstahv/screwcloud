@@ -59,8 +59,7 @@ public class DashboardView extends VerticalLayout
     private final SensorCardLayout cards;
     private final H2 heading = new H2();
     private final SecondaryText deviceStatus = new SecondaryText();
-    /** Shown only when the device is late; see DeviceActivity for what late means. */
-    private final Badge offline = new Badge();
+    private final OfflineBadge offline = new OfflineBadge();
     private final Span emptyState = new Span();
 
     /** This view's interest in one device, dropped when it switches to another. */
@@ -78,8 +77,6 @@ public class DashboardView extends VerticalLayout
         this.connections = connections;
         this.updates = updates;
         this.cards = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
-        offline.addThemeVariants(BadgeVariant.ERROR);
-        offline.setVisible(false);
         /*
            Width full and a floor for the height, rather than setSizeFull(). A view
            pinned to the viewport's height ends there and takes its bottom padding
@@ -170,26 +167,18 @@ public class DashboardView extends VerticalLayout
             showStatus(device);
 
             /*
-               The same judgement the notifications use, so the page and the phone
-               never say different things. Re-read on every wake-up rather than only
-               when a packet arrives: going offline is precisely the case where no
-               packet arrives to trigger anything, which is what the minute sweep is
-               for.
+               Re-read on every wake-up rather than only when a packet arrives: going
+               offline is precisely the case where no packet arrives to trigger
+               anything, which is what the minute sweep is for.
             */
-            DeviceActivity activity = connections.activityOf(deviceId);
-            offline.setVisible(activity.silent());
-            if (activity.silent()) {
-                offline.setText("Offline · nothing for %s, expected every %s".formatted(
-                        Elapsed.approximate(activity.sinceLast()),
-                        activity.expectedInterval().map(Elapsed::approximate).orElse("?")));
-            }
+            offline.show(connections.activityOf(deviceId));
 
             if (!device.receivedAt().equals(renderedReceivedAt)) {
                 cards.show(device);
                 renderedReceivedAt = device.receivedAt();
             }
         }, () -> {
-            offline.setVisible(false);
+            offline.hide();
             emptyState.setText("No measurements from %s yet.".formatted(deviceId));
             emptyState.setVisible(true);
             deviceStatus.removeAll();
@@ -216,6 +205,36 @@ public class DashboardView extends VerticalLayout
         */
         deviceStatus.add(new Span("Updated "), new RelativeTime(device.receivedAt()),
                 new Span(statusOf(device)));
+    }
+
+    /**
+     * Whether the device is still reporting, shown only when it is not: a green
+     * "online" badge on every visit would be noise, since the interesting state is
+     * the exceptional one.
+     *
+     * <p>The judgement comes in as a {@link DeviceActivity} — the same one the push
+     * notifications act on, so the page and the phone can never say different
+     * things about the same device.
+     */
+    private static class OfflineBadge extends Badge {
+
+        OfflineBadge() {
+            addThemeVariants(BadgeVariant.ERROR);
+            setVisible(false);
+        }
+
+        void show(DeviceActivity activity) {
+            setVisible(activity.silent());
+            if (activity.silent()) {
+                setText("Offline · nothing for %s, expected every %s".formatted(
+                        Elapsed.approximate(activity.sinceLast()),
+                        activity.expectedInterval().map(Elapsed::approximate).orElse("?")));
+            }
+        }
+
+        void hide() {
+            setVisible(false);
+        }
     }
 
     private static String statusOf(DeviceMeasurement device) {
