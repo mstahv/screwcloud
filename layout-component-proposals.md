@@ -495,6 +495,19 @@ seam.
 
 ### Gauge (`in.virit:gauge`)
 
+**Status:** implemented. 1.1.0 released empty-value support (`setValue(Double)`,
+null draws an empty dial — pointer hidden, a dash for the reading), which deleted
+the hide-the-gauge-show-a-dash dance from both applications' cards. The `main`
+branch of the `./gauge-addon` checkout then takes the rest of this list: no
+hardcoded background, dial text on `currentColor` with no shadow, the block/overflow
+CSS shipped with the component, `HasSize`, a public `resetToDefaults()`, and the
+traffic-light defaults replaced with a cold-to-hot ramp. Found on the way: the
+inherited surefire was 2.17, so the project's tests had been silently reporting
+"Tests run: 0" — and the React adapter turns a null state into the client-side
+default, so emptiness travels as a boolean state of its own.
+
+The original findings, for the record:
+
 Our stylesheet contains 60 lines whose only job is to make this component belong to
 the page it is on. Every one of them is a defect in the component, not a preference:
 
