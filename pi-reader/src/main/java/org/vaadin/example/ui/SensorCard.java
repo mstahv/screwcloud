@@ -54,12 +54,6 @@ class SensorCard extends Card {
 
     private final TemperatureGauge gauge = new TemperatureGauge();
 
-    /*
-       Only shown when there is no temperature. The gauge renders the value with
-       its unit, so a text copy of a reading that exists would be the same number
-       twice.
-    */
-    private final SecondaryLine noTemperature = new SecondaryLine();
     private final SecondaryLine humidity = new SecondaryLine();
 
     /*
@@ -114,8 +108,6 @@ class SensorCard extends Card {
         gauge.getStyle().setWidth("100%");
         setMedia(gauge);
 
-        noTemperature.setText(Readings.MISSING + " °C");
-
         quiet.addThemeVariants(BadgeVariant.ERROR);
         quiet.setVisible(false);
         /*
@@ -127,21 +119,12 @@ class SensorCard extends Card {
 
         age.add(heardAt);
 
-        add(noTemperature, humidity, age, quiet, sparkLine);
+        add(humidity, age, quiet, sparkLine);
     }
 
     void update(Reading reading, List<HistoryPoint> history, Instant now) {
-        /*
-           A gauge showing zero would be indistinguishable from a real zero, so it
-           is hidden rather than zeroed when there is no reading, and the dash takes
-           its place — a card with neither would look like a rendering fault.
-        */
-        boolean hasTemperature = reading.temperature() != null;
-        gauge.setVisible(hasTemperature);
-        noTemperature.setVisible(!hasTemperature);
-        if (hasTemperature) {
-            gauge.setTemperature(reading.temperature());
-        }
+        // Null included: the gauge draws "no reading" itself, as an empty dial.
+        gauge.setTemperature(reading.temperature());
 
         humidity.setText(Readings.format(reading.humidity(), "%.1f %% RH"));
 

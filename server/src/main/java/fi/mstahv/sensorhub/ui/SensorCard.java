@@ -34,13 +34,6 @@ import java.util.List;
 class SensorCard extends Card {
 
     private final TemperatureBandGauge gauge = new TemperatureBandGauge();
-    /*
-       Only shown when there is no temperature to gauge. The gauge itself renders
-       the value with its unit ("20.53°C"), so a text copy of a reading that
-       exists would be the same number twice — and at 2rem it competed with the
-       gauge for the same job.
-    */
-    private final Reading noTemperature = new Reading();
     private final Reading humidity = new Reading();
     private final TemperatureSparkLine sparkLine = new TemperatureSparkLine();
 
@@ -94,8 +87,6 @@ class SensorCard extends Card {
         setMedia(gauge);
         addThemeVariants(CardVariant.COVER_MEDIA);
 
-        noTemperature.setText(Readings.MISSING + " °C");
-
         // Closing discards the grid, so the reference must go with it.
         measurements.addOpenedChangeListener(event -> {
             if (!event.isOpened()) {
@@ -103,7 +94,7 @@ class SensorCard extends Card {
             }
         });
 
-        add(noTemperature, humidity, sparkLine, heatSums, measurements);
+        add(humidity, sparkLine, heatSums, measurements);
     }
 
     /*
@@ -252,17 +243,11 @@ class SensorCard extends Card {
 
     void update(SensorMeasurement sensor, List<HistoryPoint> history) {
         /*
-           A gauge showing 0 would be indistinguishable from a real zero reading,
-           so it is hidden rather than zeroed when the sensor has no temperature.
-           The dash then takes its place: a card with neither would leave the
-           absence looking like a rendering fault.
+           Null included: the gauge draws "no reading" itself — an empty dial with
+           a dash — so the card no longer hides the dial and swaps a text dash in,
+           and nothing jumps when the first reading arrives.
         */
-        boolean hasTemperature = sensor.temperature() != null;
-        gauge.setVisible(hasTemperature);
-        noTemperature.setVisible(!hasTemperature);
-        if (hasTemperature) {
-            gauge.setTemperature(sensor.temperature());
-        }
+        gauge.setTemperature(sensor.temperature());
 
         humidity.setText(Readings.format(sensor.humidity(), "%.1f %% RH"));
         sparkLine.setHistory(history);

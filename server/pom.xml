@@ -159,10 +159,17 @@
         </dependency>
 
         <!-- Temperature gauge for the sensor cards' media slot. -->
+        <!--
+            A snapshot, deliberately: the empty-value support this application
+            leans on lives on a branch in ./gauge-addon. Until it is released,
+            build it locally first:
+
+                mvn -f ../gauge-addon/pom.xml install -DskipTests
+        -->
         <dependency>
             <groupId>in.virit</groupId>
             <artifactId>gauge</artifactId>
-            <version>1.0.0</version>
+            <version>1.0.1-SNAPSHOT</version>
         </dependency>
 
         <!--

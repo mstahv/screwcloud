@@ -47,3 +47,7 @@ tools/motif-sources/cropped/
 # A working checkout of the Viritin add-on, its own git repository: the form
 # API proposals in viritin-form-proposals.md are implemented and built there.
 flow-viritin/
+
+# The Gauge add-on checkout, likewise its own repository: the empty-value
+# support the sensor cards lean on is built there.
+gauge-addon/
