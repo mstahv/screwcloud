@@ -55,58 +55,22 @@ vaadin-dashboard-widget {
 }
 
 /*
-   Two components that were drawn before this theme existed and do not know about
-   it. Both are addons rendering their own SVG, so the fix is here rather than in
-   their Java API.
-
-   Note the !important on several of them. The gauge sets fill, background and
-   text-shadow as inline styles, and an inline style beats a stylesheet rule that
-   does not say !important. Getting that wrong is not a no-op: the declaration
-   that does land — usually an opacity — then applies to the addon's own hardcoded
-   colour instead of to the theme's, which dims something already too light and
-   leaves it harder to read than before the theme touched it. That happened twice
-   while writing this file, so if you add a rule here, check the computed value
-   rather than the screenshot.
+   Adjustments to addon components. Most of what used to be here — the gauge's
+   hardcoded background, its white-with-a-shadow reading, its clipped range
+   labels — has moved into the gauge addon itself, whose dial now follows
+   currentColor and paints nothing of its own. What remains below is this
+   theme's taste, not repair work.
 */
 
 /*
-   The gauge paints an opaque rgb(40, 44, 52) behind itself — a dark grey chosen
-   for a dark grey page. On a card it reads as a rectangle stuck to the top of the
-   card rather than as part of it. The card is already a surface; the gauge only
-   needs to sit on it.
-*/
-react-gauge,
-react-gauge > div {
-  background: transparent !important;
-}
-
-/*
-   Two more things about the gauge, both about it being drawn for a page of its
-   own rather than for a card.
-
-   Its scale labels — the two range ends — sit on the very bottom edge of its
-   SVG, and an SVG clips its own overflow by default, so they were sliced in
-   half. Letting them out and giving the element room below is enough.
-
-   And it grows to whatever width it is given, which on a wide card is most of
-   the card: a dial the size of a saucer above two lines of text. Capped, it
-   reads as one element of a card rather than as the card's reason for existing.
-*/
-react-gauge > div > svg {
-  overflow: visible;
-}
-
-/*
-   The cap is two numbers because a card is not one width. On a desktop the card is
-   at its 35rem maximum and 24rem is what stops the dial being the card's reason for
-   existing. On a phone the card is the width of the screen and 24rem is more than
-   that, so the cap did nothing: the dial ran edge to edge, its two scale labels sat
-   against the card's outline, and the strip above it — fixed at half the card's
-   width — was filled almost to the top. Whichever is smaller therefore wins, and the
-   percentage is what leaves a margin at the sizes where there was none.
+   The gauge grows to whatever width it is given, which on a wide card is most of
+   the card: a dial the size of a saucer above two lines of text. The cap is two
+   numbers because a card is not one width: on a desktop the card is at its 35rem
+   maximum and 24rem is what stops the dial being the card's reason for existing;
+   on a phone the card is the width of the screen, where 24rem did nothing and the
+   percentage is what leaves a margin.
 */
 react-gauge {
-  display: block;
   max-width: min(24rem, 84%);
   margin: 0 auto;
   padding-bottom: 0.75rem;
@@ -191,39 +155,10 @@ vaadin-card {
 }
 
 /*
-   And the same problem in the gauge, where it is worse: the reading itself is a
-   fixed white with a black text-shadow around it, set inline — a treatment for text
-   that has to survive being drawn over an arbitrary colour. This reading is not: it
-   sits in the hole in the middle of the dial, on the card. So on the light scheme it
-   was white text on a pale card, saved only by the shadow, and the shadow is the
-   reason it looked outlined.
-
-   !important because the addon sets both inline, and a stylesheet does not
-   otherwise get a say. The gauge marks its parts with classes, which is what makes
-   the rest of this reachable at all.
+   The tick lines next to the range ends. The labels themselves follow
+   currentColor from the addon now; these little lines still carry a fixed grey,
+   so they are the one piece of the dial the theme still colours.
 */
-react-gauge g.value-text text {
-  fill: currentColor !important;
-  text-shadow: none !important;
-}
-
-/*
-   The two range ends, also set inline by the addon, also a fixed light grey.
-   !important for the same reason as above — and this one is worth stating,
-   because getting it wrong is worse than leaving it alone: without !important
-   the fill stays that fixed grey and only the opacity lands, which dims a colour
-   that was already too light and makes the labels harder to read than before
-   the theme touched them.
-
-   0.7 rather than the 0.55 the sparkline's labels use. These are smaller, they
-   sit against the dial rather than against a plain area, and they are the only
-   thing on the card that says what the dial's span is.
-*/
-react-gauge g.tick-value text {
-  fill: currentColor !important;
-  opacity: 0.7;
-}
-
 react-gauge path.tick-line {
   stroke: currentColor;
   opacity: 0.3;

@@ -79,10 +79,9 @@ class SensorCard extends Card {
         /*
            The gauge goes in the Card's media slot, which is meant for exactly
            this: a visual that belongs to the card rather than being part of its
-           text content. It has no HasSize — ReactAdapterComponent extends plain
-           Component — so the width is set through the style.
+           text content.
         */
-        gauge.getStyle().setWidth("100%");
+        gauge.setWidthFull();
         gauge.setThresholds(settings.thresholdsFor(deviceId, sensorId));
         setMedia(gauge);
         addThemeVariants(CardVariant.COVER_MEDIA);

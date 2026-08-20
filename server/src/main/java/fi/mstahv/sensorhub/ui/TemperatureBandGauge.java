@@ -2,8 +2,6 @@ package fi.mstahv.sensorhub.ui;
 
 import in.virit.Gauge;
 import in.virit.TemperatureGauge;
-import in.virit.color.Color;
-import in.virit.color.HexColor;
 import in.virit.color.NamedColor;
 
 import fi.mstahv.sensorhub.store.SensorThresholds;
@@ -63,50 +61,15 @@ class TemperatureBandGauge extends TemperatureGauge {
     }
 
     /*
-       A plain temperature ramp for a sensor nobody has set limits for: cold is
-       blue, hot is red, and the two in between move between them.
-
-       The range and the boundaries are the addon's own, so clearing the bands
-       still reverts to the gauge everything else in this application assumes. The
-       colours are not. The addon's defaults are green, yellow, orange and red —
-       a traffic light, which is the wrong metaphor for a thermometer twice over.
-       It says nothing about direction, since green means "cold" rather than
-       "fine", and it made an ordinary living room glow red: the fill takes the
-       colour of the band the value falls in, and everything above 20 °C is the
-       last band. A comfortable 22 °C looked like an alarm.
-
-       Muted on purpose. These sit on a card, in either colour scheme, next to
-       text — a dial in full saturation would be the loudest thing on a page whose
-       job is to be glanceable, and the bands here are information rather than a
-       warning. Warnings are what configured thresholds are for, and those still
-       use a green-to-red alert scale.
+       The stock dial for a sensor nobody has set limits for. This used to be
+       forty lines of duplicated configuration with a comment warning that it
+       would drift — the cold-to-hot ramp lived here because the addon's own
+       defaults were a traffic light and its setup method was private. Both
+       halves have been fixed upstream: the addon's stock dial is this
+       application's muted blue-to-red ramp now, and resetToDefaults() is the
+       public way back to it.
     */
-    private static final Color COLD = HexColor.of("#4F7CC4");
-    private static final Color COOL = HexColor.of("#7FAFD4");
-    private static final Color WARM = HexColor.of("#D9A15B");
-    private static final Color HOT = HexColor.of("#C4573C");
-
     private void applyStockConfiguration() {
-        setTemperatureRange(-40, 50);
-        setArc(new Gauge.GaugeArc().setSubArcs(
-                new Gauge.GaugeSubArc(-20, COLD).setTooltip("Cold"),
-                new Gauge.GaugeSubArc(0, COOL).setTooltip("Cool"),
-                new Gauge.GaugeSubArc(20, WARM).setTooltip("Warm"),
-                new Gauge.GaugeSubArc(50, HOT).setTooltip("Hot")));
+        resetToDefaults();
     }
-
-    /*
-       There used to be an onAttach here that reached into the gauge's first child
-       a hundred milliseconds after attach and painted it rgb(40, 44, 52), with a
-       comment wondering whether the addon had a bug.
-
-       Whatever it was working around, the answer is not a background: the card
-       underneath is a surface already, and a hard grey rectangle on it read as
-       something stuck to the card rather than as part of it. It also flashed,
-       because it arrived a tenth of a second after everything else.
-
-       The theme leaves the gauge transparent instead — see
-       styles/sunset-glass.css, which keeps a rule for it because the addon sets
-       that background inline as well.
-    */
 }

@@ -102,10 +102,9 @@ class SensorCard extends Card {
 
         /*
            The gauge goes in the media slot, which is what that slot is for: a
-           visual belonging to the card rather than part of its text. It has no
-           HasSize, so the width goes through the style.
+           visual belonging to the card rather than part of its text.
         */
-        gauge.getStyle().setWidth("100%");
+        gauge.setWidthFull();
         setMedia(gauge);
 
         quiet.addThemeVariants(BadgeVariant.ERROR);
