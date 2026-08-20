@@ -78,16 +78,16 @@ public class DashboardView extends VerticalLayout
         this.updates = updates;
         this.cards = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
         /*
-           Width full and a floor for the height, rather than setSizeFull(). A view
-           pinned to the viewport's height ends there and takes its bottom padding
-           with it: with three sensors the cards carried on past the bottom of that
-           box, so the last one finished flush against the end of the document while
-           the page's own margin sat a screenful above it. On a phone that reads as a
-           page that has been cut off rather than one that has ended. A minimum keeps
-           what full height was for — a short page still fills the screen — and lets
-           the box grow when there is more than a screenful to show.
+           A floor for the height, rather than setSizeFull(). A view pinned to the
+           viewport's height ends there and takes its bottom padding with it: with
+           three sensors the cards carried on past the bottom of that box, so the
+           last one finished flush against the end of the document while the page's
+           own margin sat a screenful above it. On a phone that reads as a page that
+           has been cut off rather than one that has ended. A minimum keeps what full
+           height was for — a short page still fills the screen — and lets the box
+           grow when there is more than a screenful to show. The width needs no call:
+           a VerticalLayout is born full width.
         */
-        setWidthFull();
         setMinHeight("100%");
 
         add(new RouterLink("← Devices", DeviceListView.class),

@@ -125,7 +125,6 @@ public class LocalView extends VerticalLayout {
            a page cut off rather than one that has ended. The server's views are set
            the same way and for the same reason.
         */
-        setWidthFull();
         setMinHeight("100%");
         cards.setFlexWrap(FlexLayout.FlexWrap.WRAP);
         cards.setWidthFull();

@@ -43,7 +43,7 @@ import org.vaadin.firitin.form.BeanValidationForm;
  * impossible value is refused where it is typed instead of coming back from the
  * store as a toast.
  */
-class HeatSumCounterForm extends VerticalLayout {
+class HeatSumCounterForm extends Div {
 
     /** What the form hands back when a counter is started. */
     record NewCounter(@Size(max = HeatSumCounter.MAX_COMMENT_LENGTH) String comment,
@@ -70,10 +70,9 @@ class HeatSumCounterForm extends VerticalLayout {
                        Consumer<NewCounter> onStart,
                        Consumer<ChangedCounter> onChange,
                        Consumer<Long> onStop) {
-        setPadding(false);
-        setSpacing(false);
-        setWidthFull();
-
+        // A Div: the rows are blocks and stack on their own. This was a
+        // VerticalLayout with its padding, spacing and even its default width all
+        // overridden — three lines of configuration to arrive at a plain block.
         existing.forEach(counter -> add(new ExistingCounter(counter, onChange, onStop)));
         add(new StartCounter(onStart));
     }

@@ -89,7 +89,6 @@ public class DeviceListView extends VerticalLayout {
            ends there, and its bottom padding with it, so anything past one screenful
            finishes flush against the end of the document. See DashboardView.
         */
-        setWidthFull();
         setMinHeight("100%");
         /*
            Full width and left aligned, like the measurement view. A centred column
