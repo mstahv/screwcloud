@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 
 import fi.mstahv.sensorhub.alerts.HeatSum;
@@ -25,7 +25,7 @@ import fi.mstahv.sensorhub.store.HeatSumCounter;
  * The forecast is the interesting part — the sum alone does not answer "should I be
  * there on Saturday".
  */
-class HeatSumPanel extends VerticalLayout {
+class HeatSumPanel extends Column {
 
     /**
      * How the progress and the forecast are worked out for one counter. Kept as a
@@ -38,16 +38,31 @@ class HeatSumPanel extends VerticalLayout {
     }
 
     HeatSumPanel(List<CounterProgress> counters) {
-        setPadding(false);
+        /*
+           Room against the neighbours, without indenting the content: the counters
+           sit in a card between reading lines that stack tight, and a running
+           counter is a different thing from a reading — the margin says so. Margin
+           rather than padding, because the space belongs outside this component;
+           and here rather than on the card, because only the card with counters
+           needs it. Gone with the panel when there are none: setVisible is
+           display:none, and a margin needs a box to hang on.
+        */
+        getStyle().set("margin-block", "var(--vaadin-gap-s)");
 
         setVisible(!counters.isEmpty());
         counters.forEach(progress -> add(new CounterRow(progress)));
     }
 
-    private static class CounterRow extends VerticalLayout {
+    private static class CounterRow extends Div {
 
         CounterRow(CounterProgress progress) {
-            setPadding(false);
+            /*
+               A Div has no width of its own, and the Column above aligns its
+               children flex-start — so without this the row shrinks to its text
+               and takes the progress bar with it. The bar's length against the
+               card is the reading, so the row spans the card.
+            */
+            setWidthFull();
 
             HeatSumCounter counter = progress.counter();
             HeatSum sum = progress.sum();

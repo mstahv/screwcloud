@@ -119,14 +119,10 @@ class HeatSumCounterForm extends Div {
 
         @Override
         protected Component createContent() {
-            // Only the padding is switched off; a VerticalLayout is already full
-            // width, and its spacing is what separates the three lines.
-            VerticalLayout layout = new VerticalLayout(
+            return new Column(
                     new FieldRow(comment, target, new StopButton()),
                     new NotifyChoices(alertBeforeTarget, alertAtTarget),
                     new Started(counter.getStartedAt()));
-            layout.setPadding(false);
-            return layout;
         }
 
         private class StopButton extends VButton {

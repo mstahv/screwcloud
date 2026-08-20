@@ -5,7 +5,6 @@ import java.util.function.Supplier;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 import fi.mstahv.sensorhub.alerts.WebPushService;
 
@@ -22,7 +21,7 @@ import fi.mstahv.sensorhub.alerts.WebPushService;
  * hearing about it, and a switch that read only its own table would then sit on
  * "on" while nothing ever arrived.
  */
-class NotificationSwitch extends VerticalLayout {
+class NotificationSwitch extends Column {
 
     private final WebPushService webPush;
     private final Supplier<String> clientId;
@@ -38,8 +37,6 @@ class NotificationSwitch extends VerticalLayout {
     NotificationSwitch(WebPushService webPush, Supplier<String> clientId) {
         this.webPush = webPush;
         this.clientId = clientId;
-
-        setPadding(false);
 
         /*
            isFromClient() matters: reading the state back from the browser sets

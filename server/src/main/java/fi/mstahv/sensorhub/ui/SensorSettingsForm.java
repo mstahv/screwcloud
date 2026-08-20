@@ -3,8 +3,8 @@ package fi.mstahv.sensorhub.ui;
 import java.util.function.Consumer;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.html.Section;
 import com.vaadin.flow.component.html.Span;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 
 import jakarta.validation.Valid;
@@ -120,8 +120,23 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
 
     @Override
     protected Component createContent() {
-        VerticalLayout layout = new VerticalLayout();
-        layout.setPadding(false);
+        Column layout = new Column(name,
+                /*
+                   The violations display is kept for anything that belongs to the
+                   form as a whole rather than to one of its fields. The limits are
+                   no longer such a case — their rule travels with the value it
+                   describes, so it is reported on the field itself.
+                */
+                new FormSection("Temperature bands (°C)", thresholds,
+                        getClassLevelViolationsDisplay()));
+
+        if (alertOptions.available()) {
+            layout.add(new FormSection("Notify this browser when", alerts));
+        }
+        if (counters != null) {
+            layout.add(new FormSection("Degree-day counters", counters));
+        }
+        layout.add(getSaveButton());
         /*
            23rem is what the two limit rows need to line up. On a phone that is wider
            than the screen, and a popover sizes itself to its content — so the form
@@ -131,23 +146,19 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
            edge of the screen.
         */
         layout.setWidth("min(23rem, calc(100vw - 5rem))");
-
-        layout.add(name, new SectionLabel("Temperature bands (°C)"), thresholds);
-        /*
-           Kept for anything that belongs to the form as a whole rather than to one
-           of its fields. The limits are no longer such a case — their rule travels
-           with the value they describe, so it is reported on the field itself.
-        */
-        layout.add(getClassLevelViolationsDisplay());
-
-        if (alertOptions.available()) {
-            layout.add(new SectionLabel("Notify this browser when"), alerts);
-        }
-        if (counters != null) {
-            layout.add(new SectionLabel("Degree-day counters"), counters);
-        }
-        layout.add(getSaveButton());
         return layout;
+    }
+
+    /**
+     * One area of the form: its label and what the label covers, as the
+     * {@code <section>} it is. The rhythm inside — label to content — comes from
+     * the stylesheet's section rule, the same one the front page's regions use.
+     */
+    private static class FormSection extends Section {
+        FormSection(String label, Component... content) {
+            add(new SectionLabel(label));
+            add(content);
+        }
     }
 
     /**

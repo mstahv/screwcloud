@@ -1,25 +1,22 @@
 package fi.mstahv.sensorhub.ui;
 
-import java.time.Instant;
-import java.util.List;
-
-import org.vaadin.firitin.components.details.VDetails;
-import org.vaadin.firitin.components.popover.ContentProvider;
-import org.vaadin.firitin.components.popover.PopoverButton;
-
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.card.CardVariant;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.dom.Style;
-
-import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.alerts.HeatSum;
+import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.store.HistoryPoint;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
 import fi.mstahv.sensorhub.store.SensorThresholds;
+import org.vaadin.firitin.components.details.VDetails;
+import org.vaadin.firitin.components.popover.ContentProvider;
+import org.vaadin.firitin.components.popover.PopoverButton;
+
+import java.time.Instant;
+import java.util.List;
 
 /**
  * One sensor's readings and its temperature curve. The temperature is the gauge

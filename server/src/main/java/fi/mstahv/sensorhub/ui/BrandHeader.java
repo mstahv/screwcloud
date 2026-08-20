@@ -4,7 +4,6 @@ import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 /**
  * The ScrewCloud mark: logo, name, tagline and a link to the source.
@@ -62,12 +61,8 @@ class BrandHeader extends HorizontalLayout {
         }
     }
 
-    private static class NameAndTagline extends VerticalLayout {
+    private static class NameAndTagline extends Column {
         NameAndTagline() {
-            // The one non-default: padding here would indent the words from the mark.
-            // The spacing between the lines is the layout's own.
-            setPadding(false);
-
             // No margin fixes on the H1: the theme already sets headings to margin 0.
             add(new H1("ScrewCloud"), new Tagline(), new SourceLink());
         }

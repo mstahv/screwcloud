@@ -16,7 +16,6 @@ import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.card.CardVariant;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.RouterLink;
 
 import org.vaadin.firitin.components.button.VButton;
@@ -88,10 +87,9 @@ class DeviceLinkCard extends Card {
      * version set that by hand, guarding against a stretch that was never the
      * default.
      */
-    private static class Facts extends VerticalLayout {
+    private static class Facts extends Column {
         Facts(Component... facts) {
             super(facts);
-            setPadding(false);
         }
     }
 
