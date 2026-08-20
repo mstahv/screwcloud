@@ -3,7 +3,6 @@ package fi.mstahv.sensorhub.ui;
 import com.vaadin.flow.component.customfield.CustomField;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 
 import fi.mstahv.sensorhub.store.SensorThresholds;
@@ -52,15 +51,11 @@ class TemperatureBandsField extends CustomField<SensorThresholds> {
     TemperatureBandsField() {
         super(SensorThresholds.NONE, true);
 
-        VerticalLayout layout = new VerticalLayout(
-                new LimitRow("OK between", okLow, okHigh),
+        // Straight into the field: a CustomField is already a container.
+        add(new LimitRow("OK between", okLow, okHigh),
                 new LimitRow("Alert below / above", alertLow, alertHigh),
                 new Hint("Leave all four empty for the default gauge. "
                         + "Warning is what falls between the OK and alert limits."));
-        layout.setPadding(false);
-        layout.setSpacing(false);
-        layout.setWidthFull();
-        add(layout);
 
         binder = new FormBinder<>(SensorThresholds.class, this);
         binder.addValueChangeListener(event -> {
@@ -120,7 +115,6 @@ class TemperatureBandsField extends CustomField<SensorThresholds> {
         Range(NumberField low, NumberField high) {
             add(low, new RangeSeparator(), high);
             setAlignItems(Alignment.BASELINE);
-            setPadding(false);
         }
     }
 

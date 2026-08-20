@@ -9,10 +9,12 @@ import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
 
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.dependency.StyleSheet;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.dom.Style;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.aura.Aura;
@@ -92,7 +94,13 @@ public class LocalView extends VerticalLayout {
      * how well — which is a number that changes as they walk.
      */
     private final StatusLine loraStatus = new StatusLine();
-    private final VerticalLayout loraArrivals = new VerticalLayout();
+
+    /*
+       A Div, because nothing here is configured: the lines are blocks and stack on
+       their own. The VerticalLayout this used to be needed its padding and spacing
+       switched off to behave like the Div it was imitating.
+    */
+    private final Div loraArrivals = new Div();
 
     /** One card per tag, kept in place and updated. Insertion order is display order. */
     private final Map<String, SensorCard> cardsByAddress = new LinkedHashMap<>();
@@ -122,9 +130,6 @@ public class LocalView extends VerticalLayout {
         cards.setFlexWrap(FlexLayout.FlexWrap.WRAP);
         cards.setWidthFull();
         cards.getStyle().setGap(VaadinCssProps.GAP_M.var());
-
-        loraArrivals.setPadding(false);
-        loraArrivals.setSpacing(false);
 
         add(new H2("Temperatures"), emptyState, cards,
                 radioStatus, thingyStatus, uploadStatus, loraStatus, loraArrivals);
@@ -221,6 +226,9 @@ public class LocalView extends VerticalLayout {
     private static class StatusLine extends SecondaryText {
         StatusLine() {
             getStyle().setFontSize("0.875rem");
+            // A line, so it behaves like one: spans are inline, and two of these
+            // sharing a row would read as one broken sentence.
+            getStyle().setDisplay(Style.Display.BLOCK);
         }
 
         StatusLine(String text) {

@@ -117,7 +117,6 @@ public class DeviceListView extends VerticalLayout {
     private class Devices extends VerticalLayout {
         Devices() {
             setPadding(false);
-            setWidthFull();
 
             add(new SectionHeading("Devices"), emptyState, deviceCards);
         }
@@ -177,7 +176,6 @@ public class DeviceListView extends VerticalLayout {
         protected Component createContent() {
             HorizontalLayout form = new HorizontalLayout(deviceId, getSaveButton());
             form.setAlignItems(Alignment.BASELINE);
-            form.setPadding(false);
 
             /*
                The explanation goes under the row rather than into the field's helper
@@ -187,7 +185,6 @@ public class DeviceListView extends VerticalLayout {
             VerticalLayout layout = new VerticalLayout(new SectionHeading("Add a device"), form,
                     new Hint("The same 4 characters as DEVICE_ID in config.h"));
             layout.setPadding(false);
-            layout.setWidthFull();
             return layout;
         }
     }
@@ -204,7 +201,6 @@ public class DeviceListView extends VerticalLayout {
     private class BrowserSettings extends VerticalLayout {
         BrowserSettings() {
             setPadding(false);
-            setWidthFull();
 
             add(new SectionHeading("Your settings"), notifications);
         }

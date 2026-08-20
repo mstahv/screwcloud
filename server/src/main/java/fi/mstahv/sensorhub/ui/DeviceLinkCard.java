@@ -21,8 +21,6 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.RouterLink;
 
-import org.vaadin.firitin.util.style.VaadinCssProps;
-
 import fi.mstahv.sensorhub.alerts.DeviceActivity;
 import fi.mstahv.sensorhub.alerts.Elapsed;
 import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
@@ -70,28 +68,33 @@ class DeviceLinkCard extends Card {
         remove.setAriaLabel("Remove device from the list");
         setHeaderSuffix(remove);
 
-        /*
-           A column, rather than three things added to the card directly. A card's
-           content slot is a plain block, so what goes into it flows the way text
-           does: while the card was 15rem wide the sensor count and the checkbox each
-           took a line because two would not fit, and the first phone-width card put
-           them side by side. Which line something is on should not depend on how
-           much room there happens to be.
-
-           Aligned to the start so the badge stays the width of its own text; a
-           stretched badge reads as a coloured bar across the card.
-        */
-        VerticalLayout content = new VerticalLayout();
-        content.setPadding(false);
-        content.setAlignItems(FlexComponent.Alignment.START);
-        content.getStyle().setGap(VaadinCssProps.GAP_XS.var());
-
-        content.add(new Span(latest.map(DeviceLinkCard::sensorCount).orElse("—")));
+        Facts facts = new Facts(new Span(latest.map(DeviceLinkCard::sensorCount).orElse("—")));
         if (activity.silent()) {
-            content.add(new OfflineBadge(activity));
+            facts.add(new OfflineBadge(activity));
         }
-        content.add(new SilenceAlertToggle(silenceAlertEnabled, onSilenceAlertChanged));
-        add(content);
+        facts.add(new SilenceAlertToggle(silenceAlertEnabled, onSilenceAlertChanged));
+        add(facts);
+    }
+
+    /**
+     * The card's few facts, each on a line of its own.
+     *
+     * <p>A column rather than children added to the card directly, because a card's
+     * content slot is a plain block and what goes into it flows the way text does:
+     * while the card was 15rem wide the sensor count and the checkbox each took a
+     * line only because two did not fit, and the first phone-width card put them
+     * side by side. Which line something is on should not depend on how much room
+     * there happens to be.
+     *
+     * <p>Aligned to the start so the badge stays the width of its own text; a
+     * stretched badge reads as a coloured bar across the card.
+     */
+    private static class Facts extends VerticalLayout {
+        Facts(Component... facts) {
+            super(facts);
+            setPadding(false);
+            setAlignItems(FlexComponent.Alignment.START);
+        }
     }
 
     /**

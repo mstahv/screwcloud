@@ -39,7 +39,6 @@ class HeatSumPanel extends VerticalLayout {
 
     HeatSumPanel(List<CounterProgress> counters) {
         setPadding(false);
-        setWidthFull();
 
         setVisible(!counters.isEmpty());
         counters.forEach(progress -> add(new CounterRow(progress)));
@@ -49,7 +48,6 @@ class HeatSumPanel extends VerticalLayout {
 
         CounterRow(CounterProgress progress) {
             setPadding(false);
-            setWidthFull();
 
             HeatSumCounter counter = progress.counter();
             HeatSum sum = progress.sum();

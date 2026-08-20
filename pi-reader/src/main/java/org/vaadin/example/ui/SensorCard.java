@@ -18,7 +18,6 @@ import com.vaadin.flow.component.card.CardVariant;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.dom.Style;
 
@@ -213,7 +212,8 @@ class SensorCard extends Card {
             field.setPlaceholder("Cold room");
             field.setValue(names.nameFor(sensorId).orElse(""));
             field.setWidthFull();
-            add(new VerticalLayout(field));
+            // Straight into the dialog: it is already a container with padding.
+            add(field);
 
             getFooter().add(
                     new Button("Cancel", click -> close()),

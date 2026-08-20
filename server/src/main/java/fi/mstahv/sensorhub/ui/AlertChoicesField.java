@@ -2,7 +2,7 @@ package fi.mstahv.sensorhub.ui;
 
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.customfield.CustomField;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.dom.Style;
 
 import fi.mstahv.sensorhub.store.AlertPreferences;
 import org.vaadin.firitin.form.FormBinder;
@@ -20,9 +20,9 @@ import org.vaadin.firitin.form.FormBinder;
  */
 class AlertChoicesField extends CustomField<AlertPreferences> {
 
-    private final Checkbox onAlert = new Checkbox("it goes into an alert band");
-    private final Checkbox onWarning = new Checkbox("it goes into a warning band");
-    private final Checkbox onRecovery = new Checkbox("it comes back to OK");
+    private final Checkbox onAlert = new Choice("it goes into an alert band");
+    private final Checkbox onWarning = new Choice("it goes into a warning band");
+    private final Checkbox onRecovery = new Choice("it comes back to OK");
 
     private final FormBinder<AlertPreferences> binder;
 
@@ -34,10 +34,9 @@ class AlertChoicesField extends CustomField<AlertPreferences> {
     AlertChoicesField(boolean pushSubscribed) {
         super(AlertPreferences.NONE, true);
 
-        VerticalLayout layout = new VerticalLayout(onAlert, onWarning, onRecovery);
-        layout.setPadding(false);
-        layout.setSpacing(false);
-        layout.setWidthFull();
+        // Straight into the field: a CustomField is already a container, so a
+        // layout between it and three checkboxes was a wrapper around a wrapper.
+        add(onAlert, onWarning, onRecovery);
 
         /*
            Two things can silently make these do nothing, and both are worth saying
@@ -45,13 +44,12 @@ class AlertChoicesField extends CustomField<AlertPreferences> {
            ever arrives.
         */
         if (!pushSubscribed) {
-            layout.add(new Hint("Notifications are switched off for this browser. "
+            add(new Hint("Notifications are switched off for this browser. "
                     + "Turn them on from the front page — these choices are kept "
                     + "in the meantime."));
         }
-        layout.add(new Hint("Alerts need the temperature bands above: without limits "
+        add(new Hint("Alerts need the temperature bands above: without limits "
                 + "there is nothing to leave or return to."));
-        add(layout);
 
         binder = new FormBinder<>(AlertPreferences.class, this);
         binder.addValueChangeListener(event -> {
@@ -71,4 +69,19 @@ class AlertChoicesField extends CustomField<AlertPreferences> {
         binder.setValue(preferences == null ? AlertPreferences.NONE : preferences);
     }
 
+    /**
+     * One choice per line, by declaration. A checkbox is an inline-flex element, so
+     * the three of them stacked only while no two fit side by side — the removed
+     * wrapper layout had been hiding that these were one wide line by nature.
+     *
+     * <p>{@code flex} rather than {@code block}: the same box outside, but a
+     * checkbox lays its own tick and label out with flex, and plain block took
+     * that away — the label fell under the tick.
+     */
+    private static class Choice extends Checkbox {
+        Choice(String label) {
+            super(label);
+            getStyle().setDisplay(Style.Display.FLEX);
+        }
+    }
 }

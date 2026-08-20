@@ -11,6 +11,7 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -123,12 +124,13 @@ class HeatSumCounterForm extends VerticalLayout {
             stop.addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
             stop.setAriaLabel("Stop this counter");
 
+            // Only the padding is switched off; a VerticalLayout is already full
+            // width, and its spacing is what separates the three lines.
             VerticalLayout layout = new VerticalLayout(
                     new FieldRow(comment, target, stop),
                     new NotifyChoices(alertBeforeTarget, alertAtTarget),
                     new Started(counter.getStartedAt()));
             layout.setPadding(false);
-            layout.setWidthFull();
             return layout;
         }
     }
@@ -166,16 +168,17 @@ class HeatSumCounterForm extends VerticalLayout {
 
         @Override
         protected Component createContent() {
-            VerticalLayout layout = new VerticalLayout(
+            /*
+               A Div rather than a layout: with its padding and spacing switched off,
+               a VerticalLayout was doing nothing a plain block does not — and a Div
+               has nothing to switch off.
+            */
+            return new Div(
                     new FieldRow(comment, target, getSaveButton()),
                     getClassLevelViolationsDisplay(),
                     new Hint("Degree-days: temperature multiplied by time. Forty is the usual "
                             + "guideline for hanging game, some prefer sixty. Time below freezing "
                             + "does not count."));
-            layout.setPadding(false);
-            layout.setSpacing(false);
-            layout.setWidthFull();
-            return layout;
         }
 
         /*
@@ -214,7 +217,6 @@ class HeatSumCounterForm extends VerticalLayout {
         NotifyChoices(Checkbox before, Checkbox at) {
             add(new Caption("Notify:"), before, at);
             setAlignItems(Alignment.CENTER);
-            setPadding(false);
             setWrap(true);
         }
     }

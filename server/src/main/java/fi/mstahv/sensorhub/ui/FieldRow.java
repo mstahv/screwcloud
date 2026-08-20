@@ -27,7 +27,6 @@ class FieldRow extends HorizontalLayout {
         super(fields);
         setAlignItems(Alignment.BASELINE);
         setWidthFull();
-        setPadding(false);
         setWrap(true);
     }
 }
