@@ -17,7 +17,6 @@ import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.card.CardVariant;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.RouterLink;
 
@@ -86,14 +85,15 @@ class DeviceLinkCard extends Card {
      * side by side. Which line something is on should not depend on how much room
      * there happens to be.
      *
-     * <p>Aligned to the start so the badge stays the width of its own text; a
-     * stretched badge reads as a coloured bar across the card.
+     * <p>Nothing said about alignment: a vertical layout's own default is
+     * flex-start, so the badge already keeps to the width of its text. An earlier
+     * version set that by hand, guarding against a stretch that was never the
+     * default.
      */
     private static class Facts extends VerticalLayout {
         Facts(Component... facts) {
             super(facts);
             setPadding(false);
-            setAlignItems(FlexComponent.Alignment.START);
         }
     }
 
