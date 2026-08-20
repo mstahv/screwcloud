@@ -14,7 +14,6 @@ import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
@@ -25,6 +24,7 @@ import jakarta.validation.constraints.Size;
 
 import fi.mstahv.sensorhub.store.HeatSumCounter;
 import org.vaadin.firitin.form.BeanValidationForm;
+import org.vaadin.firitin.layouts.HorizontalFloatLayout;
 
 /**
  * Starting, adjusting and stopping the degree-day counters on one sensor.
@@ -212,11 +212,9 @@ class HeatSumCounterForm extends Div {
     }
 
     /** Which of the counter's two moments this browser wants to hear about. */
-    private static class NotifyChoices extends HorizontalLayout {
+    private static class NotifyChoices extends HorizontalFloatLayout {
         NotifyChoices(Checkbox before, Checkbox at) {
             add(new Caption("Notify:"), before, at);
-            setAlignItems(Alignment.CENTER);
-            setWrap(true);
         }
     }
 
