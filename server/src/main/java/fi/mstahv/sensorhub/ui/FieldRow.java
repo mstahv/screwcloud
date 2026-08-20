@@ -1,7 +1,8 @@
 package fi.mstahv.sensorhub.ui;
 
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+
+import org.vaadin.firitin.layouts.HorizontalFloatLayout;
 
 /**
  * A row of form fields that wraps rather than overflows.
@@ -9,24 +10,20 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
  * <p>The forms here live in a popover, and a popover on a phone is narrower than a
  * text field, a number field and a button standing side by side. Without wrapping
  * that showed as a horizontal scrollbar under the row, with the last control off the
- * right-hand edge of the screen.
+ * right-hand edge of the screen. Where the row breaks is left to the browser — at
+ * these sizes it hardly matters, and controlling it meant inventing groupings the
+ * reader never asked for.
  *
- * <p>Where the row breaks is left to the browser. At these sizes it hardly matters —
- * the widest child takes its own line and the small ones share the next — and the
- * attempt at controlling it was worse: grouping "the things that belong together"
- * meant inventing pairs the reader never asked for, in wrappers whose settings were
- * copied between call sites.
- *
- * <p>Baseline alignment, because a row of fields is read as a line of text: the
- * field values and the label between them sit on one baseline whatever their boxes
- * are doing.
+ * <p>Wrapping and baseline alignment come from {@link HorizontalFloatLayout}; what
+ * this class adds is the width. These rows sit in containers that would otherwise
+ * shrink-wrap them — a VerticalLayout aligns its children flex-start — and a row
+ * has to be as wide as its form for the flexible field in it to have anything to
+ * stretch against.
  */
-class FieldRow extends HorizontalLayout {
+class FieldRow extends HorizontalFloatLayout {
 
     FieldRow(Component... fields) {
         super(fields);
-        setAlignItems(Alignment.BASELINE);
         setWidthFull();
-        setWrap(true);
     }
 }
