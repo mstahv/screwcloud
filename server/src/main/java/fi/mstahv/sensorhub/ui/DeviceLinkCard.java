@@ -10,7 +10,6 @@ import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
-import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.checkbox.Checkbox;
@@ -19,6 +18,8 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.RouterLink;
+
+import org.vaadin.firitin.components.button.VButton;
 
 import fi.mstahv.sensorhub.alerts.DeviceActivity;
 import fi.mstahv.sensorhub.alerts.Elapsed;
@@ -62,10 +63,7 @@ class DeviceLinkCard extends Card {
                 measurement -> setSubtitle(summarise(measurement)),
                 () -> setSubtitle("No measurements yet"));
 
-        Button remove = new Button(VaadinIcon.TRASH.create(), event -> onRemove.run());
-        remove.addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
-        remove.setAriaLabel("Remove device from the list");
-        setHeaderSuffix(remove);
+        setHeaderSuffix(new RemoveButton(onRemove));
 
         Facts facts = new Facts(new Span(latest.map(DeviceLinkCard::sensorCount).orElse("—")));
         if (activity.silent()) {
@@ -94,6 +92,16 @@ class DeviceLinkCard extends Card {
         Facts(Component... facts) {
             super(facts);
             setPadding(false);
+        }
+    }
+
+    private static class RemoveButton extends VButton {
+        RemoveButton(Runnable onRemove) {
+            super(VaadinIcon.TRASH);
+            addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
+            setAriaLabel("Remove device from the list");
+
+            addClickListener(event -> onRemove.run());
         }
     }
 

@@ -23,6 +23,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import fi.mstahv.sensorhub.store.HeatSumCounter;
+import org.vaadin.firitin.components.button.VButton;
 import org.vaadin.firitin.form.BeanValidationForm;
 import org.vaadin.firitin.layouts.HorizontalFloatLayout;
 
@@ -118,19 +119,24 @@ class HeatSumCounterForm extends Div {
 
         @Override
         protected Component createContent() {
-            Button stop = new Button(VaadinIcon.TRASH.create(),
-                    event -> onStop.accept(counter.getId()));
-            stop.addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
-            stop.setAriaLabel("Stop this counter");
-
             // Only the padding is switched off; a VerticalLayout is already full
             // width, and its spacing is what separates the three lines.
             VerticalLayout layout = new VerticalLayout(
-                    new FieldRow(comment, target, stop),
+                    new FieldRow(comment, target, new StopButton()),
                     new NotifyChoices(alertBeforeTarget, alertAtTarget),
                     new Started(counter.getStartedAt()));
             layout.setPadding(false);
             return layout;
+        }
+
+        private class StopButton extends VButton {
+            StopButton() {
+                super(VaadinIcon.TRASH);
+                addThemeVariants(ButtonVariant.TERTIARY);
+                setAriaLabel("Stop this counter");
+
+                addClickListener(event -> onStop.accept(counter.getId()));
+            }
         }
     }
 
@@ -190,10 +196,10 @@ class HeatSumCounterForm extends Div {
         */
         @Override
         protected Button createSaveButton() {
-            Button start = new Button(getSaveCaption());
-            start.addThemeVariants(ButtonVariant.TERTIARY);
-            start.setVisible(false);
-            return start;
+            return new Button(getSaveCaption()){{
+                addThemeVariants(ButtonVariant.TERTIARY);
+                setVisible(false);
+            }};
         }
     }
 

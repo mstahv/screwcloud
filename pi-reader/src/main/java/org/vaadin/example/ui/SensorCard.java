@@ -24,6 +24,8 @@ import com.vaadin.flow.dom.Style;
 
 import in.virit.TemperatureGauge;
 
+import org.vaadin.firitin.components.button.VButton;
+
 import org.vaadin.example.history.HistoryPoint;
 import org.vaadin.example.names.SensorNames;
 import org.vaadin.example.sensor.Reading;
@@ -102,10 +104,7 @@ class SensorCard extends Card {
         setWidthFull();
         applyName();
 
-        Button rename = new Button(VaadinIcon.PENCIL.create(), click -> new RenameDialog().open());
-        rename.addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
-        rename.setAriaLabel("Rename this sensor");
-        setHeaderSuffix(rename);
+        setHeaderSuffix(new RenameButton());
 
         /*
            The gauge goes in the media slot, which is what that slot is for: a
@@ -194,6 +193,16 @@ class SensorCard extends Card {
         String name = names.displayName(sensorId);
         setTitle(name);
         setSubtitle(name.equals(sensorId) ? null : new Span(sensorId));
+    }
+
+    private class RenameButton extends VButton {
+        RenameButton() {
+            super(VaadinIcon.PENCIL);
+            addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
+            setAriaLabel("Rename this sensor");
+
+            addClickListener(click -> new RenameDialog().open());
+        }
     }
 
     /**

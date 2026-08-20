@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 import org.vaadin.firitin.components.details.VDetails;
+import org.vaadin.firitin.components.popover.ContentProvider;
 import org.vaadin.firitin.components.popover.PopoverButton;
 
 import com.vaadin.flow.component.Component;
@@ -82,10 +83,7 @@ class SensorCard extends Card {
         setWidthFull();
         applyName();
 
-        settingsButton = new PopoverButton(this::createSettingsForm);
-        settingsButton.withIcon(VaadinIcon.COG.create());
-        settingsButton.addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
-        settingsButton.setAriaLabel("Sensor settings");
+        settingsButton = new SettingsButton(this::createSettingsForm);
         setHeaderSuffix(settingsButton);
 
         /*
@@ -307,6 +305,16 @@ class SensorCard extends Card {
     private Component createMeasurementGrid() {
         openMeasurements = new MeasurementGrid(context.measurements(), deviceId, sensorId);
         return openMeasurements;
+    }
+
+    /** The cog that opens the settings; the popover builds its content on open. */
+    private static class SettingsButton extends PopoverButton {
+        SettingsButton(ContentProvider content) {
+            super(content);
+            withIcon(VaadinIcon.COG.create());
+            addThemeVariants(ButtonVariant.TERTIARY, ButtonVariant.SMALL);
+            setAriaLabel("Sensor settings");
+        }
     }
 
     /**
