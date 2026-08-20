@@ -7,7 +7,6 @@ import com.vaadin.flow.component.dependency.StyleSheet;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
@@ -24,7 +23,7 @@ import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.updates.DeviceUpdates;
 import fi.mstahv.sensorhub.validation.DeviceId;
 import org.vaadin.firitin.form.BeanValidationForm;
-import org.vaadin.firitin.util.style.VaadinCssProps;
+import org.vaadin.firitin.layouts.HorizontalFloatLayout;
 
 /**
  * Front page: the browser's own devices and adding a new one by identifier.
@@ -53,7 +52,13 @@ public class DeviceListView extends VerticalLayout {
     private final DeviceUpdates updates;
 
     private final NotificationSwitch notifications;
-    private final FlexLayout deviceCards = new FlexLayout();
+    /*
+       Viritin's floating row: wrapping and baseline alignment come with the class,
+       the gap between cards is the layout's own spacing, and a wrapping row needs
+       no width of its own — it wraps against whatever it is given. The FlexLayout
+       this used to be carried three lines of configuration to say the same.
+    */
+    private final HorizontalFloatLayout deviceCards = new HorizontalFloatLayout();
     private final Span emptyState = new SecondaryText("No devices yet — add one below.");
 
     private String clientId;
@@ -92,10 +97,6 @@ public class DeviceListView extends VerticalLayout {
            across whatever width there is, which is what the wrapping layout is for;
            the blocks of text carry their own limits.
         */
-
-        deviceCards.setFlexWrap(FlexLayout.FlexWrap.WRAP);
-        deviceCards.setWidthFull();
-        deviceCards.getStyle().setGap(VaadinCssProps.GAP_M.var());
 
         /*
            Three regions, in the order they are needed: what you have, how to add
