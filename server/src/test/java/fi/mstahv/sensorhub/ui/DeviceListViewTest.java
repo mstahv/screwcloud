@@ -151,6 +151,21 @@ class DeviceListViewTest {
         assertEquals(List.of("LAHT"), listedDevices(ui));
     }
 
+    /*
+       A name given on the naming screen is a fact about the device, so the front
+       page lists it by that name — the identifier stays in the link's address.
+    */
+    @Test
+    void aNamedDeviceIsListedByItsName(@Autowired BrowserlessUIContext ui,
+                                       @Autowired fi.mstahv.sensorhub.store.DeviceSettingsStore names) {
+        openFrontPage(ui);
+        names.rename("LAHT", "Mökin sauna");
+
+        add(ui, "LAHT");
+
+        assertEquals(List.of("Mökin sauna"), listedDevices(ui));
+    }
+
     @Test
     void aDeviceCanBeRemovedAgain(@Autowired BrowserlessUIContext ui) {
         openFrontPage(ui);

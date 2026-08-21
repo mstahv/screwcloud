@@ -36,18 +36,26 @@ import fi.mstahv.sensorhub.protocol.SensorMeasurement;
  */
 class DeviceLinkCard extends Card {
 
-    DeviceLinkCard(String deviceId, Optional<DeviceMeasurement> latest, DeviceActivity activity,
+    /**
+     * @param displayName what the card calls the device — its given name, or the
+     *        identifier while it has none. The link's destination is always the
+     *        identifier; only the words on it change.
+     * @param icon the building drawn beside the name, {@link DeviceIcon#NONE}
+     *        for none
+     */
+    DeviceLinkCard(String deviceId, String displayName, DeviceIcon icon,
+                   Optional<DeviceMeasurement> latest,
+                   DeviceActivity activity,
                    boolean silenceAlertEnabled, Consumer<Boolean> onSilenceAlertChanged,
                    Runnable onRemove) {
         addThemeVariants(CardVariant.OUTLINED);
 
         /*
-           The width is in sunset-glass.css rather than here, because it depends on
-           how much room there is: one of these fills a phone's screen and four sit
-           in a row on a desktop. Java can only set it as an inline style, which no
-           media query can then answer.
+           No width of its own: the card is an item of the front page's device
+           grid, which decides how many fit a row and stretches them to fill it.
+           An earlier width here (as an inline style) was exactly what the
+           stylesheet could not answer.
         */
-        addClassName("device-card");
 
         /*
            No motif here, unlike the sensor cards. These carried one for a while, and
@@ -57,7 +65,15 @@ class DeviceLinkCard extends Card {
            no dial, so the band read as decoration that had wandered in.
         */
 
-        setTitle(new RouterLink(deviceId, DashboardView.class, deviceId));
+        setTitle(new RouterLink(displayName, DashboardView.class, deviceId));
+        /*
+           The building in the card header's prefix slot — where an avatar would
+           go, which is what it is: the device's face. Modest, and in the card's
+           own text colour, so a line drawing rather than a picture.
+        */
+        if (icon != DeviceIcon.NONE) {
+            setHeaderPrefix(icon.image("2.25rem"));
+        }
         latest.ifPresentOrElse(
                 measurement -> setSubtitle(summarise(measurement)),
                 () -> setSubtitle("No measurements yet"));

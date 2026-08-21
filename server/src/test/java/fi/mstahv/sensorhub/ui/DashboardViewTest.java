@@ -105,6 +105,32 @@ class DashboardViewTest {
         assertFalse(ui.findSpan().withTextContaining("CPU").exists());
     }
 
+    /*
+       The top of the view is one floating row: the way back and the device's name.
+       The back control is an arrow with no text, so the contract worth pinning is
+       the invisible half — a link that shows nothing must still say where it goes.
+    */
+    @Test
+    void theWayBackAndTheDeviceNameShareOneHeader(@Autowired BrowserlessUIContext ui) {
+        store("NAVI", Instant.now(), 6.5, 21.0);
+
+        ui.navigate(DashboardView.class, "NAVI");
+
+        SubViewHeader header = ui.find(SubViewHeader.class).first();
+        assertTrue(header.getChildren().anyMatch(child ->
+                        child instanceof com.vaadin.flow.component.html.H1 h1
+                                && h1.getText().equals("NAVI")),
+                "The device's name is the view's main heading, inside the header");
+
+        var back = header.getChildren()
+                .filter(com.vaadin.flow.router.RouterLink.class::isInstance)
+                .map(com.vaadin.flow.router.RouterLink.class::cast)
+                .findFirst().orElseThrow(() -> new AssertionError("No way back"));
+        assertEquals("", back.getHref(), "The arrow leads to the device list");
+        assertEquals("Devices", back.getElement().getAttribute("aria-label"),
+                "An arrow with no text still has to say where it goes");
+    }
+
     @Test
     void aDeviceWithNoMeasurementsSaysSo(@Autowired BrowserlessUIContext ui) {
         ui.navigate(DashboardView.class, "BBBB");

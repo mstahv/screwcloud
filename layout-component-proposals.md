@@ -25,6 +25,13 @@ than all the others together.
 
 ### 1. A view root that scrolls correctly
 
+**Status:** half implemented, by way of §13. `NavigationView` — the base class
+the sub-views now extend — carries the min-height fix, so a view below the front
+page gets it by inheritance and its paragraph of explanation lives in one place.
+The front page itself still writes the line by hand: it has no reason to be a
+NavigationView, which is the argument for the framework-level `AppView` below
+remaining open.
+
 **What we wrote.** Every view starts with `setSizeFull()`, because that is what the
 archetype and every example does. It is wrong for any view whose content can exceed
 one screen, and the failure is invisible until it isn't:
@@ -70,6 +77,12 @@ compared against in the docs. Right now `setSizeFull()` is the discoverable opti
 it is a trap for exactly the case — a phone, a long page — where it hurts most.
 
 ### 2. A card grid that does not need media queries
+
+**Status:** the front page now uses the proposed one-liner — a `Div` with
+`repeat(auto-fill, minmax(min(15rem, 100%), 1fr))` in the stylesheet — and the
+hand-computed 34rem breakpoint is gone. A phone gets one full-width card, every
+other width gets a filled row. The finding below stands: this took a wrapping-row
+detour and a breakpoint that shipped before landing on the one line.
 
 **What we wrote.** Twice. `SensorCardLayout` is a `FlexLayout` with wrap, a gap token
 and cards that are `setWidthFull()` with `setMaxWidth("35rem")`. The device list is a
@@ -488,6 +501,64 @@ workaround and has been for a decade; `background-attachment: fixed` on the root
 not safe on the platform most of these pages are read on. At an absolute minimum,
 `background-repeat: no-repeat` so the failure mode is a plain colour rather than a
 seam.
+
+### 13. A sub-view header: the way back, the name, and the actions
+
+**What we wrote.** `SubViewHeader` plus 170 lines of CSS. A mobile-first
+application with no navigation shell needs exactly one piece of chrome on every
+view below the front page: a way up, the view's name, and a place for the view's
+own actions. iOS settled the form years ago — a chevron in a circle of glass at
+the left, the title in the middle, actions at the right, floating over the
+content as it scrolls. Before this it was a `RouterLink("← Devices")` above an
+`H2`, which works and looks like a document, not an application.
+
+Three decisions in it were made by a user looking at screenshots, not by
+reasoning, which is the point of recording them:
+
+- **The arrow and the title must not share a container.** The obvious version —
+  one glass pill holding both — reads as a single button whose label is the name
+  of the view you are already on: a back button to the place you are at.
+- **The title wears nothing.** Bare text beside a dressed control, as in iOS's
+  current form language: the circle says "control", the undecorated word says
+  "name".
+- **A bare title floating over content needs a veil**, not a box: a
+  `backdrop-filter` sheet behind the whole line, faded out at its bottom edge by
+  a mask so the content dissolves upwards instead of hitting a border.
+
+And two mechanical parts that took discovery:
+
+- **Centring the title on the page's centre line** needs `grid-template-columns:
+  1fr auto 1fr`, not flexbox centring — with a control on one side and nothing
+  on the other, flex centres the title visibly off to the side.
+- **Sticky top offsets must include the safe area.** As an installed PWA the
+  viewport is the whole screen (Vaadin's index.html ships
+  `viewport-fit=cover`), so `top: 0.5rem` parks the bar under the Dynamic
+  Island the moment it sticks — in place while the page is at rest, untappable
+  once scrolled, which is the worst kind of bug because it survives every
+  desktop test. `top: calc(env(safe-area-inset-top, 0px) + 0.5rem)` is the
+  whole fix, and it belongs in any component that ships `position: sticky`.
+- **Aura's surface machinery only recomputes on a fixed selector list.** The
+  glass is built from Aura's own tokens (`--aura-surface-color`,
+  `--aura-overlay-backdrop-filter`, `--aura-overlay-outline-shadow`), but
+  setting `--aura-surface-level` on an arbitrary element does nothing: the
+  colour token is inherited already resolved against the page's own level. The
+  escape hatch is the `aura-surface` class, which is in the recompute list —
+  found by reading the compiled theme, not the documentation. Borrowing the
+  overlay filter token rather than its values also borrows the theme's
+  accessibility judgement: when the reader asks the OS for less transparency,
+  Aura turns the blur off and raises the opacity, and the component follows
+  without knowing it.
+
+**What could ship.** A pair, roughly as written: the bar for pages that want to
+compose, and around it `NavigationView` — a base class carrying the bar, a
+`setTitle`, a re-aimable `setBackTarget` for parameterised routes, `addAction`,
+and §1's min-height fix — for the common case that would rather inherit. Two
+views here composed the same three lines before the base class collected them;
+the name is Vaadin TouchKit's, which took it from the iOS of its day, and the
+shape has not changed since. And whatever ships or not, `aura-surface` and the
+surface-level recompute rule deserve a paragraph in Aura's documentation — it
+is the difference between the theme's glass being material anyone can build
+with and an internal.
 
 ---
 

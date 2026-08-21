@@ -4,6 +4,7 @@ package fi.mstahv.sensorhub.ui;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.dependency.StyleSheet;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Section;
 import com.vaadin.flow.component.html.Span;
@@ -20,11 +21,11 @@ import jakarta.validation.constraints.NotBlank;
 import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
 import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.store.ClientDeviceStore;
+import fi.mstahv.sensorhub.store.DeviceSettingsStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.updates.DeviceUpdates;
 import fi.mstahv.sensorhub.validation.DeviceId;
 import org.vaadin.firitin.form.BeanValidationForm;
-import org.vaadin.firitin.layouts.HorizontalFloatLayout;
 
 /**
  * Front page: the browser's own devices and adding a new one by identifier.
@@ -49,17 +50,21 @@ public class DeviceListView extends VerticalLayout {
 
     private final MeasurementStore measurements;
     private final ClientDeviceStore clientDevices;
+    private final DeviceSettingsStore deviceSettings;
     private final ConnectionMonitor connections;
     private final DeviceUpdates updates;
 
     private final NotificationSwitch notifications;
     /*
-       Viritin's floating row: wrapping and baseline alignment come with the class,
-       the gap between cards is the layout's own spacing, and a wrapping row needs
-       no width of its own — it wraps against whatever it is given. The FlexLayout
-       this used to be carried three lines of configuration to say the same.
+       A plain element with a grid in the stylesheet, replacing a wrapping row.
+       The difference shows at every width at once: grid's auto-fill decides how
+       many cards fit and stretches them to fill the row, so a phone gets one
+       full-width card — like the sensor cards on the device view — and a desktop
+       gets a filled row instead of fixed-width cards with a gap trailing after
+       them. The wrapping row needed a hand-computed breakpoint to fake the phone
+       half of that, and had no answer to the desktop half.
     */
-    private final HorizontalFloatLayout deviceCards = new HorizontalFloatLayout();
+    private final Div deviceCards = new Div();
     private final Span emptyState = new SecondaryText("No devices yet — add one below.");
 
     private String clientId;
@@ -76,13 +81,17 @@ public class DeviceListView extends VerticalLayout {
     }
 
     public DeviceListView(MeasurementStore measurements, ClientDeviceStore clientDevices,
+                          DeviceSettingsStore deviceSettings,
                           WebPushService webPush, ConnectionMonitor connections,
                           DeviceUpdates updates) {
         this.measurements = measurements;
         this.clientDevices = clientDevices;
+        this.deviceSettings = deviceSettings;
         this.connections = connections;
         this.updates = updates;
         this.notifications = new NotificationSwitch(webPush, () -> clientId);
+        // The grid itself is in the stylesheet; see "The front page's device cards".
+        deviceCards.addClassName("device-grid");
 
         /*
            A floor rather than a fixed height: a view the exact height of the viewport
@@ -257,6 +266,8 @@ public class DeviceListView extends VerticalLayout {
         emptyState.setVisible(devices.isEmpty());
         devices.forEach(deviceId -> deviceCards.add(new DeviceLinkCard(
                 deviceId,
+                deviceSettings.displayNameFor(deviceId),
+                DeviceIcon.fromToken(deviceSettings.iconFor(deviceId)),
                 measurements.findLatest(deviceId),
                 connections.activityOf(deviceId),
                 clientDevices.isSilenceAlertEnabled(clientId, deviceId),

@@ -8,17 +8,19 @@ import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
 import com.vaadin.flow.component.dependency.StyleSheet;
-import com.vaadin.flow.component.html.H2;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasUrlParameter;
 import com.vaadin.flow.router.OptionalParameter;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.router.RouterLink;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.theme.aura.Aura;
+
+import org.vaadin.firitin.components.button.VButton;
+import org.vaadin.firitin.util.style.VaadinCssProps;
 
 import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
 import fi.mstahv.sensorhub.alerts.DeviceActivity;
@@ -27,6 +29,7 @@ import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
 import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
+import fi.mstahv.sensorhub.store.DeviceSettingsStore;
 import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
 import fi.mstahv.sensorhub.store.SensorSettingsStore;
@@ -49,15 +52,24 @@ import fi.mstahv.sensorhub.updates.DeviceUpdates;
 @StyleSheet(Aura.STYLESHEET)
 // After Aura, because it sets the tokens Aura reads. See the file.
 @StyleSheet("/styles/sunset-glass.css")
-public class DashboardView extends VerticalLayout
+public class DashboardView extends NavigationView
         implements HasUrlParameter<String>, HasDynamicTitle {
 
 
     private final MeasurementStore store;
     private final ConnectionMonitor connections;
     private final DeviceUpdates updates;
+    private final DeviceSettingsStore deviceSettings;
     private final SensorCardLayout cards;
-    private final H2 heading = new H2();
+    private final SettingsButton deviceSettingsButton = new SettingsButton();
+    /*
+       The building the device sits in, drawn at the top of the page. Recognition
+       before reading: somebody who checks the same three devices every morning
+       knows the sauna by its steam long before they have read a word — the same
+       reasoning as the sensor cards' motifs. Quietly, in the secondary colour:
+       it is a signpost, not content.
+    */
+    private final Div building = new Div();
     private final SecondaryText deviceStatus = new SecondaryText();
     private final OfflineBadge offline = new OfflineBadge();
     private final Span emptyState = new Span();
@@ -70,28 +82,30 @@ public class DashboardView extends VerticalLayout
     private Instant renderedReceivedAt;
 
     public DashboardView(MeasurementStore store, SensorSettingsStore settings,
+                         DeviceSettingsStore deviceSettings,
                          AlertSubscriptionStore alerts, HeatSumCounterStore heatSums,
                          WebPushService webPush, ConnectionMonitor connections,
                          DeviceUpdates updates) {
+        /*
+           The arrow carries "Devices" as its accessible name rather than as
+           text: the destination has to be said, but not shown.
+        */
+        super(DeviceListView.class, "Devices");
         this.store = store;
+        this.deviceSettings = deviceSettings;
         this.connections = connections;
         this.updates = updates;
         this.cards = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
         /*
-           A floor for the height, rather than setSizeFull(). A view pinned to the
-           viewport's height ends there and takes its bottom padding with it: with
-           three sensors the cards carried on past the bottom of that box, so the
-           last one finished flush against the end of the document while the page's
-           own margin sat a screenful above it. On a phone that reads as a page that
-           has been cut off rather than one that has ended. A minimum keeps what full
-           height was for — a short page still fills the screen — and lets the box
-           grow when there is more than a screenful to show. The width needs no call:
-           a VerticalLayout is born full width.
+           The device's own errand, mirroring the way back at the other end of the
+           header: its settings. A separate screen rather than a popover, so the
+           pencil is a plain navigation.
         */
-        setMinHeight("100%");
+        addAction(deviceSettingsButton);
 
-        add(new RouterLink("← Devices", DeviceListView.class),
-                heading, deviceStatus, offline, emptyState, cards);
+        building.getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
+
+        add(building, deviceStatus, offline, emptyState, cards);
     }
 
     /*
@@ -103,15 +117,47 @@ public class DashboardView extends VerticalLayout
         this.deviceId = deviceId;
         this.renderedReceivedAt = null;
         cards.clear();
-        heading.setText(deviceId != null ? deviceId : "No device selected");
+        /*
+           The name where there is one, the identifier where there is not — set on
+           every navigation, which includes returning from the naming screen with
+           a fresh name.
+        */
+        setTitle(deviceId != null
+                ? deviceSettings.displayNameFor(deviceId) : "No device selected");
+        deviceSettingsButton.setVisible(deviceId != null);
+
+        // The building, when one has been chosen; rebuilt on every navigation
+        // for the same reason as the title — returning from the settings screen
+        // is a navigation, and it may have changed the choice.
+        building.removeAll();
+        DeviceIcon icon = deviceId != null
+                ? DeviceIcon.fromToken(deviceSettings.iconFor(deviceId)) : DeviceIcon.NONE;
+        building.setVisible(icon != DeviceIcon.NONE);
+        if (icon != DeviceIcon.NONE) {
+            building.add(icon.image("3.5rem"));
+        }
         subscribe();
         refresh();
     }
 
-    /** The device id in the title, so several tabs can be told apart. */
+    /** The device's name in the title, so several tabs can be told apart. */
     @Override
     public String getPageTitle() {
-        return deviceId != null ? deviceId + " · ScrewCloud" : "ScrewCloud";
+        return deviceId != null
+                ? deviceSettings.displayNameFor(deviceId) + " · ScrewCloud" : "ScrewCloud";
+    }
+
+    /**
+     * The pencil in the header: opens this device's settings — name, icon. An
+     * icon-only button, so where it goes is said in the accessible name.
+     */
+    private class SettingsButton extends VButton {
+        SettingsButton() {
+            super(VaadinIcon.PENCIL);
+            setAriaLabel("Device settings");
+            addClickListener(event ->
+                    getUI().ifPresent(ui -> ui.navigate(DeviceSettingsView.class, deviceId)));
+        }
     }
 
     @Override

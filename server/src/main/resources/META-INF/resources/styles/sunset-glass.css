@@ -354,28 +354,25 @@ html {
    The front page's device cards
    ------------------------------------------------------------------------
 
-   15rem each, wrapping across whatever width there is — except where a second one
-   cannot fit beside them anyway, and there they take the row. A 15rem card on a
-   phone leaves a third of the row empty next to it, which reads as a layout that
-   has not finished loading rather than as a chosen size.
+   One line is the whole layout: as many columns as fit at 15rem or wider, the
+   cards stretched to fill the row, and a single full-width column when 15rem
+   does not fit — which is what makes a phone's card take the screen the way the
+   sensor cards on the device view do.
 
-   34rem is the first step above where the second card fits: two cards are 480px,
-   the gap between them 12, and the page's own margins 32, so 524px is the width at
-   which a row of two becomes possible. Both numbers are 16px rem — a media query
-   resolves rem against the browser's initial font size rather than the document's,
-   and this theme leaves the document's alone, so the two agree.
+   This replaced a fixed 15rem card with a hand-computed 34rem breakpoint. The
+   breakpoint handled exactly one width class and was wrong the moment the gap
+   or the page padding changed; auto-fill answers every width with no numbers
+   to keep true, and it also fills a desktop row instead of leaving fixed-width
+   cards with a hole after them. (The inner min() matters: a bare 15rem minimum
+   would force overflow on anything narrower than the card.)
 
-   Here rather than in DeviceLinkCard because Java can only set a width as an inline
-   style, and an inline style is not something a media query can answer.
+   Here rather than in Java because it is layout of the page, and because grid
+   template syntax is not reachable through typed style setters anyway.
 */
-vaadin-card.device-card {
-  width: 15rem;
-}
-
-@media (max-width: 34rem) {
-  vaadin-card.device-card {
-    width: 100%;
-  }
+.device-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+  gap: var(--vaadin-gap-m);
 }
 
 /* ------------------------------------------------------------------------
@@ -475,4 +472,12 @@ section {
   display: flex;
   flex-direction: column;
   gap: var(--vaadin-gap-m);
+  /*
+     A section is a region of the page, so it spans the page. Vaadin's
+     VerticalLayout aligns its children flex-start — shrink-to-fit — which
+     surfaced the day the device grid moved in here: a grid asked to fill its
+     row was being handed a row the width of one card. align-self overrules the
+     parent's alignment for these elements alone.
+  */
+  align-self: stretch;
 }
