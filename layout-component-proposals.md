@@ -550,7 +550,7 @@ And two mechanical parts that took discovery:
   without knowing it.
 
 **Status: shipped, to Viritin.** The pair lives in
-`org.vaadin.firitin.layouts` as of 3.8.1-SNAPSHOT — `SubViewHeader` for pages
+`org.vaadin.firitin.layouts`, released in Viritin 3.8.1 — `SubViewHeader` for pages
 that want to compose, `NavigationView` (a name borrowed back from Vaadin
 TouchKit, which took it from the iOS of its day) carrying the bar, `setTitle`,
 a re-aimable `setBackTarget` for parameterised routes, `addAction` and §1's

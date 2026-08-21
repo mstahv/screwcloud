@@ -139,17 +139,15 @@
         </dependency>
 
         <!--
-            A snapshot, deliberately: the form-embedding additions this application
-            exercises (asSection, non-abstract getFormComponents, setSaveOnEnter)
-            live on a branch in ./flow-viritin. Until they are released, build them
-            locally first:
-
-                mvn -f ../flow-viritin/pom.xml install -DskipTests
+            3.8.1 is the release where the pieces this application grew came home:
+            the form-embedding additions (asSection and friends) and the layouts
+            (Column, NavigationView, SubViewHeader). The ./flow-viritin checkout is
+            only needed for developing the next ones.
         -->
         <dependency>
             <groupId>in.virit</groupId>
             <artifactId>viritin</artifactId>
-            <version>3.8.1-SNAPSHOT</version>
+            <version>3.8.1</version>
         </dependency>
 
         <dependency>
