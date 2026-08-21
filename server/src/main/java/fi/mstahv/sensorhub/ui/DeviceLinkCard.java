@@ -20,6 +20,7 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.router.RouterLink;
 
 import org.vaadin.firitin.components.button.VButton;
+import org.vaadin.firitin.layouts.Column;
 
 import fi.mstahv.sensorhub.alerts.DeviceActivity;
 import fi.mstahv.sensorhub.alerts.Elapsed;

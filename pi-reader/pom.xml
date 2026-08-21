@@ -21,7 +21,14 @@
         <quarkus.platform.version>3.36.1</quarkus.platform.version>
 
         <vaadin.version>25.2.5</vaadin.version>
-        <viritin.version>3.8.0</viritin.version>
+        <!--
+           A snapshot, like the server's: the layout additions this UI shares
+           with it (Column, NavigationView, SubViewHeader) live on a branch in
+           ../flow-viritin. Until they are released, build them locally first:
+
+               mvn -f ../flow-viritin/pom.xml install -DskipTests
+        -->
+        <viritin.version>3.8.1-SNAPSHOT</viritin.version>
         <pi4j.version>4.0.2</pi4j.version>
 
         <!--

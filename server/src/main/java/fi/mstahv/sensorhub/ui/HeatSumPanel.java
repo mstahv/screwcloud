@@ -10,6 +10,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 
+import org.vaadin.firitin.layouts.Column;
 import fi.mstahv.sensorhub.alerts.HeatSum;
 import fi.mstahv.sensorhub.alerts.Elapsed;
 import fi.mstahv.sensorhub.store.HeatSumCounter;

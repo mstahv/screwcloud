@@ -19,6 +19,7 @@ import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.theme.aura.Aura;
 
 import org.vaadin.firitin.components.button.VButton;
+import org.vaadin.firitin.layouts.NavigationView;
 
 import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
 import fi.mstahv.sensorhub.alerts.DeviceActivity;

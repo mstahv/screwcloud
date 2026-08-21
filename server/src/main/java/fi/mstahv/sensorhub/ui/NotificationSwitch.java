@@ -6,6 +6,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.notification.Notification;
 
+import org.vaadin.firitin.layouts.Column;
 import fi.mstahv.sensorhub.alerts.WebPushService;
 
 /**

@@ -549,13 +549,15 @@ And two mechanical parts that took discovery:
   Aura turns the blur off and raises the opacity, and the component follows
   without knowing it.
 
-**What could ship.** A pair, roughly as written: the bar for pages that want to
-compose, and around it `NavigationView` — a base class carrying the bar, a
-`setTitle`, a re-aimable `setBackTarget` for parameterised routes, `addAction`,
-and §1's min-height fix — for the common case that would rather inherit. Two
-views here composed the same three lines before the base class collected them;
-the name is Vaadin TouchKit's, which took it from the iOS of its day, and the
-shape has not changed since. And whatever ships or not, `aura-surface` and the
+**Status: shipped, to Viritin.** The pair lives in
+`org.vaadin.firitin.layouts` as of 3.8.1-SNAPSHOT — `SubViewHeader` for pages
+that want to compose, `NavigationView` (a name borrowed back from Vaadin
+TouchKit, which took it from the iOS of its day) carrying the bar, `setTitle`,
+a re-aimable `setBackTarget` for parameterised routes, `addAction` and §1's
+min-height fix for the common case that would rather inherit. `Column` went
+with them. Example views are in the library's test sources
+(`NavigationViewExample`, `ColumnExample`); this application now uses all three
+through the dependency. What remains for Vaadin itself: `aura-surface` and the
 surface-level recompute rule deserve a paragraph in Aura's documentation — it
 is the difference between the theme's glass being material anyone can build
 with and an internal.

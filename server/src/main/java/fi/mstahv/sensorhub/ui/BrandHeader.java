@@ -1,5 +1,7 @@
 package fi.mstahv.sensorhub.ui;
 
+import org.vaadin.firitin.layouts.Column;
+
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Image;

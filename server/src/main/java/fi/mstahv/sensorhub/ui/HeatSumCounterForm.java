@@ -26,6 +26,7 @@ import fi.mstahv.sensorhub.store.HeatSumCounter;
 import org.vaadin.firitin.components.button.VButton;
 import org.vaadin.firitin.form.BeanValidationForm;
 import org.vaadin.firitin.layouts.HorizontalFloatLayout;
+import org.vaadin.firitin.layouts.Column;
 
 /**
  * Starting, adjusting and stopping the degree-day counters on one sensor.

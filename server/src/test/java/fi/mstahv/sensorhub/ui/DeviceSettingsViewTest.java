@@ -11,6 +11,7 @@ import com.vaadin.flow.component.html.H1;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import org.vaadin.firitin.layouts.SubViewHeader;
 import fi.mstahv.sensorhub.store.DeviceSettingsStore;
 
 /**

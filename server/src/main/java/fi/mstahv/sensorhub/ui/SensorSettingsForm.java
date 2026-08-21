@@ -14,6 +14,7 @@ import fi.mstahv.sensorhub.store.AlertPreferences;
 import fi.mstahv.sensorhub.store.SensorThresholds;
 import org.vaadin.firitin.form.BeanValidationForm;
 import org.vaadin.firitin.util.style.VaadinCssProps;
+import org.vaadin.firitin.layouts.Column;
 
 /**
  * Settings for one sensor: the display name, the gauge's temperature bands, and

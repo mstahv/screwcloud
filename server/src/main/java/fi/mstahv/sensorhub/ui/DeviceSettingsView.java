@@ -13,6 +13,8 @@ import com.vaadin.flow.theme.aura.Aura;
 import jakarta.validation.constraints.Size;
 
 import org.vaadin.firitin.form.BeanValidationForm;
+import org.vaadin.firitin.layouts.Column;
+import org.vaadin.firitin.layouts.NavigationView;
 
 import fi.mstahv.sensorhub.store.DeviceSettingsStore;
 

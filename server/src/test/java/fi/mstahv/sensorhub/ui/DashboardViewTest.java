@@ -16,6 +16,7 @@ import com.vaadin.flow.component.badge.Badge;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.vaadin.firitin.components.popover.PopoverButton;
+import org.vaadin.firitin.layouts.SubViewHeader;
 
 import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
 import fi.mstahv.sensorhub.protocol.SensorMeasurement;
