@@ -1,8 +1,0 @@
-<!-- A cabin: the A-frame every Finnish mökki drawing reaches for, with a door
-     and a round window. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-     stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M12 3L3 21h18L12 3z"/>
-  <path d="M10.2 21v-5h3.6v5"/>
-  <circle cx="12" cy="11.5" r="1.5"/>
-</svg>

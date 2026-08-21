@@ -166,6 +166,24 @@ class DeviceListViewTest {
         assertEquals(List.of("Mökin sauna"), listedDevices(ui));
     }
 
+    /*
+       The featured image lands in the card's media slot, loading from whatever
+       address the settings stored — a bundled painting here, but the card does
+       not know the difference.
+    */
+    @Test
+    void aDeviceWithAFeaturedImageWearsItOnItsCard(@Autowired BrowserlessUIContext ui,
+            @Autowired fi.mstahv.sensorhub.store.DeviceSettingsStore names) {
+        openFrontPage(ui);
+        names.setImageUrl("LAHT", "media/buildings/sauna.webp");
+
+        add(ui, "LAHT");
+
+        var media = Slots.require(ui.find(DeviceLinkCard.class).first(),
+                com.vaadin.flow.component.html.Image.class);
+        assertEquals("media/buildings/sauna.webp", media.getSrc());
+    }
+
     @Test
     void aDeviceCanBeRemovedAgain(@Autowired BrowserlessUIContext ui) {
         openFrontPage(ui);

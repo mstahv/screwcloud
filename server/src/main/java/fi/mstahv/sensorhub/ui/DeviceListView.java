@@ -267,7 +267,7 @@ public class DeviceListView extends VerticalLayout {
         devices.forEach(deviceId -> deviceCards.add(new DeviceLinkCard(
                 deviceId,
                 deviceSettings.displayNameFor(deviceId),
-                DeviceIcon.fromToken(deviceSettings.iconFor(deviceId)),
+                deviceSettings.imageUrlFor(deviceId),
                 measurements.findLatest(deviceId),
                 connections.activityOf(deviceId),
                 clientDevices.isSilenceAlertEnabled(clientId, deviceId),

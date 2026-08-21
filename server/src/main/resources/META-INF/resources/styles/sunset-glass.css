@@ -375,6 +375,17 @@ html {
   gap: var(--vaadin-gap-m);
 }
 
+/*
+   The featured image. Widescreen rather than the media slot's 16:9 default —
+   a device card is three short lines, and the picture is its letterhead, not
+   its content. The strip's shape is all this rule says: the cards carry the
+   COVER_MEDIA variant, and running the picture to the edges and cropping
+   whatever shape a custom URL serves is the card's own work under it.
+*/
+.device-grid vaadin-card {
+  --vaadin-card-media-aspect-ratio: 2 / 1;
+}
+
 /* ------------------------------------------------------------------------
    Making the page's background stay put
    ------------------------------------------------------------------------

@@ -1,0 +1,78 @@
+/*
+  FeaturedImageField: picking a picture by looking at pictures.
+  Loaded by the component itself (@StyleSheet on the class).
+
+  The control is a radio group, because that is what it is — one choice out of
+  a few, keyboard and screen reader included — but the dots are hidden: next to
+  a picture a dot is a second, smaller thing to look at, and the first version
+  had the reader matching dots to tiles across a gap. The picture is the
+  choice, so the picture shows the state: an accent ring around the chosen one.
+*/
+
+.featured-image-field vaadin-radio-group {
+  width: 100%;
+}
+
+/* The tiles flow and wrap as a row; the group's own layout is a column. */
+.featured-image-field vaadin-radio-group::part(group-field) {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--vaadin-gap-s, 0.5rem);
+}
+
+.featured-image-field vaadin-radio-button::part(radio) {
+  display: none;
+}
+
+/* One tile: the picture (or the word standing where one would be) + caption. */
+.featured-image-field .fif-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 9.5rem;
+  cursor: pointer;
+}
+
+.featured-image-field .fif-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  object-fit: cover;
+  border-radius: var(--vaadin-radius-m, 6px);
+  box-sizing: border-box;
+}
+
+/* The wordless choices get the same frame, drawn rather than photographed. */
+.featured-image-field div.fif-frame {
+  border: 1px dashed color-mix(in srgb, currentColor 35%, transparent);
+  color: var(--vaadin-text-color-secondary, inherit);
+}
+
+.featured-image-field .fif-caption {
+  font-size: var(--aura-font-size-s, 0.875rem);
+  color: var(--vaadin-text-color-secondary, inherit);
+  text-align: center;
+}
+
+/*
+   The chosen one wears the ring — the theme's focus colour, which on Aura is
+   the accent, so chosen-ness and the rest of the application agree on a hue.
+*/
+.featured-image-field vaadin-radio-button[checked] .fif-frame {
+  outline: 2px solid var(--vaadin-focus-ring-color, Highlight);
+  outline-offset: 1px;
+}
+
+.featured-image-field vaadin-radio-button[checked] .fif-caption {
+  color: inherit;
+  font-weight: var(--aura-font-weight-semibold, 600);
+}
+
+/* Keyboard focus has to show even though the dot that used to show it is gone. */
+.featured-image-field vaadin-radio-button[focus-ring] .fif-frame {
+  outline: 2px dashed var(--vaadin-focus-ring-color, Highlight);
+  outline-offset: 3px;
+}

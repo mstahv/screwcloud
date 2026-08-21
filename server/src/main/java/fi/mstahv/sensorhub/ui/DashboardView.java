@@ -8,7 +8,6 @@ import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
 import com.vaadin.flow.component.dependency.StyleSheet;
-import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasUrlParameter;
@@ -20,7 +19,6 @@ import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.theme.aura.Aura;
 
 import org.vaadin.firitin.components.button.VButton;
-import org.vaadin.firitin.util.style.VaadinCssProps;
 
 import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
 import fi.mstahv.sensorhub.alerts.DeviceActivity;
@@ -62,14 +60,6 @@ public class DashboardView extends NavigationView
     private final DeviceSettingsStore deviceSettings;
     private final SensorCardLayout cards;
     private final SettingsButton deviceSettingsButton = new SettingsButton();
-    /*
-       The building the device sits in, drawn at the top of the page. Recognition
-       before reading: somebody who checks the same three devices every morning
-       knows the sauna by its steam long before they have read a word — the same
-       reasoning as the sensor cards' motifs. Quietly, in the secondary colour:
-       it is a signpost, not content.
-    */
-    private final Div building = new Div();
     private final SecondaryText deviceStatus = new SecondaryText();
     private final OfflineBadge offline = new OfflineBadge();
     private final Span emptyState = new Span();
@@ -103,9 +93,13 @@ public class DashboardView extends NavigationView
         */
         addAction(deviceSettingsButton);
 
-        building.getStyle().setColor(VaadinCssProps.TEXT_COLOR_SECONDARY.var());
-
-        add(building, deviceStatus, offline, emptyState, cards);
+        /*
+           No featured image here, deliberately: it fronts the device's card on
+           the front page and is chosen in the settings, but above the status
+           line it never found a place that read as anything but pasted in. The
+           name in the header is what this view carries of the device's face.
+        */
+        add(deviceStatus, offline, emptyState, cards);
     }
 
     /*
@@ -125,17 +119,6 @@ public class DashboardView extends NavigationView
         setTitle(deviceId != null
                 ? deviceSettings.displayNameFor(deviceId) : "No device selected");
         deviceSettingsButton.setVisible(deviceId != null);
-
-        // The building, when one has been chosen; rebuilt on every navigation
-        // for the same reason as the title — returning from the settings screen
-        // is a navigation, and it may have changed the choice.
-        building.removeAll();
-        DeviceIcon icon = deviceId != null
-                ? DeviceIcon.fromToken(deviceSettings.iconFor(deviceId)) : DeviceIcon.NONE;
-        building.setVisible(icon != DeviceIcon.NONE);
-        if (icon != DeviceIcon.NONE) {
-            building.add(icon.image("3.5rem"));
-        }
         subscribe();
         refresh();
     }

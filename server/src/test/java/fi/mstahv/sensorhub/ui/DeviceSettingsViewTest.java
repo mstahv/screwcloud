@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.vaadin.browserless.BrowserlessUIContext;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.H1;
-import com.vaadin.flow.component.icon.SvgIcon;
-import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,41 +75,49 @@ class DeviceSettingsViewTest {
     }
 
     /*
-       The other choice on this screen: the building. Saving it has to reach the
-       store, and the measurement view has to come back wearing it.
+       The other choice on this screen: the featured image. A bundled painting
+       is stored as the address it ships at, and Save carries it to the store.
     */
     @Test
-    void aChosenBuildingIsDrawnOnTheMeasurements(@Autowired BrowserlessUIContext ui) {
+    void aBundledPaintingIsStoredByItsAddress(@Autowired BrowserlessUIContext ui) {
         ui.navigate(DeviceSettingsView.class, "SAUN");
-        iconChoices(ui).setValue(DeviceIcon.SAUNA);
+        imageField(ui).setValue("media/buildings/sauna.webp");
 
         ui.findButton().withText("Save").click();
 
-        assertEquals("sauna", settings.iconFor("SAUN"));
-        assertTrue(ui.find(SvgIcon.class).all().stream()
-                        .anyMatch(icon -> String.valueOf(icon.getSrc()).contains("sauna")),
-                "The measurement view should come back wearing the sauna");
+        assertEquals("media/buildings/sauna.webp", settings.imageUrlFor("SAUN"));
     }
 
-    /* "No icon" is a choice too, and it has to be able to undo the others. */
+    /*
+       The user's own picture travels the same way: as an address. This is the
+       whole of the custom-URL feature — no upload, only remembering where.
+    */
     @Test
-    void theBuildingCanBeTakenOffAgain(@Autowired BrowserlessUIContext ui) {
-        settings.setIcon("BARE", "barn");
-        ui.navigate(DeviceSettingsView.class, "BARE");
-        assertEquals(DeviceIcon.BARN, iconChoices(ui).getValue(),
-                "The group should open showing what is stored");
+    void aCustomUrlIsStoredAsGiven(@Autowired BrowserlessUIContext ui) {
+        ui.navigate(DeviceSettingsView.class, "CUST");
+        imageField(ui).setValue("https://example.com/oma-kuva.jpg");
 
-        iconChoices(ui).setValue(DeviceIcon.NONE);
         ui.findButton().withText("Save").click();
 
-        assertNull(settings.iconFor("BARE"));
-        assertTrue(ui.find(SvgIcon.class).all().isEmpty(),
-                "No building left on the measurement view");
+        assertEquals("https://example.com/oma-kuva.jpg", settings.imageUrlFor("CUST"));
     }
 
-    @SuppressWarnings("unchecked")
-    private static RadioButtonGroup<DeviceIcon> iconChoices(BrowserlessUIContext ui) {
-        return ui.find(RadioButtonGroup.class).first();
+    /* "No image" is a choice too, and it has to be able to undo the others. */
+    @Test
+    void theImageCanBeTakenOffAgain(@Autowired BrowserlessUIContext ui) {
+        settings.setImageUrl("BARE", "media/buildings/barn.webp");
+        ui.navigate(DeviceSettingsView.class, "BARE");
+        assertEquals("media/buildings/barn.webp", imageField(ui).getValue(),
+                "The field should open showing what is stored");
+
+        imageField(ui).setValue(null);
+        ui.findButton().withText("Save").click();
+
+        assertNull(settings.imageUrlFor("BARE"));
+    }
+
+    private static FeaturedImageField imageField(BrowserlessUIContext ui) {
+        return ui.find(FeaturedImageField.class).first();
     }
 
     /*

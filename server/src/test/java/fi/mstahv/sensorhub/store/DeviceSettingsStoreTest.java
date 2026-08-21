@@ -53,31 +53,31 @@ class DeviceSettingsStoreTest {
     }
 
     @Test
-    void iconRoundTrip() {
-        store.setIcon("LAHT", "sauna");
+    void imageUrlRoundTrip() {
+        store.setImageUrl("LAHT", "media/buildings/sauna.webp");
 
-        assertEquals("sauna", store.iconFor("LAHT"));
+        assertEquals("media/buildings/sauna.webp", store.imageUrlFor("LAHT"));
     }
 
     @Test
-    void anEmptyIconClearsTheStoredOne() {
-        store.setIcon("LAHT", "sauna");
+    void anEmptyImageUrlClearsTheStoredOne() {
+        store.setImageUrl("LAHT", "media/buildings/sauna.webp");
 
-        store.setIcon("LAHT", null);
+        store.setImageUrl("LAHT", null);
 
-        assertNull(store.iconFor("LAHT"));
+        assertNull(store.imageUrlFor("LAHT"));
     }
 
     /* One row carries both; changing one must not wipe the other. */
     @Test
-    void nameAndIconAreIndependent() {
+    void nameAndImageAreIndependent() {
         store.rename("LAHT", "Mökin sauna");
-        store.setIcon("LAHT", "sauna");
+        store.setImageUrl("LAHT", "media/buildings/sauna.webp");
 
         store.rename("LAHT", "Rantasauna");
-        assertEquals("sauna", store.iconFor("LAHT"));
+        assertEquals("media/buildings/sauna.webp", store.imageUrlFor("LAHT"));
 
-        store.setIcon("LAHT", "cabin");
+        store.setImageUrl("LAHT", "https://example.com/oma-kuva.jpg");
         assertEquals("Rantasauna", store.nameFor("LAHT"));
     }
 

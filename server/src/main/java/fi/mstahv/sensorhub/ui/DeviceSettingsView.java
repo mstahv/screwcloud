@@ -2,20 +2,14 @@ package fi.mstahv.sensorhub.ui;
 
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.dependency.StyleSheet;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.orderedlayout.FlexComponent;
-import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.HasUrlParameter;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.aura.Aura;
 
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import org.vaadin.firitin.form.BeanValidationForm;
@@ -24,15 +18,15 @@ import fi.mstahv.sensorhub.store.DeviceSettingsStore;
 
 /**
  * One device's own settings: the identifier as it is, the name it goes by
- * here, and the building it wears as an icon.
+ * here, and the featured image on its card.
  *
  * <p>The identifier is four characters because it travels in a UDP packet and a
  * {@code config.h}; the name is for the person reading this UI, who is looking
  * for their cabin rather than for {@code LAHT}. The screen shows both, because
  * the identifier is what connects the friendly name back to the hardware — it
- * stays visible even while a name replaces it everywhere else. The icon is the
- * same thought one step further: a device sits in a building, and the building
- * is how its owner recognises it at a glance, before any word is read.
+ * stays visible even while a name replaces it everywhere else. The image is
+ * the same thought one step further: a device sits in a building, and a
+ * picture of one is recognised at a glance, before any word is read.
  *
  * <p>A view of its own rather than a popover, reached from the pencil in the
  * measurement view's header. Everything here is a fact about the device, not a
@@ -50,13 +44,12 @@ public class DeviceSettingsView extends NavigationView
         implements HasUrlParameter<String>, HasDynamicTitle {
 
     /**
-     * What the form collects. The name's one rule — the length — matches the
-     * column it ends up in, and the binder carries it onto the field. The icon
-     * is never null because "no icon" is a choice of its own,
-     * {@link DeviceIcon#NONE}: a radio group cannot be deselected, so the
-     * absence has to be somewhere the reader can put it back.
+     * What the form collects. The rules — the lengths — match the columns the
+     * values end up in, and the binder carries them onto the fields. The image
+     * is its URL, null for none; which kind of URL it is (a bundled painting,
+     * the user's own address) is {@link FeaturedImageField}'s business.
      */
-    record Settings(@Size(max = 64) String name, @NotNull DeviceIcon icon) {
+    record Settings(@Size(max = 64) String name, @Size(max = 512) String imageUrl) {
     }
 
     private final DeviceSettingsStore settings;
@@ -90,7 +83,7 @@ public class DeviceSettingsView extends NavigationView
         */
         form.setEntityWithEnabledSave(new Settings(
                 settings.nameFor(deviceId),
-                DeviceIcon.fromToken(settings.iconFor(deviceId))));
+                settings.imageUrlFor(deviceId)));
     }
 
     @Override
@@ -102,20 +95,12 @@ public class DeviceSettingsView extends NavigationView
 
         /* Named after the record's components, which is how FormBinder finds them. */
         private final TextField name = new TextField("Name");
-        private final RadioButtonGroup<DeviceIcon> icon = new RadioButtonGroup<>("Icon");
+        private final FeaturedImageField imageUrl = new FeaturedImageField("Featured image");
 
         SettingsForm() {
             super(Settings.class);
             // One section of the page, not the page.
             asSection();
-
-            icon.setItems(DeviceIcon.values());
-            /*
-               The drawing is the choice, so the drawing is what each radio
-               shows — the caption alone would make the reader pick a word and
-               hope. NONE has no drawing, and its caption is the whole option.
-            */
-            icon.setRenderer(new ComponentRenderer<>(DeviceSettingsView::choice));
 
             setSaveCaption("Save");
             setSavedHandler(this::save);
@@ -123,7 +108,7 @@ public class DeviceSettingsView extends NavigationView
 
         private void save(Settings values) {
             settings.rename(deviceId, values.name());
-            settings.setIcon(deviceId, values.icon().token());
+            settings.setImageUrl(deviceId, values.imageUrl());
             Notification.show("Saved");
             // Back to the measurements: the errand is done.
             getUI().ifPresent(ui -> ui.navigate(DashboardView.class, deviceId));
@@ -137,20 +122,7 @@ public class DeviceSettingsView extends NavigationView
                to write a sentence.
             */
             name.setWidth("min(20rem, 100%)");
-            return new Column(name, icon, getSaveButton());
+            return new Column(name, imageUrl, getSaveButton());
         }
-    }
-
-    /** One option of the icon group: the drawing beside its word. */
-    private static Component choice(DeviceIcon icon) {
-        if (icon == DeviceIcon.NONE) {
-            return new Span(icon.caption());
-        }
-        HorizontalLayout option = new HorizontalLayout(
-                icon.image("1.75rem"), new Span(icon.caption()));
-        option.setAlignItems(FlexComponent.Alignment.CENTER);
-        option.setSpacing(false);
-        option.getStyle().setGap("0.375rem");
-        return option;
     }
 }

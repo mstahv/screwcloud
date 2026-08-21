@@ -14,6 +14,7 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.card.CardVariant;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.router.RouterLink;
@@ -40,10 +41,9 @@ class DeviceLinkCard extends Card {
      * @param displayName what the card calls the device — its given name, or the
      *        identifier while it has none. The link's destination is always the
      *        identifier; only the words on it change.
-     * @param icon the building drawn beside the name, {@link DeviceIcon#NONE}
-     *        for none
+     * @param imageUrl where the featured image loads from, null for none
      */
-    DeviceLinkCard(String deviceId, String displayName, DeviceIcon icon,
+    DeviceLinkCard(String deviceId, String displayName, String imageUrl,
                    Optional<DeviceMeasurement> latest,
                    DeviceActivity activity,
                    boolean silenceAlertEnabled, Consumer<Boolean> onSilenceAlertChanged,
@@ -67,12 +67,19 @@ class DeviceLinkCard extends Card {
 
         setTitle(new RouterLink(displayName, DashboardView.class, deviceId));
         /*
-           The building in the card header's prefix slot — where an avatar would
-           go, which is what it is: the device's face. Modest, and in the card's
-           own text colour, so a line drawing rather than a picture.
+           The featured image in the card's media slot — the device's face,
+           chosen (or given as a URL) in its settings. The alt text is empty on
+           purpose: the picture decorates the name above it, and a screen reader
+           has nothing to gain from hearing "sauna painting" before every card.
+
+           COVER_MEDIA is the card's own way of running the picture to its
+           edges — the component crops whatever shape the address serves, so no
+           object-fit rule of ours is involved. The widescreen shape is set in
+           the stylesheet, where the card grid lives.
         */
-        if (icon != DeviceIcon.NONE) {
-            setHeaderPrefix(icon.image("2.25rem"));
+        if (imageUrl != null) {
+            setMedia(new Image(imageUrl, ""));
+            addThemeVariants(CardVariant.COVER_MEDIA);
         }
         latest.ifPresentOrElse(
                 measurement -> setSubtitle(summarise(measurement)),

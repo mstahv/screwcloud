@@ -63,23 +63,24 @@ public class DeviceSettingsStore {
     }
 
     /**
-     * @return the token of the building drawing chosen for the device, or null
-     *         for none. What the tokens mean is the UI's business — an unknown
-     *         one renders as no icon rather than being an error here.
+     * @return where the device's featured image loads from, or null for none.
+     *         An application-relative path for the bundled paintings, the
+     *         user's own URL otherwise — the caller shows it, this store only
+     *         remembers the address.
      */
     @Transactional(readOnly = true)
-    public String iconFor(String deviceId) {
+    public String imageUrlFor(String deviceId) {
         return repository.findByDeviceId(deviceId)
-                .map(DeviceSettings::getIcon)
-                .filter(icon -> !icon.isBlank())
+                .map(DeviceSettings::getImageUrl)
+                .filter(url -> !url.isBlank())
                 .orElse(null);
     }
 
-    /** Sets the icon token. An empty or whitespace-only value clears it. */
+    /** Sets the featured image URL. An empty or whitespace-only value clears it. */
     @Transactional
-    public void setIcon(@NotBlank @DeviceId String deviceId, @Size(max = 16) String icon) {
+    public void setImageUrl(@NotBlank @DeviceId String deviceId, @Size(max = 512) String imageUrl) {
         DeviceSettings settings = load(deviceId);
-        settings.setIcon(cleaned(icon));
+        settings.setImageUrl(cleaned(imageUrl));
         repository.save(settings);
     }
 

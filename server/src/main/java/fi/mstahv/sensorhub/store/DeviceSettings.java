@@ -40,13 +40,14 @@ public class DeviceSettings {
     private String name;
 
     /**
-     * The token of the building drawing that stands for the device, null for
-     * none. A token rather than a foreign anything: the drawings live with the
-     * application, and an unknown token simply renders as no icon.
+     * Where the device's featured image loads from, null for none. For the
+     * bundled paintings an application-relative path; for the user's own
+     * picture whatever URL they gave — the application stores addresses, not
+     * bytes, which is what keeps "no upload yet" honest.
      */
-    @Size(max = 16)
-    @Column(length = 16)
-    private String icon;
+    @Size(max = 512)
+    @Column(length = 512)
+    private String imageUrl;
 
     /** JPA requires a default constructor. */
     protected DeviceSettings() {
@@ -68,11 +69,11 @@ public class DeviceSettings {
         this.name = name;
     }
 
-    public String getIcon() {
-        return icon;
+    public String getImageUrl() {
+        return imageUrl;
     }
 
-    public void setIcon(String icon) {
-        this.icon = icon;
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

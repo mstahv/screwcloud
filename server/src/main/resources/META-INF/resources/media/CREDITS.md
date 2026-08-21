@@ -43,3 +43,43 @@ files. See `styles/sunset-glass.css`.
 - Date: 1879
 - Licence: Public domain
 - Source: https://commons.wikimedia.org/wiki/File:Skandinaviens_fugle_(2del_Suppl._Tab._4)_(7582351736).webp
+
+---
+
+# Featured image sources
+
+The four paintings in `buildings/` a device can wear on its front page card,
+chosen in the device's settings. All checked through the Wikimedia Commons API
+the same way as the motifs above; all **Public domain** (every painter died
+before 1955). Unlike the motifs these ship as they are — full colour, full
+contrast — because a featured image is content, not the background of a dial.
+
+Each is a widescreen (2:1) crop of the original, made by eye to keep the
+building large and the signature or the sheet's margins out where they
+distracted, then scaled to 960x480.
+
+## buildings/sauna.webp
+
+- **Eero Järnefelt — Chimneyless Sauna (Savusauna)**, 1888
+- Licence: Public domain
+- Source: https://commons.wikimedia.org/wiki/File:Eero_J%C3%A4rnefelt_-_Chimneyless_Sauna_-_A-2012-319_-_Finnish_National_Gallery.jpg
+
+## buildings/barn.webp
+
+- **Werner Holmberg — Järvenlahtimaisema, etualalla vanha lato ja taustalla metsäinen ranta**, 1857
+- Licence: Public domain
+- Cropped inside the painted area: the sheet's paper margins and the
+  reproduction's colour bar are left out.
+- Source: https://commons.wikimedia.org/wiki/File:Werner_Holmberg_-_J%C3%A4rvenlahtimaisema,_etualalla_vanha_lato_ja_taustalla_mets%C3%A4inen_ranta_-_A_I_470-97_-_Finnish_National_Gallery.jpg
+
+## buildings/croft.webp
+
+- **Akseli Gallen-Kallela — The Ekola Croft in Evening Sunlight**, 1889
+- Licence: Public domain
+- Source: https://commons.wikimedia.org/wiki/File:Akseli_Gallen-Kallela,_the_ekola_croft_in_evening_sunlight_1889_(19589050564).jpg
+
+## buildings/farmhouse.webp
+
+- **Hjalmar Munsterhjelm — Winter Landscape with Farmhouse in Häme**, 1866
+- Licence: Public domain
+- Source: https://commons.wikimedia.org/wiki/File:Hjalmar_Munsterhjelm_-_Winter_Landscape_with_Farmhouse_in_H%C3%A4me_-_A_I_166_-_Finnish_National_Gallery.jpg
