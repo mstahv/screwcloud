@@ -28,6 +28,7 @@ import fi.mstahv.sensorhub.alerts.WebPushService;
 import fi.mstahv.sensorhub.protocol.DeviceMeasurement;
 import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.store.AlertSubscriptionStore;
+import fi.mstahv.sensorhub.store.ClientActivityStore;
 import fi.mstahv.sensorhub.store.DeviceSettingsStore;
 import fi.mstahv.sensorhub.store.HeatSumCounterStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
@@ -59,6 +60,7 @@ public class DashboardView extends NavigationView
     private final ConnectionMonitor connections;
     private final DeviceUpdates updates;
     private final DeviceSettingsStore deviceSettings;
+    private final ClientActivityStore activity;
     private final SensorCardLayout cards;
     private final SettingsButton deviceSettingsButton = new SettingsButton();
     private final SecondaryText deviceStatus = new SecondaryText();
@@ -73,7 +75,7 @@ public class DashboardView extends NavigationView
     private Instant renderedReceivedAt;
 
     public DashboardView(MeasurementStore store, SensorSettingsStore settings,
-                         DeviceSettingsStore deviceSettings,
+                         DeviceSettingsStore deviceSettings, ClientActivityStore activity,
                          AlertSubscriptionStore alerts, HeatSumCounterStore heatSums,
                          WebPushService webPush, ConnectionMonitor connections,
                          DeviceUpdates updates) {
@@ -84,6 +86,7 @@ public class DashboardView extends NavigationView
         super(DeviceListView.class, "Devices");
         this.store = store;
         this.deviceSettings = deviceSettings;
+        this.activity = activity;
         this.connections = connections;
         this.updates = updates;
         this.cards = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
@@ -158,7 +161,11 @@ public class DashboardView extends NavigationView
            The token is only needed by the per-sensor alert settings, which are
            behind a popover, so the cards do not wait for it.
         */
-        ClientId.resolve(attachEvent.getUI(), cards::setClientId);
+        ClientId.resolve(attachEvent.getUI(), resolved -> {
+            // The visit on the record; see DeviceListView.
+            activity.seen(resolved);
+            cards.setClientId(resolved);
+        });
     }
 
     /*

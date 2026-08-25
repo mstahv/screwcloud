@@ -67,6 +67,21 @@ class DeviceListViewTest {
                 "and that heading belongs in the same region");
     }
 
+    /*
+       The retention sweep judges browsers by their last visit, so a visit has
+       to leave a date behind — silently failing to record it would surface a
+       year later as everybody's lists disappearing.
+    */
+    @Test
+    void aVisitLeavesADateForTheRetentionSweep(@Autowired BrowserlessUIContext ui,
+            @Autowired fi.mstahv.sensorhub.store.ClientActivityStore activity) {
+        ui.navigate(DeviceListView.class);
+        Browser.answerStorageWith(ui.getUI(), "returning-browser-token");
+
+        assertTrue(activity.lastSeen("returning-browser-token").isPresent(),
+                "Opening the front page is a visit, and a visit is recorded");
+    }
+
     @Test
     void aDeviceCanBeAddedAndIsThenListed(@Autowired BrowserlessUIContext ui) {
         openFrontPage(ui);

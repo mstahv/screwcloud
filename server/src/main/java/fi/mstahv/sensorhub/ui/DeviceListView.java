@@ -20,6 +20,7 @@ import jakarta.validation.constraints.NotBlank;
 
 import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
 import fi.mstahv.sensorhub.alerts.WebPushService;
+import fi.mstahv.sensorhub.store.ClientActivityStore;
 import fi.mstahv.sensorhub.store.ClientDeviceStore;
 import fi.mstahv.sensorhub.store.DeviceSettingsStore;
 import fi.mstahv.sensorhub.store.MeasurementStore;
@@ -50,6 +51,7 @@ public class DeviceListView extends VerticalLayout {
 
     private final MeasurementStore measurements;
     private final ClientDeviceStore clientDevices;
+    private final ClientActivityStore activity;
     private final DeviceSettingsStore deviceSettings;
     private final ConnectionMonitor connections;
     private final DeviceUpdates updates;
@@ -81,11 +83,12 @@ public class DeviceListView extends VerticalLayout {
     }
 
     public DeviceListView(MeasurementStore measurements, ClientDeviceStore clientDevices,
-                          DeviceSettingsStore deviceSettings,
+                          ClientActivityStore activity, DeviceSettingsStore deviceSettings,
                           WebPushService webPush, ConnectionMonitor connections,
                           DeviceUpdates updates) {
         this.measurements = measurements;
         this.clientDevices = clientDevices;
+        this.activity = activity;
         this.deviceSettings = deviceSettings;
         this.connections = connections;
         this.updates = updates;
@@ -248,6 +251,9 @@ public class DeviceListView extends VerticalLayout {
 
         ClientId.resolve(attachEvent.getUI(), resolved -> {
             clientId = resolved;
+            // The visit on the record: this is what keeps the retention sweep
+            // from one day forgetting a browser that still comes here.
+            activity.seen(resolved);
             refresh();
             // Needs the token, and asks the browser for the real state of its
             // subscription rather than trusting this server's table.
