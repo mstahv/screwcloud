@@ -28,6 +28,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.vaadin.example.history.ReadingHistory;
 import org.vaadin.example.lora.LoraPacket;
 import org.vaadin.example.lora.LoraReceiver;
+import org.vaadin.example.names.IgnoredSensors;
 import org.vaadin.example.names.SensorNames;
 import org.vaadin.example.protocol.MeasurementPacket;
 import org.vaadin.example.protocol.SensorReading;
@@ -73,9 +74,16 @@ class LocalViewTest {
             history.add(reading);
         }
         SensorNames names = new SensorNames(namesFile);
+        /*
+           Next to the names file, like in production. A test that has ignored a
+           sensor beforehand does it through another instance on the same path,
+           which also exercises that the choice survives a restart.
+        */
+        IgnoredSensors ignored =
+                new IgnoredSensors(namesFile.resolveSibling("ignored.csv"));
 
         try (BrowserlessApplicationContext app = BrowserlessApplicationContext.forComponent(
-                () -> new LocalView(registry, history, names,
+                () -> new LocalView(registry, history, names, ignored,
                         new BleScanner(), new ScrewCloudSender("PI01"), lora,
                         new ThingyReader(), updates))) {
             body.accept(app.newUser().newWindow(), history);
@@ -135,6 +143,49 @@ class LocalViewTest {
 
         assertTrue(Files.readString(namesFile).contains("R84F,Cold room"),
                 "a name that is not written down is lost on the next restart");
+    }
+
+    /*
+       The neighbour's tag: ignoring it from the rename dialog takes the card
+       down, parks the sensor under an Ignored line with the way back, and
+       Restore undoes the whole thing. Confirmed before acting — a vanishing
+       card looks like data loss until the reader knows better.
+    */
+    @Test
+    void aSensorCanBeIgnoredAndRestored(@TempDir Path directory) {
+        inView(directory.resolve("names.csv"), (ui, history) -> {
+            Slots.require(ui.find(Card.class).first(), Button.class).click();
+            ui.findButton().withText("Ignore…").click();
+            // Viritin's DeleteButton asks first; this is the reader saying yes.
+            ui.findButton().withText("Ignore").click();
+
+            assertEquals(0, ui.find(Card.class).all().size(),
+                    "The ignored sensor's card should be gone");
+            assertTrue(ui.findSpan().withTextContaining("Ignored: R84F").exists(),
+                    "and the sensor should wait on the Ignored line");
+
+            ui.findButton().withText("Restore").click();
+
+            assertEquals(1, ui.find(Card.class).all().size(),
+                    "Restore should bring the card back");
+        }, reading("CB:B8:33:4C:88:4F", 21.5, 45.0, NOW));
+    }
+
+    /*
+       The promise is kept exactly when the radio hears something: an ignored
+       tag advertises as eagerly as anyone's, and it must not get a card for it.
+       The choice comes from a file written by an earlier run, which is also the
+       restart the file exists to survive.
+    */
+    @Test
+    void aHeardAdvertisementDoesNotResurrectAnIgnoredSensor(@TempDir Path directory) {
+        new IgnoredSensors(directory.resolve("ignored.csv")).ignore("R84F");
+
+        inView(directory.resolve("names.csv"), (ui, history) -> {
+            assertEquals(0, ui.find(Card.class).all().size(),
+                    "A sensor ignored before this run must not get a card from fresh data");
+            assertTrue(ui.findSpan().withTextContaining("Ignored: R84F").exists());
+        }, reading("CB:B8:33:4C:88:4F", 21.5, 45.0, NOW));
     }
 
     /** A value the tag does not measure is a dash. Zero would be a reading. */

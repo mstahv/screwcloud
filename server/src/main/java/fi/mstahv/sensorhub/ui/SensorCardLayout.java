@@ -50,10 +50,10 @@ class SensorCardLayout extends FlexLayout {
 
     SensorCardLayout(MeasurementStore store, SensorSettingsStore settings,
                      AlertSubscriptionStore alerts, HeatSumCounterStore heatSums,
-                     WebPushService webPush) {
+                     WebPushService webPush, Runnable onIgnoredChanged) {
         this.store = store;
-        this.context =
-                new SensorCardContext(settings, store, alerts, heatSums, webPush, () -> clientId);
+        this.context = new SensorCardContext(settings, store, alerts, heatSums, webPush,
+                () -> clientId, onIgnoredChanged);
         setFlexWrap(FlexWrap.WRAP);
         setWidthFull();
         getStyle().setGap(VaadinCssProps.GAP_M.var());
@@ -79,7 +79,15 @@ class SensorCardLayout extends FlexLayout {
            is all this device has, in which case it is what the page is about — see
            DeviceMeasurement.measuringPoints().
         */
+        /*
+           Nor do the ignored ones: the reader has said they do not want to see
+           them, and a packet arriving is exactly the moment that promise is
+           tested — the neighbour's tag reports too.
+        */
+        Set<String> ignored =
+                Set.copyOf(context.settings().ignoredSensorIds(device.deviceId()));
         List<SensorMeasurement> sensors = device.measuringPoints().stream()
+                .filter(sensor -> !ignored.contains(sensor.sensorId()))
                 .sorted(Comparator.comparing(SensorMeasurement::sensorId))
                 .toList();
 

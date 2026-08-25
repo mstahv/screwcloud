@@ -12,6 +12,8 @@ public interface SensorSettingsRepository extends JpaRepository<SensorSettings, 
 
     Optional<SensorSettings> findByDeviceIdAndSensorId(String deviceId, String sensorId);
 
+    List<SensorSettings> findByDeviceIdAndIgnoredTrueOrderBySensorIdAsc(String deviceId);
+
     /* The retention sweep's side. */
 
     @Transactional

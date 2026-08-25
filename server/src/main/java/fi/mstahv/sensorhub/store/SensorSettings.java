@@ -52,6 +52,14 @@ public class SensorSettings {
     @Column(length = 64)
     private String name;
 
+    /**
+     * Whether the reader has asked not to see this sensor. The measurements
+     * still arrive and are still stored — ignoring is about the page, not the
+     * data, which is what makes restoring cheap and complete.
+     */
+    @Column(nullable = false)
+    private boolean ignored;
+
     /*
        Temperature bands for the gauge. Either all four are set or none are; see
        the @Valid on getThresholds() below, which is where that rule is checked.
@@ -84,6 +92,14 @@ public class SensorSettings {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public boolean isIgnored() {
+        return ignored;
+    }
+
+    public void setIgnored(boolean ignored) {
+        this.ignored = ignored;
     }
 
     /**

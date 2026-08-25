@@ -3,7 +3,9 @@ package fi.mstahv.sensorhub.ui;
 import java.util.function.Consumer;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Section;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.textfield.TextField;
 
@@ -12,6 +14,7 @@ import jakarta.validation.constraints.Size;
 
 import fi.mstahv.sensorhub.store.AlertPreferences;
 import fi.mstahv.sensorhub.store.SensorThresholds;
+import org.vaadin.firitin.components.button.DeleteButton;
 import org.vaadin.firitin.form.BeanValidationForm;
 import org.vaadin.firitin.util.style.VaadinCssProps;
 import org.vaadin.firitin.layouts.Column;
@@ -91,9 +94,13 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
     /**
      * @param counters the degree-day counter management, built by the caller because
      *        it needs the store; null leaves the section out
+     * @param onIgnore what ignoring this sensor does — hiding the card is the
+     *        caller's business; this form only asks the reader whether they
+     *        mean it
      */
     SensorSettingsForm(String sensorId, String currentName, SensorThresholds currentThresholds,
-                       AlertOptions alertOptions, Component counters, Consumer<Values> onSave) {
+                       AlertOptions alertOptions, Component counters, Consumer<Values> onSave,
+                       Runnable onIgnore) {
         super(Values.class);
         // In a popover, which sizes itself by its content; see asSection's javadoc.
         asSection();
@@ -108,6 +115,26 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
 
         setSaveCaption("Save");
         setSavedHandler(onSave::accept);
+
+        /*
+           The form's delete button, harnessed: on this screen the destructive
+           act is not deleting data but asking not to see it. The button is
+           Viritin's DeleteButton, which carries its own confirmation dialog —
+           the handler below only runs once the reader has said they mean it.
+           The dialog matters because the button lives next to Save and a
+           sensor vanishing from the page looks like data loss until the
+           reader knows better, which is exactly what the description says.
+        */
+        setDeleteHandler(values -> onIgnore.run());
+        String shownAs = currentName == null || currentName.isBlank() ? sensorId : currentName;
+        DeleteButton ignore = (DeleteButton) getDeleteButton();
+        ignore.setButtonCaption("Ignore…");
+        ignore.setIcon(null);
+        ignore.setConfirmationPrompt("Ignore %s?".formatted(shownAs));
+        ignore.setConfirmationDescription("Its card disappears from this page. "
+                + "Measurements are still stored, and the sensor can be restored "
+                + "from the Ignored sensors list at the bottom of the page.");
+        ignore.setOkText("Ignore");
 
         /*
            Enabled from the start rather than only after a change: what is on screen
@@ -137,7 +164,7 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
         if (counters != null) {
             layout.add(new FormSection("Degree-day counters", counters));
         }
-        layout.add(getSaveButton());
+        layout.add(new ButtonRow());
         /*
            23rem is what the two limit rows need to line up. On a phone that is wider
            than the screen, and a popover sizes itself to its content — so the form
@@ -148,6 +175,21 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
         */
         layout.setWidth("min(23rem, calc(100vw - 5rem))");
         return layout;
+    }
+
+    /**
+     * Save carries the accent; Ignore stands at the other end of the row, in
+     * the error colour and without a surface, so the two cannot be mistaken
+     * for each other by someone tapping in a hurry.
+     */
+    private class ButtonRow extends HorizontalLayout {
+        ButtonRow() {
+            setWidthFull();
+            add(getSaveButton(), getDeleteButton());
+            getDeleteButton().addThemeVariants(
+                    ButtonVariant.TERTIARY, ButtonVariant.ERROR);
+            getDeleteButton().getStyle().setMarginLeft("auto");
+        }
     }
 
     /**

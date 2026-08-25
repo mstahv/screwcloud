@@ -61,7 +61,7 @@ class SensorCardLayoutTest {
 
     @BeforeEach
     void setUp() {
-        layout = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
+        layout = new SensorCardLayout(store, settings, alerts, heatSums, webPush, () -> { });
     }
 
     /**

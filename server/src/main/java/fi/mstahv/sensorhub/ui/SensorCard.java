@@ -145,7 +145,15 @@ class SensorCard extends Card {
                 settings.thresholdsFor(deviceId, sensorId),
                 alerts,
                 createCounterForm(),
-                values -> save(clientId, alerts, values));
+                values -> save(clientId, alerts, values),
+                /*
+                   Ignoring removes this very card, popover and all — the layout
+                   listens to the same call and rebuilds without it.
+                */
+                () -> {
+                    settings.ignore(deviceId, sensorId);
+                    context.onIgnoredChanged().run();
+                });
     }
 
     /*

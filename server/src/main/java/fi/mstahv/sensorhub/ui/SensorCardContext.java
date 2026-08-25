@@ -19,6 +19,9 @@ import fi.mstahv.sensorhub.store.SensorSettingsStore;
  *        back from the browser asynchronously, and a card may well be built
  *        before it arrives. Everything that needs it does so on a user action,
  *        by which time it is there.
+ * @param onIgnoredChanged told when a sensor is ignored or restored, so the
+ *        page can rebuild what it shows — the change happens deep in a card's
+ *        settings form, and the card is exactly the thing that has to go.
  */
 record SensorCardContext(
         SensorSettingsStore settings,
@@ -26,5 +29,6 @@ record SensorCardContext(
         AlertSubscriptionStore alerts,
         HeatSumCounterStore heatSums,
         WebPushService webPush,
-        Supplier<String> clientId) {
+        Supplier<String> clientId,
+        Runnable onIgnoredChanged) {
 }

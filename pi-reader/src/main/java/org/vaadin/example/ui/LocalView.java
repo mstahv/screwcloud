@@ -9,6 +9,8 @@ import com.flowingcode.vaadin.addons.relativetime.RelativeTime;
 
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.dependency.StyleSheet;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
@@ -21,6 +23,7 @@ import com.vaadin.flow.theme.aura.Aura;
 
 import org.vaadin.example.history.ReadingHistory;
 import org.vaadin.example.lora.LoraReceiver;
+import org.vaadin.example.names.IgnoredSensors;
 import org.vaadin.example.names.SensorNames;
 import org.vaadin.example.ruuvi.BleScanner;
 import org.vaadin.example.ruuvi.TagRegistry;
@@ -65,6 +68,7 @@ public class LocalView extends VerticalLayout {
     private final TagRegistry registry;
     private final ReadingHistory history;
     private final SensorNames names;
+    private final IgnoredSensors ignored;
     private final BleScanner scanner;
     private final ScrewCloudSender sender;
     private final LoraReceiver lora;
@@ -105,13 +109,24 @@ public class LocalView extends VerticalLayout {
     /** One card per tag, kept in place and updated. Insertion order is display order. */
     private final Map<String, SensorCard> cardsByAddress = new LinkedHashMap<>();
 
+    /**
+     * The sensors the reader has asked not to see, with the way back for each.
+     * Between the cards and the machine's own status lines: an inventory rather
+     * than content, but findable by scrolling — a card that has just vanished
+     * must not require knowing where to look. Empty means invisible, which is
+     * almost always.
+     */
+    private final Div ignoredPanel = new Div();
+
     @Inject
     public LocalView(TagRegistry registry, ReadingHistory history, SensorNames names,
+                     IgnoredSensors ignored,
                      BleScanner scanner, ScrewCloudSender sender, LoraReceiver lora,
                      ThingyReader thingy, ReadingUpdates updates) {
         this.registry = registry;
         this.history = history;
         this.names = names;
+        this.ignored = ignored;
         this.scanner = scanner;
         this.sender = sender;
         this.lora = lora;
@@ -130,7 +145,7 @@ public class LocalView extends VerticalLayout {
         cards.setWidthFull();
         cards.getStyle().setGap(VaadinCssProps.GAP_M.var());
 
-        add(new H2("Temperatures"), emptyState, cards,
+        add(new H2("Temperatures"), emptyState, cards, ignoredPanel,
                 radioStatus, thingyStatus, uploadStatus, loraStatus, loraArrivals);
     }
 
@@ -152,9 +167,23 @@ public class LocalView extends VerticalLayout {
 
         int position = 0;
         for (Reading reading : readings) {
+            /*
+               The promise "not shown even though data arrives" is kept right
+               here, where the data arrives: the neighbour's tag advertises as
+               eagerly as anyone's. Ignoring mid-flight also has to take down
+               the card that already exists.
+            */
+            if (ignored.isIgnored(reading.sensorId())) {
+                SensorCard gone = cardsByAddress.remove(reading.macAddress());
+                if (gone != null) {
+                    cards.remove(gone);
+                }
+                continue;
+            }
             SensorCard card = cardsByAddress
                     .computeIfAbsent(reading.macAddress(), address -> {
-                        SensorCard fresh = new SensorCard(reading.sensorId(), names, this::refresh);
+                        SensorCard fresh = new SensorCard(reading.sensorId(), names,
+                                ignored, this::refresh);
                         cards.add(fresh);
                         return fresh;
                     });
@@ -167,6 +196,7 @@ public class LocalView extends VerticalLayout {
             card.update(reading, history.pointsFor(reading.macAddress()), now);
         }
 
+        showIgnored();
         emptyState.setVisible(readings.isEmpty());
         emptyState.setText("Nothing heard yet. A RuuviTag in range shows up within a few seconds.");
 
@@ -175,6 +205,22 @@ public class LocalView extends VerticalLayout {
         showLoraArrivals();
         uploadStatus.setText("ScrewCloud: %s · sending as device %s"
                 .formatted(sender.status(), sender.deviceId()));
+    }
+
+    private void showIgnored() {
+        ignoredPanel.removeAll();
+        List<String> ids = ignored.all();
+        ignoredPanel.setVisible(!ids.isEmpty());
+        for (String sensorId : ids) {
+            Button restore = new Button("Restore", click -> {
+                ignored.restore(sensorId);
+                refresh();
+            });
+            restore.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+            StatusLine line = new StatusLine();
+            line.add(new Span("Ignored: " + names.displayName(sensorId) + " "), restore);
+            ignoredPanel.add(line);
+        }
     }
 
     /**

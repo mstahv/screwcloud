@@ -8,7 +8,12 @@ import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
 import com.vaadin.flow.component.dependency.StyleSheet;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.html.Section;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasUrlParameter;
 import com.vaadin.flow.router.OptionalParameter;
@@ -18,7 +23,10 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.shared.Registration;
 import com.vaadin.flow.theme.aura.Aura;
 
+import java.util.List;
+
 import org.vaadin.firitin.components.button.VButton;
+import org.vaadin.firitin.layouts.Column;
 import org.vaadin.firitin.layouts.NavigationView;
 
 import fi.mstahv.sensorhub.alerts.ConnectionMonitor;
@@ -63,6 +71,7 @@ public class DashboardView extends NavigationView
     private final ClientActivityStore activity;
     private final SensorCardLayout cards;
     private final SettingsButton deviceSettingsButton = new SettingsButton();
+    private final IgnoredSensorsPanel ignoredSensors;
     private final SecondaryText deviceStatus = new SecondaryText();
     private final OfflineBadge offline = new OfflineBadge();
     private final Span emptyState = new Span();
@@ -89,7 +98,14 @@ public class DashboardView extends NavigationView
         this.activity = activity;
         this.connections = connections;
         this.updates = updates;
-        this.cards = new SensorCardLayout(store, settings, alerts, heatSums, webPush);
+        /*
+           Ignoring or restoring a sensor changes which cards exist without any
+           packet arriving, so it resets the "has the packet changed" gate and
+           redraws.
+        */
+        this.cards = new SensorCardLayout(store, settings, alerts, heatSums, webPush,
+                this::sensorVisibilityChanged);
+        this.ignoredSensors = new IgnoredSensorsPanel(settings);
         /*
            The device's own errand, mirroring the way back at the other end of the
            header: its settings. A separate screen rather than a popover, so the
@@ -103,7 +119,7 @@ public class DashboardView extends NavigationView
            line it never found a place that read as anything but pasted in. The
            name in the header is what this view carries of the device's face.
         */
-        add(deviceStatus, offline, emptyState, cards);
+        add(deviceStatus, offline, emptyState, cards, ignoredSensors);
     }
 
     /*
@@ -125,6 +141,57 @@ public class DashboardView extends NavigationView
         deviceSettingsButton.setVisible(deviceId != null);
         subscribe();
         refresh();
+    }
+
+    private void sensorVisibilityChanged() {
+        renderedReceivedAt = null;
+        refresh();
+    }
+
+    /**
+     * The sensors the reader has asked not to see, with the way back for each.
+     *
+     * <p>At the bottom, after the cards, because it is an inventory rather than
+     * content — but on the page rather than behind a menu, since a sensor that
+     * has just vanished must be findable by scrolling, not by knowing where to
+     * look. Hidden entirely while it is empty, which is almost always.
+     */
+    private static class IgnoredSensorsPanel extends Section {
+
+        private final SensorSettingsStore settings;
+        private final Column rows = new Column();
+
+        IgnoredSensorsPanel(SensorSettingsStore settings) {
+            this.settings = settings;
+            add(new SectionHeading("Ignored sensors"), rows);
+            setVisible(false);
+        }
+
+        void show(String deviceId, Runnable onRestored) {
+            rows.removeAll();
+            List<String> ignored = deviceId == null
+                    ? List.of() : settings.ignoredSensorIds(deviceId);
+            setVisible(!ignored.isEmpty());
+            for (String sensorId : ignored) {
+                rows.add(new IgnoredRow(deviceId, sensorId, onRestored));
+            }
+        }
+
+        /** One ignored sensor: its name, and the button that brings it back. */
+        private class IgnoredRow extends HorizontalLayout {
+            IgnoredRow(String deviceId, String sensorId, Runnable onRestored) {
+                String name = settings.nameFor(deviceId, sensorId);
+                Span label = new Span(name == null
+                        ? sensorId : "%s (%s)".formatted(name, sensorId));
+                Button restore = new Button("Restore", click -> {
+                    settings.restore(deviceId, sensorId);
+                    onRestored.run();
+                });
+                restore.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
+                setAlignItems(FlexComponent.Alignment.CENTER);
+                add(label, restore);
+            }
+        }
     }
 
     /** The device's name in the title, so several tabs can be told apart. */
@@ -192,6 +259,7 @@ public class DashboardView extends NavigationView
        new for a device that is reporting normally.
     */
     private void refresh() {
+        ignoredSensors.show(deviceId, this::sensorVisibilityChanged);
         if (deviceId == null) {
             emptyState.setText("Pick a device from the device list.");
             emptyState.setVisible(true);

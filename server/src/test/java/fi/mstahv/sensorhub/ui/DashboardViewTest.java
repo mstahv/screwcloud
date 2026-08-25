@@ -132,6 +132,50 @@ class DashboardViewTest {
                 "An arrow with no text still has to say where it goes");
     }
 
+    /*
+       The neighbour's tag on the dashboard: ignoring a sensor from its settings
+       hides the card, parks it under "Ignored sensors", and Restore undoes the
+       whole thing. The confirmation dialog stands between the button and the
+       act, because a vanishing card looks like data loss until the reader knows
+       better.
+    */
+    @Test
+    void anIgnoredSensorLosesItsCardUntilRestored(@Autowired BrowserlessUIContext ui) {
+        store("IGN1", Instant.now(), 6.5, 21.0);
+        ui.navigate(DashboardView.class, "IGN1");
+
+        openSettings(ui, "DHT");
+        ui.findButton().withText("Ignore…").click();
+        // Viritin's DeleteButton asks first; this is the reader saying yes.
+        ui.findButton().withText("Ignore").click();
+
+        assertEquals(List.of("RBF"), sensorCardTitles(ui),
+                "The ignored sensor's card should be gone");
+        assertTrue(ui.findButton().withText("Restore").exists(),
+                "and the sensor should wait under Ignored sensors");
+
+        ui.findButton().withText("Restore").click();
+
+        assertEquals(List.of("DHT", "RBF"), sensorCardTitles(ui),
+                "Restore should bring the card back");
+        assertFalse(ui.findButton().withText("Restore").exists());
+    }
+
+    /* The promise is kept exactly when a packet arrives: it reports too. */
+    @Test
+    void dataArrivingForAnIgnoredSensorDoesNotResurrectIt(@Autowired BrowserlessUIContext ui) {
+        store("IGN2", Instant.now(), 6.5, 21.0);
+        settings.ignore("IGN2", "DHT");
+        ui.navigate(DashboardView.class, "IGN2");
+        assertEquals(List.of("RBF"), sensorCardTitles(ui));
+
+        store("IGN2", Instant.now(), 7.0, 22.0);
+        deliver(ui, () -> updates.arrived("IGN2"));
+
+        assertEquals(List.of("RBF"), sensorCardTitles(ui),
+                "A fresh packet must not put the ignored card back");
+    }
+
     @Test
     void aDeviceWithNoMeasurementsSaysSo(@Autowired BrowserlessUIContext ui) {
         ui.navigate(DashboardView.class, "BBBB");

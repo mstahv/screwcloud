@@ -220,24 +220,6 @@ public class DeviceListView extends VerticalLayout {
         }
     }
 
-    /**
-     * One heading style for all three sections, because they are siblings: the
-     * devices, adding one, and your settings. An {@code H2} for the first and small
-     * bold text for the other two made one section look like a page and the other two
-     * like footnotes — and left the document outline saying the same.
-     *
-     * <p>Smaller than the default H2, which at nearly the size of the brand name
-     * left no visible hierarchy between them.
-     */
-    private static class SectionHeading extends H2 {
-        SectionHeading(String text) {
-            super(text);
-            // The only kept size: the default H2 is nearly the size of the brand
-            // name above it, which leaves no hierarchy between them.
-            getStyle().setFontSize("1.25rem");
-        }
-    }
-
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);

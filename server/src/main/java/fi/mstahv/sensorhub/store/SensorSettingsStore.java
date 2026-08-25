@@ -1,5 +1,7 @@
 package fi.mstahv.sensorhub.store;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -80,6 +82,35 @@ public class SensorSettingsStore {
         SensorSettings settings = load(deviceId, sensorId);
         settings.setThresholds(thresholds);
         repository.save(settings);
+    }
+
+    /**
+     * Asks not to see this sensor. The card disappears; the measurements keep
+     * arriving and keep being stored, so {@link #restore} brings the sensor
+     * back with its history intact. For the neighbour's tag on the dashboard,
+     * or a probe brought in for the winter.
+     */
+    @Transactional
+    public void ignore(@NotBlank @DeviceId String deviceId, @NotNull @SensorId String sensorId) {
+        SensorSettings settings = load(deviceId, sensorId);
+        settings.setIgnored(true);
+        repository.save(settings);
+    }
+
+    /** Puts an ignored sensor back on the page. */
+    @Transactional
+    public void restore(@NotBlank @DeviceId String deviceId, @NotNull @SensorId String sensorId) {
+        SensorSettings settings = load(deviceId, sensorId);
+        settings.setIgnored(false);
+        repository.save(settings);
+    }
+
+    /** The device's ignored sensors, sorted by identifier. */
+    @Transactional(readOnly = true)
+    public List<String> ignoredSensorIds(String deviceId) {
+        return repository.findByDeviceIdAndIgnoredTrueOrderBySensorIdAsc(deviceId).stream()
+                .map(SensorSettings::getSensorId)
+                .toList();
     }
 
     private SensorSettings load(String deviceId, String sensorId) {

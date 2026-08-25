@@ -24,9 +24,11 @@ import com.vaadin.flow.dom.Style;
 
 import in.virit.TemperatureGauge;
 
+import org.vaadin.firitin.components.button.DeleteButton;
 import org.vaadin.firitin.components.button.VButton;
 
 import org.vaadin.example.history.HistoryPoint;
+import org.vaadin.example.names.IgnoredSensors;
 import org.vaadin.example.names.SensorNames;
 import org.vaadin.example.sensor.Reading;
 
@@ -86,12 +88,14 @@ class SensorCard extends Card {
 
     private final String sensorId;
     private final SensorNames names;
-    private final Runnable onRenamed;
+    private final IgnoredSensors ignored;
+    private final Runnable onChanged;
 
-    SensorCard(String sensorId, SensorNames names, Runnable onRenamed) {
+    SensorCard(String sensorId, SensorNames names, IgnoredSensors ignored, Runnable onChanged) {
         this.sensorId = sensorId;
         this.names = names;
-        this.onRenamed = onRenamed;
+        this.ignored = ignored;
+        this.onChanged = onChanged;
 
         addThemeVariants(CardVariant.OUTLINED, CardVariant.COVER_MEDIA);
         setMaxWidth("22rem");
@@ -206,7 +210,26 @@ class SensorCard extends Card {
             // Straight into the dialog: it is already a container with padding.
             add(field);
 
-            getFooter().add(
+            /*
+               The dialog's delete button, harnessed: the destructive act on
+               this page is not deleting data but asking not to see it — the
+               neighbour's tag is the textbook case. Viritin's DeleteButton
+               carries its own confirmation, so the handler runs only once the
+               reader has said they mean it.
+            */
+            DeleteButton ignoreButton = new DeleteButton("Ignore…", () -> {
+                ignored.ignore(sensorId);
+                close();
+                onChanged.run();
+            });
+            ignoreButton.setConfirmationPrompt(
+                    "Ignore %s?".formatted(names.displayName(sensorId)));
+            ignoreButton.setConfirmationDescription("Its card disappears from this "
+                    + "page. The tag is still heard, stored and relayed, and it can "
+                    + "be restored from the Ignored sensors list below the cards.");
+            ignoreButton.setOkText("Ignore");
+
+            getFooter().add(ignoreButton,
                     new Button("Cancel", click -> close()),
                     new Button("Save", click -> save()));
         }
@@ -215,7 +238,7 @@ class SensorCard extends Card {
             names.rename(sensorId, field.getValue());
             applyName();
             close();
-            onRenamed.run();
+            onChanged.run();
         }
     }
 
