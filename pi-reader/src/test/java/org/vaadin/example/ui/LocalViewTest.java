@@ -32,8 +32,11 @@ import org.vaadin.example.names.IgnoredSensors;
 import org.vaadin.example.names.SensorNames;
 import org.vaadin.example.protocol.MeasurementPacket;
 import org.vaadin.example.protocol.SensorReading;
+import org.vaadin.example.ruuvi.AirReading;
 import org.vaadin.example.ruuvi.BleScanner;
+import org.vaadin.example.ruuvi.DataFormat6;
 import org.vaadin.example.ruuvi.RuuviReading;
+import org.vaadin.example.sensor.Reading;
 import org.vaadin.example.ruuvi.TagRegistry;
 import org.vaadin.example.updates.ReadingUpdates;
 import org.vaadin.example.thingy.ThingyReader;
@@ -59,17 +62,17 @@ class LocalViewTest {
 
     /** Opens the page with these readings already heard, in history and registry. */
     private void inView(Path namesFile, BiConsumer<BrowserlessUIContext, ReadingHistory> body,
-                        RuuviReading... heard) {
+                        Reading... heard) {
         inView(namesFile, new LoraReceiver(), body, heard);
     }
 
     /** The same, with a LoRa radio that has heard something over the air. */
     private void inView(Path namesFile, LoraReceiver lora,
                         BiConsumer<BrowserlessUIContext, ReadingHistory> body,
-                        RuuviReading... heard) {
+                        Reading... heard) {
         TagRegistry registry = new TagRegistry();
         ReadingHistory history = new ReadingHistory();
-        for (RuuviReading reading : heard) {
+        for (Reading reading : heard) {
             registry.store(reading);
             history.add(reading);
         }
@@ -195,6 +198,29 @@ class LocalViewTest {
                         assertTrue(ui.findSpan().withText(Readings.MISSING).exists()),
                 new RuuviReading(mac("CB:B8:33:4C:88:4F"), 21.5, null, null, null, null,
                         0, 1, (short) -60, NOW));
+    }
+
+    /**
+     * A Ruuvi Air is a Reading like any other, so it gets an ordinary card —
+     * plus the line every other sensor lacks: what the air is like. The values
+     * are from Ruuvi's own data format 6 test vector.
+     */
+    @Test
+    void aRuuviAirGetsACardWithItsAirOnIt(@TempDir Path directory) {
+        AirReading air = DataFormat6.parse(
+                java.util.HexFormat.of().parseHex(
+                        "06170C5668C79E007000C90501D94ACD004C884F"),
+                NOW, (short) -55).orElseThrow();
+
+        inView(directory.resolve("names.csv"), (ui, history) -> {
+            assertEquals(1, ui.find(Card.class).all().size());
+            assertEquals("R84F", Slots.titleOf(ui.find(Card.class).first()),
+                    "The same identifier rule as every Ruuvi device");
+            assertTrue(ui.findSpan().withText("55.3 % RH").exists());
+            assertTrue(ui.findSpan().withTextContaining("CO\u2082 201 ppm").exists(),
+                    "CO\u2082 is what the device is bought for");
+            assertTrue(ui.findSpan().withTextContaining("PM2.5 11.2").exists());
+        }, air);
     }
 
     /** The first visit, before any tag has been heard, says what to expect. */

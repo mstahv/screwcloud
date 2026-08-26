@@ -29,6 +29,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import org.vaadin.example.history.ReadingHistory;
+import org.vaadin.example.sensor.Reading;
 import org.vaadin.example.updates.ReadingUpdates;
 
 /**
@@ -238,27 +239,19 @@ public class BleScanner {
                 continue;
             }
             ruuviSeen++;
-            Optional<RuuviReading> reading = DataFormat5.parse(payload.get(), now, device.getRssi());
-            if (reading.isEmpty()) {
-                LOG.debugf("%s sent Ruuvi data in a format this does not decode",
-                        device.getAddress());
+            Optional<RuuviReading> tag = DataFormat5.parse(payload.get(), now, device.getRssi());
+            if (tag.isPresent()) {
+                heard(tag.get(), tag.get().sequenceNumber());
                 continue;
             }
-            if (isNewBroadcast(reading.get())) {
-                registry.store(reading.get());
-                history.add(reading.get());
-                /*
-                   The page hears about it from here rather than asking every five
-                   seconds. Tags advertise several times a second between them, so
-                   this is called often; ReadingUpdates is what makes that cheap.
-                */
-                updates.changed();
-                if (!reported) {
-                    reported = true;
-                    LOG.infof("First reading: %s %s %.2f C", reading.get().sensorId(),
-                            reading.get().macAddress(), reading.get().temperature());
-                }
+            // Not a tag: a Ruuvi Air announces itself in data format 6.
+            Optional<AirReading> air = DataFormat6.parse(payload.get(), now, device.getRssi());
+            if (air.isPresent()) {
+                heard(air.get(), air.get().sequence());
+                continue;
             }
+            LOG.debugf("%s sent Ruuvi data in a format this does not decode",
+                    device.getAddress());
         }
 
         report(devices.size(), ruuviSeen, companies);
@@ -398,9 +391,33 @@ public class BleScanner {
      * the last advertisement over and over; the tag's own sequence number is what
      * separates a new measurement from the same one read again.
      */
-    private synchronized boolean isNewBroadcast(RuuviReading reading) {
-        Integer previous = lastSequence.put(reading.macAddress(), reading.sequenceNumber());
-        return previous == null || previous != reading.sequenceNumber();
+    /**
+     * Files one decoded advertisement, whatever kind of Ruuvi device sent it.
+     * Everything downstream takes a {@link Reading}; the sequence number is the
+     * one per-format detail this still needs, so it travels alongside.
+     */
+    private void heard(Reading reading, int sequenceNumber) {
+        if (!isNewBroadcast(reading.macAddress(), sequenceNumber)) {
+            return;
+        }
+        registry.store(reading);
+        history.add(reading);
+        /*
+           The page hears about it from here rather than asking every five
+           seconds. Tags advertise several times a second between them, so
+           this is called often; ReadingUpdates is what makes that cheap.
+        */
+        updates.changed();
+        if (!reported) {
+            reported = true;
+            LOG.infof("First reading: %s %s %s C", reading.sensorId(),
+                    reading.macAddress(), reading.temperature());
+        }
+    }
+
+    private synchronized boolean isNewBroadcast(String macAddress, int sequenceNumber) {
+        Integer previous = lastSequence.put(macAddress, sequenceNumber);
+        return previous == null || previous != sequenceNumber;
     }
 
     private static void sleep(Duration duration) {

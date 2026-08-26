@@ -29,6 +29,7 @@ import org.vaadin.firitin.components.button.VButton;
 
 import org.vaadin.example.history.HistoryPoint;
 import org.vaadin.example.names.IgnoredSensors;
+import org.vaadin.example.ruuvi.AirReading;
 import org.vaadin.example.names.SensorNames;
 import org.vaadin.example.sensor.Reading;
 
@@ -84,6 +85,7 @@ class SensorCard extends Card {
        nothing and the warning would simply not appear.
     */
     private final Badge quiet = new Badge();
+    private final SecondaryLine airQuality = new SecondaryLine();
     private final TemperatureSparkLine sparkLine = new TemperatureSparkLine();
 
     private final String sensorId;
@@ -122,7 +124,7 @@ class SensorCard extends Card {
 
         age.add(heardAt);
 
-        add(humidity, age, quiet, sparkLine);
+        add(humidity, airQuality, age, quiet, sparkLine);
     }
 
     void update(Reading reading, List<HistoryPoint> history, Instant now) {
@@ -130,6 +132,20 @@ class SensorCard extends Card {
         gauge.setTemperature(reading.temperature());
 
         humidity.setText(Readings.format(reading.humidity(), "%.1f %% RH"));
+
+        /*
+           A Ruuvi Air carries more than the two numbers every sensor has, and
+           the headline pair gets a line: CO₂ is what people buy the device for,
+           PM2.5 is the health number. The rest of what format 6 carries (VOC,
+           NOx, luminosity, sound) waits until somebody actually wants it on a
+           card. Hidden entirely for the sensors that are not one.
+        */
+        if (reading instanceof AirReading air) {
+            airQuality.setText(airLine(air));
+            airQuality.setVisible(true);
+        } else {
+            airQuality.setVisible(false);
+        }
 
         /*
            A tag that has gone quiet keeps its reading — an hour old is still the
@@ -240,6 +256,13 @@ class SensorCard extends Card {
             close();
             onChanged.run();
         }
+    }
+
+    /** The air in one line; a dash where a sensor is still warming up. */
+    static String airLine(AirReading air) {
+        return "CO\u2082 %s · PM2.5 %s".formatted(
+                Readings.format(air.co2(), "%.0f ppm"),
+                Readings.format(air.pm25(), "%.1f µg/m³"));
     }
 
     /**
