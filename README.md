@@ -45,8 +45,8 @@ jar and a PostgreSQL for when you want one.
 Four readers, all speaking the same protocol to the same server:
 
 - **`temperature-reader`** for the Raspberry Pi Pico 2 W — the full version:
-  RuuviTags over BLE, an optional wired DHT22, an optional OLED, and WiFi or
-  NB-IoT for connectivity.
+  RuuviTags and Ruuvi Airs over BLE, an optional wired DHT22, an optional OLED,
+  and WiFi or NB-IoT for connectivity.
 - **`esp32-s3-reader`** for the ESP32-S3 — minimal: RuuviTags and WiFi, nothing
   else.
 - **`pi-reader`** for a Raspberry Pi that is already there doing something else —

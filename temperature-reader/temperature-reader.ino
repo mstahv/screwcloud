@@ -3,6 +3,9 @@
 
   Reads temperatures from up to three sources:
     1. RuuviTags over BLE advertisements (Data Format 5 / RAWv2), several supported
+       — and a Ruuvi Air (Data Format 6), whose temperature and humidity travel
+       exactly like a tag's; the air quality stays local until the protocol has
+       room for it (see protocol-evolution.md)
     2. A DHT22 wired to GP15
     3. The RP2350 internal temperature sensor (the chip's own die temperature)
 
@@ -86,6 +89,8 @@ void transportIdle() {
 // Ruuvi Innovations Ltd, Bluetooth SIG company identifier (little endian on the wire)
 static const uint16_t RUUVI_COMPANY_ID = 0x0499;
 static const uint8_t RUUVI_FORMAT_5 = 0x05;
+static const uint8_t RUUVI_FORMAT_6 = 0x06;  // Ruuvi Air, legacy-size advertisement
+static const uint8_t RUUVI_FORMAT_6_LEN = 20;  // bytes after the company id
 static const uint8_t RUUVI_FORMAT_5_LEN = 24;  // bytes after the company id
 
 // BLE AD types
@@ -196,6 +201,11 @@ struct RuuviTagName {
 
 static const RuuviTagName RUUVI_NAMES[] = {
   {{0xF3, 0x19, 0x1A, 0xC0, 0x8E, 0xBF}, "cold room"},
+  /*
+     A Ruuvi Air's advertisement carries only the low three bytes of its
+     address, so it is keyed here with the first three as zeros:
+     {{0x00, 0x00, 0x00, 0x4C, 0x88, 0x4F}, "living room"},
+  */
 };
 
 static const char *ruuviNameFor(const uint8_t mac[6]) {
@@ -216,6 +226,8 @@ struct RuuviMeasurement {
   float accelerationY = NAN;
   float accelerationZ = NAN;
   float batteryVoltage = NAN;  // V
+  float co2 = NAN;             // ppm, Ruuvi Air only
+  float pm25 = NAN;            // µg/m³, Ruuvi Air only
   int txPower = 0;             // dBm
   uint8_t movementCounter = 0;
   uint16_t sequenceNumber = 0;
@@ -337,6 +349,61 @@ struct RuuviMeasurement {
     return true;
   }
 
+  /*
+     Fills this measurement from a Ruuvi Data Format 6 packet, which is what a
+     Ruuvi Air broadcasts in a legacy-size advertisement. data points at the
+     format byte (0x06) and len is the number of bytes remaining.
+
+     Everything the server can receive is a plain 16-bit field here, so the
+     format's 9-bit values (VOC, NOx, sound) are simply not decoded — the
+     packet has no room for them anyway. CO2 and PM2.5 are kept for the serial
+     log, where they are the reason to point an antenna at this device at all.
+
+     The advertisement carries only the low three bytes of the address; the
+     high three stay zero. The identifier the server sees is derived from the
+     last twelve bits, so it is exactly what the full address would give — the
+     same rule, and the same value, as on the pi-reader hearing the same
+     device.
+  */
+  bool parseFormat6(const uint8_t *data, uint8_t len) {
+    if (len < RUUVI_FORMAT_6_LEN || data[0] != RUUVI_FORMAT_6) {
+      return false;
+    }
+
+    int16_t rawTemperature = readInt16(&data[1]);
+    if (rawTemperature != (int16_t)0x8000) {
+      temperature = rawTemperature / 200.0f;
+    }
+
+    uint16_t rawHumidity = readUint16(&data[3]);
+    if (rawHumidity != 0xFFFF) {
+      humidity = rawHumidity / 400.0f;
+    }
+
+    uint16_t rawPressure = readUint16(&data[5]);
+    if (rawPressure != 0xFFFF) {
+      pressure = (rawPressure + 50000.0f) / 100.0f;  // Pa -> hPa
+    }
+
+    uint16_t rawPm25 = readUint16(&data[7]);
+    if (rawPm25 != 0xFFFF) {
+      pm25 = rawPm25 / 10.0f;
+    }
+
+    uint16_t rawCo2 = readUint16(&data[9]);
+    if (rawCo2 != 0xFFFF) {
+      co2 = rawCo2;
+    }
+
+    sequenceNumber = data[15];
+    memset(mac, 0, sizeof(mac));
+    memcpy(&mac[3], &data[17], 3);
+
+    valid = true;
+    receivedAt = millis();
+    return true;
+  }
+
   void printTo(Print &out) const {
     const char *name = ruuviNameFor(mac);
     out.printf("RuuviTag %s%s%02X:%02X:%02X:%02X:%02X:%02X  RSSI %d dBm  (%lu ms ago)%s\n",
@@ -348,6 +415,9 @@ struct RuuviMeasurement {
                temperature, humidity, pressure);
     out.printf("  battery %.3f V, TX %d dBm, movement %u, sequence %u\n",
                batteryVoltage, txPower, movementCounter, sequenceNumber);
+    if (!isnan(co2) || !isnan(pm25)) {
+      out.printf("  CO2 %.0f ppm, PM2.5 %.1f ug/m3\n", co2, pm25);
+    }
   }
 };
 
@@ -865,7 +935,8 @@ static void advertisementCallback(BLEAdvertisement *advertisement) {
   }
 
   RuuviMeasurement measurement;
-  if (measurement.parseFormat5(&manufacturerData[2], payloadLen - 2)) {
+  if (measurement.parseFormat5(&manufacturerData[2], payloadLen - 2)
+      || measurement.parseFormat6(&manufacturerData[2], payloadLen - 2)) {
     measurement.rssi = advertisement->getRssi();
     ruuviTags.store(measurement);
   }
