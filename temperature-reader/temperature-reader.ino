@@ -84,6 +84,9 @@ static Transport *selectTransport() {
 */
 void transportIdle() {
   BTstack.loop();
+  // A send may legitimately block for longer than the watchdog's few seconds,
+  // so the wait loops feed it as they go. See WATCHDOG_TIMEOUT_MS.
+  rp2040.wdt_reset();
 }
 
 // Ruuvi Innovations Ltd, Bluetooth SIG company identifier (little endian on the wire)
@@ -148,6 +151,14 @@ static const uint8_t OLED_SMALL_CHAR_WIDTH = 6;
 // Longest name a row can show: the display fits about a dozen next to a reading.
 static const uint8_t OLED_NAME_SIZE = 16;
 
+/*
+   Characters on the status row, 128 / 6 = 21. Used as the size of the buffer
+   it is composed in, so that a long reason is cut rather than wrapped — the row
+   is the last one on the display and a second line would be drawn off the
+   bottom edge, taking the end of the message with it silently.
+*/
+static const uint8_t OLED_STATUS_CHARS = OLED_WIDTH / OLED_SMALL_CHAR_WIDTH;
+
 static const unsigned long PRINT_INTERVAL_MS = 5000;
 
 // The DHT22 does not allow reads more often than every 2 s.
@@ -160,17 +171,57 @@ static const uint8_t MAX_RUUVI_TAGS = 8;
 static const unsigned long RUUVI_STALE_MS = 60000;
 
 /*
-   How many sends in a row may fail before the device restarts itself. Six at
-   five minutes apart is half an hour, which is long enough that a passing
-   network problem has had every chance to pass and short enough that nobody
-   watches a dead link all evening.
+   How many sends in a row may fail before the device restarts itself. A failing
+   link retries every RETRY_INTERVAL_MS rather than every SEND_INTERVAL_MS, so
+   six of them is about six minutes — long enough that a passing network problem
+   has had its chance to pass.
 
    This is the last resort, below the transport's own recovery. It exists because
    the state that stops a link working is not always reachable from here: a modem
-   whose firmware has wedged answers AT and refuses to send, and only a power
-   cycle convinces it.
+   whose firmware has wedged answers AT and refuses to send.
+
+   Note what it cannot do. The modem is powered from VBUS, so a reboot restarts
+   this chip and nothing else — the modem keeps whatever state it was in while
+   the Pico comes back with none. Restarting the modem itself is the transport's
+   job, and with NBIOT_RESET_PIN wired it can do it without the modem's
+   cooperation. Even that is not a power cycle: nothing here can take the
+   module's power away.
 */
 static const uint8_t REBOOT_AFTER_FAILURES = 6;
+
+/*
+   How long the device must have been up before it is allowed to restart itself.
+
+   This replaces an earlier rule that only let a device reboot if it had sent
+   something successfully at least once. That rule was self-defeating: the flag
+   it consulted lived in RAM, so the reboot it authorised also cleared it. A
+   device that rebooted and then failed to get its first send through had, by
+   that act, switched off its own last resort — permanently, since nothing but a
+   successful send could ever set the flag again. The display said "never sent"
+   and meant it, and no amount of waiting was going to change it.
+
+   Uptime serves the purpose the old rule was reaching for. What it was really
+   protecting against is a device that is misconfigured rather than stuck,
+   rebooting every few minutes and rolling the explanation off the top of the
+   serial log before anyone can read it. Half an hour between restarts leaves
+   the log sitting there to be read, and still gets a genuinely stuck device
+   forty-odd attempts a day at fixing itself.
+*/
+static const unsigned long MIN_UPTIME_BEFORE_REBOOT_MS = 30UL * 60UL * 1000UL;
+
+/*
+   The hardware watchdog, for the hang that no amount of link logic can see —
+   an interrupt that never returns, a peripheral that stalls the bus, a loop
+   this code did not imagine.
+
+   The RP2350's watchdog counts in milliseconds and tops out a little above
+   eight seconds, which is far shorter than a legitimate send: waiting for an
+   acknowledgement is allowed twenty. So it cannot simply be fed from loop().
+   It is fed from transportIdle() as well, which every wait loop in Transport.h
+   already calls to keep BLE alive — a wait that is progressing feeds the dog,
+   and one that has stopped progressing does not.
+*/
+static const uint32_t WATCHDOG_TIMEOUT_MS = 8000;
 
 // Ruuvi fields are big endian.
 static int16_t readInt16(const uint8_t *p) {
@@ -853,7 +904,7 @@ private:
      attempt.
   */
   void printStatus(const LinkState &link) {
-    char text[32];
+    char text[OLED_STATUS_CHARS + 1];
     switch (link.status) {
       case LinkStatus::Ok:
         snprintf(text, sizeof(text), "Sent ok, %s", elapsed(link.lastSuccessAt));
@@ -861,13 +912,20 @@ private:
       case LinkStatus::Failed:
         /*
            The reason first, because it is what decides what to do about it, and
-           the age second. 21 characters fit on this row in the small font, which
-           is why the reasons the transports report are as short as they are.
+           the age second. The row holds 21 characters and the buffer is that
+           size, so a reason carrying numbers with it — "NO NET s2 q99" — keeps
+           its front and loses its tail rather than the other way round.
+
+           The two ages are different measurements and read differently. After a
+           link that once worked, the age is the time since the last send got
+           through, which is what a reader wants to know. With nothing to count
+           from, it is the time since boot, marked "up" so the two are not
+           mistaken for each other.
         */
         if (link.everSucceeded) {
           snprintf(text, sizeof(text), "%s %s", failureText(link), elapsed(link.lastSuccessAt));
         } else {
-          snprintf(text, sizeof(text), "%s, never sent", failureText(link));
+          snprintf(text, sizeof(text), "%s up %s", failureText(link), elapsed(0));
         }
         break;
       default:
@@ -998,18 +1056,39 @@ static void reportMeasurements() {
 }
 
 /*
-   The last resort, when the transport's own recovery has not helped for half an
-   hour. Everything this device knows is either in the tags themselves or on the
-   server, so a restart costs a few minutes of readings and nothing else — and it
-   clears any state that is stuck somewhere this code cannot reach, in the modem's
-   firmware or in the network stack.
+   The last resort, when the transport's own recovery has not helped for several
+   attempts running. Everything this device knows is either in the tags
+   themselves or on the server, so a restart costs a few minutes of readings and
+   nothing else — and it clears any state that is stuck somewhere this code
+   cannot reach, in the network stack or in what is left of a half-finished
+   exchange with the modem.
 
-   Only for a device that had been working. One that has never sent anything is
-   missing an antenna, a SIM or an APN, and restarting it every half hour would
-   turn a fixable mistake into a boot loop that hides the log explaining it.
+   Two things hold it back, and both are about not making a bad situation
+   pointless rather than about protecting the device: a failure that is waiting
+   for a person (see Transport::needsHumanHelp) and a boot too young to have
+   earned another one (MIN_UPTIME_BEFORE_REBOOT_MS). Neither depends on whether
+   this particular boot has managed a successful send, which is the trap the
+   earlier version of this function set for itself.
 */
 static void rebootIfHopeless() {
-  if (!linkState.everSucceeded || linkState.failures < REBOOT_AFTER_FAILURES) {
+  if (linkState.failures < REBOOT_AFTER_FAILURES) {
+    return;
+  }
+  /*
+     Some failures are not waiting for time to pass but for a person to arrive,
+     and restarting into one of those only repeats whatever it was that failed.
+     For a SIM PIN that repetition has a cost: three of them and the card wants
+     its PUK.
+  */
+  if (transport->needsHumanHelp()) {
+    Serial.printf("Link is down (%s) and a restart will not help. Waiting.\n",
+                  linkState.reason);
+    return;
+  }
+  if (millis() < MIN_UPTIME_BEFORE_REBOOT_MS) {
+    Serial.printf("Link has been down for %u sends (%s), but this boot is only "
+                  "%lu s old. Leaving the log alone for now.\n",
+                  linkState.failures, linkState.reason, millis() / 1000);
     return;
   }
   Serial.printf("Link has been down for %u sends (%s). Restarting.\n",
@@ -1052,9 +1131,20 @@ void setup() {
     linkState.recordResult(false, transport->lastFailure());
     statusLed.setStatus(linkState.status);
   }
+
+  /*
+     Started last, so that everything above is free to take as long as it needs.
+     Bringing up the modem can run to a minute, and a watchdog armed before it
+     would turn a slow boot into a boot loop — one that hides the console output
+     explaining why the boot was slow, which is the whole thing this is here to
+     avoid doing.
+  */
+  rp2040.wdt_begin(WATCHDOG_TIMEOUT_MS);
 }
 
 void loop() {
+  rp2040.wdt_reset();
+
   // BTstack's run loop needs to spin often, so no delay() anywhere.
   BTstack.loop();
 

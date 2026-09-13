@@ -363,13 +363,23 @@ Both read the same `LinkState` structure, so they cannot tell different stories.
 | State | LED rhythm | Display bottom row |
 |---|---|---|
 | Send succeeded | two short flashes, long dark pause | `Sent ok, 45 s` |
-| Send failed | fast steady pulsing | `FAIL! last ok 12 min` |
+| Send failed, has worked before | fast steady pulsing | `NO NET s2 q99 12 min` |
+| Send failed, never worked | fast steady pulsing | `NO SIM up 12 min` |
 | Nothing sent yet | calm steady blinking | `Not sent yet` |
 
-The rhythms were chosen to be told apart at a glance without counting
-durations. On failure the display shows the time since the last **successful**
-send — that says more than the time of the failed attempt. If a connection has
-never been established, the row reads `FAIL! no connection`.
+The rhythms were chosen to be told apart at a glance without counting durations.
+
+On failure the row is the reason and then an age. The reason comes first because
+it is what decides what to do about it; the codes are listed under [When a send
+fails](#when-a-send-fails). The age is two different measurements depending on
+what there is to measure: after a link that once worked it is the time since the
+last **successful** send, which says more than the time of the failed attempt,
+and with nothing to count from it is the time since boot, marked `up` so the two
+are not mistaken for each other.
+
+The row holds 21 characters and the buffer it is composed in is exactly that
+size, so a long reason keeps its front and loses its tail rather than wrapping
+onto a line that would be drawn off the bottom edge.
 
 Even a failing `transport->begin()` is flagged as an error, so for instance a
 wrong WiFi password shows up right at boot rather than only after the first send
@@ -944,42 +954,245 @@ the bytes it is still owed, which completes the send it was waiting for. Zeroes,
 because the server recognises the version byte and drops the packet with one line
 in its log; a second copy of a real measurement would be worse.
 
-Beyond that the remedies escalate with the number of consecutive failures, one
-every `SEND_INTERVAL_MS`:
+Beyond that the remedies escalate with the number of consecutive failures. A
+failing link retries every `RETRY_INTERVAL_MS` rather than every
+`SEND_INTERVAL_MS`, so the whole ladder is climbed in about six minutes:
 
 | Failures | What happens |
 |---|---|
 | every one | resynchronise the command channel |
 | 2 | `AT+CIPCLOSE` and `AT+NETCLOSE`; the next send reopens both |
-| 4 | `AT+CRESET`, then the whole `begin()` sequence again |
-| 6 | the Pico reboots itself |
+| 4 | restart the module, then the whole `begin()` sequence again |
+| 6, and half an hour up | the Pico reboots itself, if it is allowed to |
 
-The reboot is the last resort, and only for a device that has sent successfully
-before: one that never has is missing an antenna, a SIM or an APN, and restarting
-it every half hour would turn a fixable mistake into a boot loop that hides the log
-explaining it.
+The module restarts escalate in turn, counted in how many have been spent since
+a send last got through:
 
-The bottom row of the display says which step of the way it failed — `NO MODEM`,
-`NO NET`, `NO LINK`, `NO PROMPT`, `NO ACK`, or on WiFi `NO WIFI`, `NO HOST`,
-`NO SEND` — because "FAIL!" on its own says that something is wrong but not
-whether to check the antenna, the SIM, the coverage or the server.
+| Restart | What | Why this one |
+|---|---|---|
+| 1st | `AT+CRESET` | the vendor's own reset, and the cheapest |
+| 2nd | a pulse on the `RST` line | the only rung that does not need the module to be listening — **present only if the wire is** |
+| 3rd | `AT&F` then `AT+CFUN=1,1` | a corrupted command profile is thrown away, and 3GPP's reset reaches the module through different code than the vendor's |
+| 4th on | the last two again, plus `CUT POWER` on the display | nothing within reach is left |
+
+They are ordered by how little each needs from the module. Without a wire the
+middle rung is simply absent and the ladder is one shorter, so the display
+reaches `CUT POWER` a step sooner — which is the honest outcome, because there
+genuinely is less that can be done.
+
+Each restart is followed by a wait — up to `NBIOT_RESET_RECOVERY_MS` — for the
+module to answer `AT` again. The wait is not what it is for; the next send is a
+minute away regardless. It is so that "the reset worked" and "the module never
+came back" are two different lines in the log rather than the same silence.
+
+`AT&F` is safe to send here for two reasons worth writing down: `begin()` sets
+everything it needs again immediately afterwards, and the module's factory baud
+rate is the same `NBIOT_BAUD` the UART is already open at, so the two cannot end
+up talking past each other.
+
+In practice the ladder plays out like this, at the 60-second retry interval:
+
+```
+with the RST wire:              without it:
+ 4:30  AT+CRESET                 4:30  AT+CRESET
+ 9:00  pulse the RST line        9:00  AT&F + AT+CFUN=1,1
+13:30  AT&F + AT+CFUN=1,1       13:30  nothing left — CUT POWER
+18:00  nothing left — CUT POWER
+30:00  the Pico reboots, and the ladder starts again from the bottom
+```
+
+##### What no command can do
+
+Every rung above except the `RST` line needs the module to still be parsing AT
+commands, and the failure they are most needed for is exactly the one where it
+is not. There is no *command* that fixes a module that has stopped listening — a
+bigger reset is another rung on the same ladder, not a substitute. That is the
+whole argument for the wire: it is the one remedy on the list that goes around
+the firmware instead of through it.
+
+It is still not a power cycle. The module stays powered and its reset only
+restarts its processor, which covers most of the ways a module gets stuck but
+not all of them.
+
+> **`AT+CPOF` is not the answer, and is worth naming so that nobody reaches for
+> it later.** It powers the module down, and on this HAT nothing can power it
+> back up: a module comes back from `PWRKEY`, and `PWRKEY` is not brought out to
+> the control header at all. A device that ran it would go quiet until somebody
+> walked up to it and pressed the onboard button — turning a fault that might
+> have cleared on its own into one that certainly will not.
+
+So `CUT POWER` on the bottom row is not a diagnosis but an instruction, and it
+is the honest thing for the display to say at that point. `PWRKEY` is not an
+option here — it is not brought out to the control header — so the only thing
+that would extend this ladder further is a load switch on the HAT's 5 V. Until
+there is one, the last rung is a person.
+
+Two things hold the reboot back. A failure that is waiting for a person rather
+than for time to pass — `Transport::needsHumanHelp()`, which the SIM7028 reports
+after the card has refused its PIN — is never rebooted into, because the restart
+would only repeat the attempt that failed, and for a PIN that costs one of the
+three the card allows. And a boot has to be `MIN_UPTIME_BEFORE_REBOOT_MS` old,
+half an hour, before it may end itself: a device that is misconfigured rather
+than stuck would otherwise restart every few minutes and roll the explanation off
+the top of the serial log.
+
+> **What the uptime rule replaced.** The reboot used to be allowed only for a
+> device that had sent something successfully at least once. That flag lived in
+> RAM, so the reboot it authorised also cleared it — and a device that rebooted
+> and then failed to get its first send through had, by that one act, switched
+> its own last resort off for good. The display read `NO MODEM, never sent` and
+> stayed that way. The uptime rule protects the same serial log without handing
+> the device a way to disarm itself.
+
+Note what the reboot cannot do. The modem is powered from VBUS, so restarting
+the Pico restarts this chip and nothing else: the modem keeps whatever state it
+was in, while the Pico comes back with none. With the `RST` line wired the
+firmware can at least restart the module without its cooperation; without that
+wire, `AT+CRESET` is the deepest reset it can reach, and a module that has
+stopped listening to AT commands is past taking it. Neither is a true power
+cycle — that would need the HAT's 5 V behind a load switch, since `PWRKEY` is
+not on the header.
+
+The bottom row of the display says which step of the way it failed:
+
+| Code | Where it stopped |
+|---|---|
+| `NO MODEM` | no answer to `AT` — wiring, power, or the module is off |
+| `NO SIM` | `AT+CPIN?` got no answer at all; is the card in? |
+| `NO PIN` | the card wants a PIN and `NBIOT_SIM_PIN` is empty |
+| `BAD PIN` | the card refused the configured PIN. Not tried again by itself |
+| `SIM PUK` | the card has used its three attempts and wants the PUK |
+| `SIM ???` | `AT+CPIN?` answered something none of the above |
+| `SIM SLOW` | the PIN was accepted but the card never became ready |
+| `NO APN` | `AT+CGDCONT` was refused |
+| `NO NET s<n> q<n>` | not registered; see below |
+| `NO LINK` | `AT+CIPOPEN` failed |
+| `NO PROMPT` | `AT+CIPSEND` never answered `>` |
+| `NO ACK` | the payload went out but was not acknowledged |
+| `CUT POWER` | every reset has been tried; see above |
+| `NO WIFI` / `NO HOST` / `NO SEND` | the WiFi transport's three |
+
+`NO NET` carries its two numbers because it is the one failure whose code alone
+still leaves a reader guessing: `s` is the `+CEREG` state and `q` the `+CSQ`
+signal. `q99` is no signal being measured at all, which is a detached or
+unscrewed antenna and a job for a screwdriver; a decent `q` with `s2` is a modem
+that can hear the network and is not being let onto it, which is a job for the
+operator. The same walk to the shed, but not the same thing to take along.
+
+##### The command channel has to be drained, not just forgotten
+
+Every AT command starts by emptying the UART's receive buffer as well as the
+sketch's own. This is not tidiness. Anything the module said that nobody
+collected — the tail of a response a timeout walked away from, the rest of a line
+after an `ERROR`, an unsolicited `+CEREG:` as it loses the network — stays in the
+receive buffer and is read back as the answer to whatever is asked next. One such
+leftover puts the whole exchange a reply out of step, and it stays there: every
+command is then answered by the one before it, every answer looks wrong, and
+nothing in the sequence ever puts it right. The module is fine and the link never
+works again.
+
+The corollary, which is easy to get backwards: the buffer is cleared **before**
+each write, never after. Clearing it after the payload of a `CIPSEND` has gone
+out can throw away the acknowledgement that is already on its way back.
+
+#### The hardware watchdog
+
+`rp2040.wdt_begin(WATCHDOG_TIMEOUT_MS)` at the end of `setup()`, for the hang
+that no amount of link logic can see. Two details make it usable here rather than
+a source of boot loops:
+
+- **It is armed last.** Bringing up the modem can take a minute, and a watchdog
+  armed before that would turn a slow boot into a loop that hides the console
+  output explaining the slowness.
+- **`transportIdle()` feeds it, not just `loop()`.** The watchdog tops out at
+  about eight seconds and a legitimate send is allowed twenty, so feeding it only
+  from `loop()` would reset the device mid-transmission. Every wait loop in
+  `Transport.h` already calls `transportIdle()` to keep BLE alive; a wait that is
+  progressing therefore feeds the dog, and one that has stopped does not.
 
 ##### Wiring
 
 The board has two separate headers, and it matters which pin comes from which.
-The UART comes from the 8-pin control header, power from the 40-pin Raspberry Pi
+The UART comes from the control header, power from the 40-pin Raspberry Pi
 header or from the board's own USB-C.
+
+The control header is **H2, and it has nine pins**, not eight — worth saying
+because it is easy to miscount and land a wire one position out:
+
+| H2 pin | Net | Notes |
+|---|---|---|
+| 1 | `VBAT` | battery rail, 2.2–4.3 V. **Never 5 V** — see below |
+| 2 | `GND` | |
+| 3 | `RXD1` | module input ← Pico GP0 (UART0 TX) |
+| 4 | `TXD1` | module output → Pico GP1 (UART0 RX) |
+| 5 | `WAKE` | through R9, marked `NC/0R` — probably unpopulated |
+| 6 | `RI` | through R10, marked `NC/0R` — probably unpopulated |
+| 7 | `RST` | reset, active **high**. See below |
+| 8 | `GND` | |
+| 9 | `BOOT` | firmware download select. **Not a second reset** |
+
+What is wired:
 
 | SIM7028 HAT | From which header | Pico 2 W | Physical pin |
 |---|---|---|---|
-| RX | 8-pin control header | GP0 (UART0 TX) | 1 |
-| TX | 8-pin control header | GP1 (UART0 RX) | 2 |
+| RX | H2 pin 3 | GP0 (UART0 TX) | 1 |
+| TX | H2 pin 4 | GP1 (UART0 RX) | 2 |
 | GND | either | GND | 3 |
 | 5V | **40-pin header, pin 2 or 4** | VBUS | 40 |
+| RST | H2 pin 7 | GP2, optional | 4 |
 
 The HAT's logic level defaults to 3.3 V, directly compatible with the Pico. The
 names are from the module's point of view: the HAT's RX is an input, so the
 Pico's TX goes there.
+
+`PWRKEY` is **not** on this header. It exists on the board, with the onboard
+button K1 on it, but it is not brought out — so the graceful power-down-and-up
+that a SIMCom module normally offers is not reachable without soldering to the
+board, and is not worth it.
+
+##### RST and BOOT: what they are, and why only one of them is useful
+
+They look like a matched pair on the silkscreen and are not. `RST` restarts the
+module. `BOOT` decides what it restarts *into*.
+
+`BOOT` is the download control pin: asserted at startup, the module comes up
+waiting for a firmware image over the UART instead of running its own firmware.
+From the Pico's side that is indistinguishable from a dead modem. Together the
+two are a way to force a reflash — hold `BOOT`, pulse `RST` — which is a service
+operation, not a runtime one. **Do not wire `BOOT` into anything that runs by
+itself.** Its only possible effect on this device is to make the modem silent in
+a way no code here can undo.
+
+`RST` is worth a wire, and is the one rung of the recovery ladder that does not
+need the module to still be listening.
+
+##### ⚠️ Both are active HIGH, and driven push-pull
+
+Not the open-drain, active-low arrangement a bare SIMCom pin wants — the HAT has
+buffered them. Each header pin goes through 4.7 kΩ into the base of an MMBT3904
+NPN (Q1 for `RST`, Q3 for `BOOT`) with 47 kΩ from base to ground, emitter
+grounded, collector on the module's own line. The transistor inverts, so:
+
+- **Drive the pin HIGH to assert.** An ordinary `pinMode(OUTPUT)` and
+  `digitalWrite(HIGH)` from 3.3 V is correct and safe.
+- **An undriven pin is inactive.** The 47 kΩ base pull-down holds it there, so a
+  Pico sitting in reset does not drag the modem down with it.
+
+The buffering is there because the module's own IO sits in a 1.8 V domain — the
+board carries a TXB0104 level shifter between `VDD_1.8V` and `VDD_3.3V`, and an
+`IO_1833_SEL` pin to pick the domain. Driving the module's pins directly at
+3.3 V would not be safe; driving the header's is.
+
+Source: [SIM7028-NB-IoT-HAT-Schematic.pdf](https://files.waveshare.com/wiki/SIM7028-NB-IoT-HAT/SIM7028-NB-IoT-HAT-Schematic.pdf),
+sheet 1 (H2, Q1/R5/R6, Q3/R19/R21, U3 TXB0104).
+
+Wiring it is one line of configuration — `NBIOT_RESET_PIN` in config.h, which
+defaults to unset. The pulse width, `NBIOT_RESET_PULSE_MS`, lives in
+`Transport.h` instead, because it is a property of the module rather than of
+anyone's installation. **It has not been checked against the SIM7028 hardware
+design document**, which would not be fetched from either source that carries
+it; 200 ms is a deliberate overestimate of the ~100 ms SIMCom modules usually
+want. If a reset does not take, that number is the first thing to look at.
 
 ##### ⚠️ Do not feed 5 V into the VBAT pin
 
@@ -1071,7 +1284,7 @@ If `AT` gets no answer, work through this in order:
    goes there. If in doubt, try swapping.
 5. **Are all jumper caps removed?** A cap in position A puts the board's own USB
    serial chip on the same lines, competing with the Pico.
-6. **The right header?** The UART is on the 8-pin control header. If you use the
+6. **The right header?** The UART is on the control header, H2. If you use the
    40-pin header, the caps have to be in position B.
 
 If none of that resolves it, enable **`NBIOT_SERIAL_BRIDGE`** in config.h. The

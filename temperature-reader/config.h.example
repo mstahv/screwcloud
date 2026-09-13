@@ -150,6 +150,34 @@ static const unsigned long NBIOT_NETOPEN_TIMEOUT_MS = 120000;
 static const char NBIOT_SIM_PIN[] = "";
 
 /*
+   Optional: the HAT's reset line on a GPIO.
+
+   Worth wiring, because it is the only reset here that does not need the module
+   to still be listening. AT+CRESET and AT+CFUN=1,1 both have to be parsed by
+   the firmware that has stopped working; this one goes around it. Without it
+   the recovery ladder ends one rung earlier and the display asks for the plug
+   instead.
+
+   Wire the control header's pin 7 (RST) to any free GPIO. GP2 (physical pin 4)
+   sits next to the UART pins and GND, which keeps the loom tidy. Taken:
+   GP0, GP1 (UART), GP15 (DHT22), GP17-GP21 (OLED and SPI).
+
+   ACTIVE HIGH, and driven push-pull — not the open-drain arrangement a bare
+   SIMCom pin would want. The HAT puts the header pin on the base of an NPN
+   (Q1, 4.7k in series, 47k to ground) whose collector holds the module's reset,
+   so the transistor inverts: driving this pin HIGH is what pulls the module's
+   own reset line LOW. The base pull-down means an undriven pin leaves the
+   module running, so a Pico that is resetting does not drag the modem down
+   with it.
+
+   Do NOT wire pin 9 (BOOT) here. It is not a second reset: it selects firmware
+   download mode, and a module started with it asserted sits waiting for an
+   image over the UART instead of running its own firmware — indistinguishable,
+   from here, from a dead modem.
+*/
+//#define NBIOT_RESET_PIN 2
+
+/*
    Print all AT traffic to the serial console. Worth keeping on until the
    connection has been proven to work.
 */
