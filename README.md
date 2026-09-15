@@ -895,42 +895,80 @@ which are Waveshare's own example's — and the far end's counterparts are
 
 ### Protocol
 
-A raw binary UDP packet, fixed size and big endian. No JSON and no HTTP, because
-NB-IoT traffic is metered.
+A raw binary UDP packet, big endian. No JSON and no HTTP, because NB-IoT traffic
+is metered.
 
 ```
-Header (8 bytes)                Sensor (8 bytes), repeated count times
-0     version   uint8 = 1       0..3  id           4 x ASCII, space padded
-1..4  deviceId  4 x ASCII       4..5  temperature  int16, 0.01 °C
-5     count     uint8           6..7  humidity     uint16, 0.01 %RH
-6..7  sequence  uint16
+Header (8 bytes)                Sensor record, 5 bytes and then its fields
+0     version   uint8 = 2       0..3  id      4 x ASCII, space padded
+1..4  deviceId  4 x ASCII       4     fields  uint8
+5     count     uint8           then 3 bytes per field:
+6..7  sequence  uint16            0    type   uint8, from the registry
+                                  1..2 value  uint16 or int16
 ```
 
-Missing values are marked with the sentinels `0x8000` (temperature) and `0xFFFF`
-(humidity), because a fixed size format cannot omit a field. The server turns
-them into nulls. A value that does not fit its field is marked missing — silent
-overflow would be worse, because the server could not tell it from a real
+**A sensor sends only what it measured.** A plain RuuviTag sends two fields and
+costs 11 bytes; a Ruuvi Air sends four and costs 17. A reading the sensor does
+not have is simply absent, and the server reports null for it — there are no
+sentinel values, because a format that can leave a field out does not need any.
+A value that would not survive the round trip is left out for the same reason:
+silent overflow would be worse, because the server could not tell it from a real
 reading.
 
-With three sensors the packet is 32 bytes. **There is no point optimising below
-that:** the IP and UDP headers already take 28 bytes, so halving the payload
-would save barely a tenth of the total traffic.
+The field type registry, which lives in `Protocol.h` and is checked against the
+readers by `ProtocolSyncTest`:
 
-The format is extended by bumping the version byte, not by quietly adding
-fields. The server rejects an unknown version rather than misinterpreting it.
+| Type | Measurement | Unit |
+|---|---|---|
+| 1 | temperature | int16, 0.01 °C |
+| 2 | humidity | uint16, 0.01 %RH |
+| 3 | pressure | uint16, 0.1 hPa — *reserved, not sent yet* |
+| 4 | CO₂ | uint16, ppm |
+| 5 | PM2.5 | uint16, 0.1 µg/m³ |
+| 6 | VOC index | uint16 — *reserved* |
+| 7 | NOx index | uint16 — *reserved* |
+
+**Numbers are permanent.** A type means one measurement with one scaling, in
+every firmware and every reader, forever; a new measurement takes the next free
+number rather than reusing one. Two implementations disagreeing about what 4
+means would file carbon dioxide as particulates and nothing would look broken.
+
+**An unknown type is stepped over, not refused.** Every field is the same three
+bytes, so a reader that has never heard of a type skips it and keeps the rest.
+That is what lets a firmware start reporting something before a server knows
+what to do with it — the alternative would throw away the temperature in the same
+packet over a field nobody asked for.
+
+#### Version 1 is still spoken
+
+The original format was a fixed 8-byte sensor record — temperature and humidity,
+with `0x8000` and `0xFFFF` standing in for a missing value — and it had no room
+for a third measurement. That is what the Ruuvi Air wanted, and
+[protocol-evolution.md](protocol-evolution.md) is where the alternatives were
+worked through and this one chosen.
+
+**Nothing has to be upgraded.** A device flashed before the change keeps sending
+version 1 and is none the wiser; the server decodes both, and the version byte
+being the first thing read is what makes that possible. That was the whole point
+of having it.
+
+With three plain sensors the packet is 41 bytes. **There is no point optimising
+below that:** the IP and UDP headers already take 28 bytes, so halving the
+payload would save barely a tenth of the total traffic.
 
 #### What that costs on a metered SIM
 
 Worth doing the arithmetic once, because it decides whether the whole NB-IoT idea
 is affordable. With the defaults — a five-minute interval and three sensors —
-there are 288 sends a day of 60 bytes each on the IP layer:
+there are 288 sends a day of 69 bytes each on the IP layer — 41 of payload and
+28 of IP and UDP headers:
 
 | Traffic | Amount |
 |---|---|
-| per day | **17.3 kB** |
-| per month | 0.52 MB |
-| per year | 6.3 MB |
-| time to reach 1 MB | 58 days |
+| per day | **19.9 kB** |
+| per month | 0.60 MB |
+| per year | 7.3 MB |
+| time to reach 1 MB | 50 days |
 
 Nothing else is on the wire: UDP means the server never answers, and
 `SERVER_HOST` is an IP address so there are no DNS lookups. Operator signalling —
@@ -938,39 +976,48 @@ attach, tracking area updates — is normally not billed as data, though that is
 worth confirming with yours.
 
 At the Telia Prepaid rate this project uses, **0.01 €/MB with a 0.99 €/day cap**,
-that is 0.017 cents a day, or **about 6 cents a year**. The daily cap is
-unreachable: hitting it would take 99 MB a day, a packet every 52 ms. Even the
+that is 0.02 cents a day, or **about 7 cents a year**. The daily cap is
+unreachable: hitting it would take 99 MB a day, a packet every 60 ms. Even the
 worst failure mode stays far below it — if the link breaks and `RETRY_INTERVAL_MS`
-takes over at one minute, the day's traffic is 86 kB.
+takes over at one minute, the day's traffic is 99 kB.
 
 **Rounding matters far more than the bytes do.** At these volumes, whatever
 minimum unit the operator meters in dominates the bill:
 
 | If billing rounds up | per day | per year |
 |---|---|---|
-| actual bytes | 0.00017 € | 0.06 € |
+| actual bytes | 0.0002 € | 0.07 € |
 | to 100 kB per day | 0.001 € | 0.36 € |
 | to 1 MB per day | 0.01 € | 3.65 € |
 
-So a rounded megabyte per day costs 58 times the actual traffic — and it is still
+So a rounded megabyte per day costs 50 times the actual traffic — and it is still
 under four euros a year. Prepaid SIMs usually also require periodic top-ups to
 stay valid, which at this consumption will cost more than the data ever does.
 
 The send interval is the only real lever; the number of sensors barely registers,
-because with three sensors 47 % of every packet is already IP and UDP headers:
+because with three plain sensors 41 % of every packet is already IP and UDP
+headers, and a sensor that measures nothing extra costs 9 bytes:
 
 | Interval | Per day | Per month |
 |---|---|---|
-| 1 min | 86.4 kB | 2.59 MB |
-| **5 min (default)** | **17.3 kB** | **0.52 MB** |
-| 15 min | 5.8 kB | 0.17 MB |
-| 60 min | 1.4 kB | 0.04 MB |
+| 1 min | 99.4 kB | 2.98 MB |
+| **5 min (default)** | **19.9 kB** | **0.60 MB** |
+| 15 min | 6.6 kB | 0.20 MB |
+| 60 min | 1.7 kB | 0.05 MB |
 
-| Sensors | Packet | Per day |
+Plain sensors, two fields each:
+
+| Sensors | Payload | Per day |
 |---|---|---|
-| 2 | 24 B | 15.0 kB |
-| 3 | 32 B | 17.3 kB |
-| 8 (the maximum) | 72 B | 28.8 kB |
+| 2 | 30 B | 16.7 kB |
+| 3 | 41 B | 19.9 kB |
+| 8 (the maximum) | 96 B | 35.7 kB |
+
+A Ruuvi Air costs 6 bytes more than a plain tag, because it sends two fields
+more. Three of them instead of three tags is 59 bytes of payload and 25.1 kB a
+day — which is the thing worth noticing about type-length-value here: the
+measurement that was impossible in version 1 costs about a quarter more traffic,
+not a different order of magnitude.
 
 Which is the argument for sending several measurements in one packet rather than
 shrinking the payload, if data ever needs saving in earnest.

@@ -46,6 +46,8 @@ public class MeasurementStore {
                         sensor.sensorId(),
                         sensor.temperature(),
                         sensor.humidity(),
+                        sensor.co2(),
+                        sensor.pm25(),
                         measurement.receivedAt(),
                         measurement.sequence()))
                 .toList());

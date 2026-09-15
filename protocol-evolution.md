@@ -1,5 +1,14 @@
 # Does the UDP protocol scale to new kinds of fields?
 
+> **Decided and built, 2026-09.** Option B below is the wire format now: version
+> 2 carries type-length-value fields per sensor, and CO₂ and PM2.5 travel from a
+> Ruuvi Air to the server and onto the card. Version 1 is still decoded and still
+> sent by every device flashed before the change. The column question at the end
+> was answered the way this memo recommended — two nullable columns, `V12`.
+>
+> What follows is the reasoning as it stood before any of it was written, kept
+> because the alternatives it rejects are the ones somebody will propose again.
+
 Prompted by the Ruuvi Air: a device that measures CO₂, particulate matter, VOC
 and NOx alongside the temperature and humidity every other sensor has. The
 pi-reader decodes all of it (see `DataFormat6`), the local page shows the
@@ -82,12 +91,36 @@ degree-days — reads those two by name.
 Columns first, value table only if fields stop being enumerable. Either way
 the retention sweep already covers them: they live in the same rows.
 
-## What is deliberately not done yet
+## What was built, and where it differs from this memo
 
-- v2 itself: no field is wanted on the server end to end yet. The first one
-  that is (CO₂ alerting is the likely candidate) triggers the whole chain:
-  wire type registry, decoder dispatch on the version byte, a column, and a
-  place on the sensor card.
-- Data format E1 (the Air's extended advertisement): finer PM classes and the
+The chain this memo predicted, in the order it names: a type registry in
+`Protocol.h`, decoder dispatch on the version byte, two columns, and a line on
+the sensor card. Three things worth recording because they were not obvious from
+here:
+
+- **The sentinels disappeared rather than carrying over.** This memo says the
+  sentinel discipline carries over unchanged. It does not need to: a format that
+  can leave a field out has nothing to put a sentinel in. What carried over is
+  the *rule* — a value that would not survive the round trip is not sent — and
+  the encoding of it got simpler.
+- **The field numbers are in the registry whether or not anything sends them.**
+  Pressure, VOC and NOx have numbers and no senders. Reserving a number is only
+  worth anything if every implementation reserves the same one, so the sync tests
+  check the reserved ones too.
+- **`LoraPacket` had quietly borrowed the UDP constants.** The relay's peek at a
+  packet used `Protocol.SENSOR_SIZE`, so bumping the format changed what the
+  local page thought it was looking at. It has its own constants now and decodes
+  both versions, which is what it needed all along — the nodes on the far end of
+  that radio run the same `Protocol.h` as everything else.
+
+## What is still deliberately not done
+
+- **Pressure**, which format 5 has carried since the beginning and which has a
+  reserved type number. It needs a column and a place on the card, and nobody has
+  wanted it enough to ask.
+- **VOC and NOx**, decoded by the pi-reader and reserved on the wire. The indices
+  are only meaningful relative to the sensor's own baseline, which is a thing to
+  explain on a card before it is a thing to store.
+- **Data format E1** (the Air's extended advertisement): finer PM classes and the
   full address. The pi-reader hears format 6 with any adapter; E1 is worth
   adding only when a value it alone carries is wanted.

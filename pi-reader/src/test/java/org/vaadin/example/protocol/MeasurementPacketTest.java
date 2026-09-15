@@ -2,6 +2,7 @@ package org.vaadin.example.protocol;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.HexFormat;
@@ -24,9 +25,44 @@ class MeasurementPacketTest {
                 List.of(new SensorReading("R0BF", 21.5, 45.25)));
 
         assertArrayEquals(HexFormat.of().parseHex(
-                //  ver  P  I  0  1  cnt  seq     R  0  B  F   2150   4525
-                    "01" + "50493031" + "01" + "0007" + "52304246" + "0866" + "11AD"),
+                //  ver  P  I  0  1  cnt  seq     R  0  B  F  n  t 2150  t 4525
+                    "01".replace("01", "02") + "50493031" + "01" + "0007"
+                    + "52304246" + "02" + "01" + "0866" + "02" + "11AD"),
                 packet);
+    }
+
+    /**
+     * The packet version 2 exists for: a sensor that measures the air, carrying
+     * four fields where version 1 had room for two.
+     */
+    @Test
+    void aSensorThatMeasuresTheAirSendsFourFields() {
+        byte[] packet = MeasurementPacket.encode("PI01", 1,
+                List.of(new SensorReading("RA01", 21.5, 45.25, 812.0, 6.3)));
+
+        assertArrayEquals(HexFormat.of().parseHex(
+                //  ver  P  I  0  1  cnt  seq     R  A  0  1  n
+                    "02" + "50493031" + "01" + "0001" + "5241" + "3031" + "04"
+                    // t 2150    t 4525    co2 812   pm25 63
+                    + "01" + "0866" + "02" + "11AD" + "04" + "032C" + "05" + "003F"),
+                packet);
+    }
+
+    /**
+     * A plain tag is smaller than it was in version 1, which had eight bytes per
+     * sensor whatever the sensor had to say.
+     */
+    @Test
+    void aSensorOnlySendsWhatItMeasured() {
+        byte[] both = MeasurementPacket.encode("PI01", 0,
+                List.of(new SensorReading("R0BF", 21.5, 45.25)));
+        byte[] temperatureOnly = MeasurementPacket.encode("PI01", 0,
+                List.of(new SensorReading("R0BF", 21.5, null)));
+
+        assertEquals(Protocol.HEADER_SIZE + Protocol.SENSOR_HEADER_SIZE
+                + 2 * Protocol.FIELD_SIZE, both.length);
+        assertEquals(Protocol.HEADER_SIZE + Protocol.SENSOR_HEADER_SIZE
+                + Protocol.FIELD_SIZE, temperatureOnly.length);
     }
 
     /** A short identifier is padded with spaces, which the receiver trims off. */
@@ -45,38 +81,39 @@ class MeasurementPacketTest {
         byte[] packet = MeasurementPacket.encode("PI01", 0,
                 List.of(new SensorReading("R0BF", -12.34, null)));
 
-        assertEquals(-1234, (short) (((packet[12] & 0xFF) << 8) | (packet[13] & 0xFF)));
+        // header 8, id 4, field count 1, then the type byte: the value is at 14.
+        assertEquals(-1234, (short) (((packet[14] & 0xFF) << 8) | (packet[15] & 0xFF)));
     }
 
     /**
-     * A missing value is the format's own sentinel. Sending zero instead would be
-     * indistinguishable from a real zero, and zero degrees is a temperature people
-     * care about.
+     * A missing value is no field at all. Version 1 had to send a sentinel,
+     * because a fixed record cannot leave anything out; here the sensor record
+     * is simply empty, which is both smaller and less to get wrong.
      */
     @Test
-    void aMissingValueIsSentAsTheSentinel() {
+    void aMissingValueIsNoFieldAtAll() {
         byte[] packet = MeasurementPacket.encode("PI01", 0,
                 List.of(new SensorReading("R0BF", null, null)));
 
-        assertEquals(Protocol.TEMPERATURE_INVALID,
-                (short) (((packet[12] & 0xFF) << 8) | (packet[13] & 0xFF)));
-        assertEquals(Protocol.HUMIDITY_INVALID,
-                ((packet[14] & 0xFF) << 8) | (packet[15] & 0xFF));
+        assertEquals(Protocol.HEADER_SIZE + Protocol.SENSOR_HEADER_SIZE, packet.length);
+        assertEquals(0, packet[12], "the sensor should claim no fields");
     }
 
-    /** A value too large for the field is missing rather than wrapped. */
+    /** A value too large for the field is left out rather than wrapped. */
     @Test
     void aValueThatWillNotFitIsMissingRatherThanWrong() {
-        assertEquals(Protocol.TEMPERATURE_INVALID, Protocol.encodeTemperature(400.0));
-        assertEquals(Protocol.TEMPERATURE_INVALID, Protocol.encodeTemperature(Double.NaN));
-        assertEquals(Protocol.HUMIDITY_INVALID, Protocol.encodeHumidity(-1.0));
+        assertNull(Protocol.temperature(400.0));
+        assertNull(Protocol.temperature(Double.NaN));
+        assertNull(Protocol.humidity(-1.0));
+        assertNull(Protocol.co2(70000.0));
+        assertNull(Protocol.pm25(-0.1));
     }
 
     @Test
-    void theLengthFollowsFromTheSensorCount() {
+    void theLengthFollowsFromWhatEachSensorMeasured() {
         assertEquals(Protocol.HEADER_SIZE,
                 MeasurementPacket.encode("PI01", 0, List.of()).length);
-        assertEquals(Protocol.HEADER_SIZE + 3 * Protocol.SENSOR_SIZE,
+        assertEquals(Protocol.HEADER_SIZE + 3 * (Protocol.SENSOR_HEADER_SIZE + Protocol.FIELD_SIZE),
                 MeasurementPacket.encode("PI01", 0, List.of(
                         new SensorReading("A", 1.0, null),
                         new SensorReading("B", 2.0, null),

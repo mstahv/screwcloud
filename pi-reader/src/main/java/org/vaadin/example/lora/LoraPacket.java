@@ -5,8 +5,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.vaadin.example.protocol.Protocol;
-
 /**
  * Just enough of a received packet to say something about it on screen.
  *
@@ -21,20 +19,49 @@ import org.vaadin.example.protocol.Protocol;
  * not look like a measurement is still passed on, because the server is the one
  * that decodes them and it already refuses what it cannot read — with a log line
  * naming the first bytes.
+ *
+ * <p>Both wire versions are taken apart here, because both turn up: the nodes on
+ * the far end of the radio run the same {@code Protocol.h} as everything else,
+ * and one flashed last summer still sends version 1. The relay does not care
+ * either way — the bytes go on untouched whatever they are — so this is only
+ * about what the local page can say about them.
+ *
+ * <p>The sizes below are this class's own rather than {@code Protocol}'s, which
+ * describes the version being sent today. Version 1's shape has to stay written
+ * down somewhere for as long as a device somewhere still speaks it, and a
+ * constant shared with the format that moved on is a constant that silently
+ * stops describing what it is used for.
  */
 public record LoraPacket(byte[] bytes, int rssiDbm, double snrDb) {
 
+    private static final int VERSION_LEGACY = 1;
+    private static final int VERSION = 2;
+
+    private static final int HEADER_SIZE = 8;
+    private static final int ID_SIZE = 4;
+
+    /* Version 1: a fixed record, and the sentinels a fixed record needs. */
+    private static final int LEGACY_SENSOR_SIZE = 8;
+    private static final short TEMPERATURE_INVALID = (short) 0x8000;
+    private static final int HUMIDITY_INVALID = 0xFFFF;
+
+    /* Version 2: the record header, and one field. */
+    private static final int SENSOR_HEADER_SIZE = 5;
+    private static final int FIELD_SIZE = 3;
+    private static final int FIELD_TEMPERATURE = 1;
+    private static final int FIELD_HUMIDITY = 2;
+
     /** The device identifier in the header, or empty if there is no room for one. */
     public String deviceId() {
-        if (bytes.length < Protocol.HEADER_SIZE) {
+        if (bytes.length < HEADER_SIZE) {
             return "";
         }
-        return new String(bytes, 1, Protocol.ID_SIZE, StandardCharsets.US_ASCII).trim();
+        return new String(bytes, 1, ID_SIZE, StandardCharsets.US_ASCII).trim();
     }
 
     /** How many sensors the header claims, whether or not the bytes back it up. */
     public int sensorCount() {
-        if (bytes.length < Protocol.HEADER_SIZE) {
+        if (bytes.length < HEADER_SIZE) {
             return 0;
         }
         return bytes[5] & 0xFF;
@@ -46,13 +73,14 @@ public record LoraPacket(byte[] bytes, int rssiDbm, double snrDb) {
      * packet is still relayed.
      */
     public boolean looksLikeAMeasurement() {
-        if (bytes.length < Protocol.HEADER_SIZE) {
+        if (bytes.length < HEADER_SIZE) {
             return false;
         }
-        if ((bytes[0] & 0xFF) != Protocol.VERSION) {
-            return false;
+        int version = bytes[0] & 0xFF;
+        if (version == VERSION_LEGACY) {
+            return bytes.length == HEADER_SIZE + sensorCount() * LEGACY_SENSOR_SIZE;
         }
-        return bytes.length == Protocol.HEADER_SIZE + sensorCount() * Protocol.SENSOR_SIZE;
+        return version == VERSION && walk(null);
     }
 
     /**
@@ -77,20 +105,83 @@ public record LoraPacket(byte[] bytes, int rssiDbm, double snrDb) {
             return List.of();
         }
         List<RelayedReading> readings = new ArrayList<>(sensorCount());
-        for (int i = 0; i < sensorCount(); i++) {
-            int at0 = Protocol.HEADER_SIZE + i * Protocol.SENSOR_SIZE;
-            String sensorId = new String(bytes, at0, Protocol.ID_SIZE,
-                    StandardCharsets.US_ASCII).trim();
-
-            short rawTemperature = (short) (((bytes[at0 + 4] & 0xFF) << 8) | (bytes[at0 + 5] & 0xFF));
-            int rawHumidity = ((bytes[at0 + 6] & 0xFF) << 8) | (bytes[at0 + 7] & 0xFF);
-
-            readings.add(new RelayedReading(deviceId(), sensorId, sensorCount() == 1,
-                    rawTemperature == Protocol.TEMPERATURE_INVALID ? null : rawTemperature / 100.0,
-                    rawHumidity == Protocol.HUMIDITY_INVALID ? null : rawHumidity / 100.0,
-                    (short) rssiDbm, at));
+        if ((bytes[0] & 0xFF) == VERSION_LEGACY) {
+            for (int i = 0; i < sensorCount(); i++) {
+                int at0 = HEADER_SIZE + i * LEGACY_SENSOR_SIZE;
+                short rawTemperature =
+                        (short) (((bytes[at0 + 4] & 0xFF) << 8) | (bytes[at0 + 5] & 0xFF));
+                int rawHumidity = ((bytes[at0 + 6] & 0xFF) << 8) | (bytes[at0 + 7] & 0xFF);
+                readings.add(reading(idAt(at0),
+                        rawTemperature == TEMPERATURE_INVALID ? null : rawTemperature / 100.0,
+                        rawHumidity == HUMIDITY_INVALID ? null : rawHumidity / 100.0, at));
+            }
+            return readings;
         }
+        walk(record -> readings.add(
+                reading(record.id(), record.temperature(), record.humidity(), at)));
         return readings;
+    }
+
+    /** One decoded sensor record, before it becomes something the page shows. */
+    private record Record(String id, Double temperature, Double humidity) {
+    }
+
+    /**
+     * Steps through a version 2 body, handing each sensor to {@code found}.
+     *
+     * <p>One walk for both jobs — checking that the frame hangs together, and
+     * reading what is in it — because in a variable length format those are the
+     * same act. A null consumer means only the first is wanted.
+     *
+     * <p>Fields this does not recognise are stepped over rather than refused.
+     * The page shows a temperature and a humidity; a node that has started
+     * reporting carbon dioxide over the radio is relayed intact to the server,
+     * which does know what to do with it, and is not made to look broken here in
+     * the meantime.
+     *
+     * @return whether the packet's own lengths add up
+     */
+    private boolean walk(java.util.function.Consumer<Record> found) {
+        int at0 = HEADER_SIZE;
+        for (int i = 0; i < sensorCount(); i++) {
+            if (at0 + SENSOR_HEADER_SIZE > bytes.length) {
+                return false;
+            }
+            String id = idAt(at0);
+            int fields = bytes[at0 + ID_SIZE] & 0xFF;
+            int body = at0 + SENSOR_HEADER_SIZE;
+            if (body + fields * FIELD_SIZE > bytes.length) {
+                return false;
+            }
+
+            Double temperature = null;
+            Double humidity = null;
+            for (int field = 0; field < fields; field++) {
+                int at1 = body + field * FIELD_SIZE;
+                int type = bytes[at1] & 0xFF;
+                int raw = ((bytes[at1 + 1] & 0xFF) << 8) | (bytes[at1 + 2] & 0xFF);
+                if (type == FIELD_TEMPERATURE) {
+                    temperature = (short) raw / 100.0;
+                } else if (type == FIELD_HUMIDITY) {
+                    humidity = raw / 100.0;
+                }
+            }
+            if (found != null) {
+                found.accept(new Record(id, temperature, humidity));
+            }
+            at0 = body + fields * FIELD_SIZE;
+        }
+        return at0 == bytes.length;
+    }
+
+    private String idAt(int offset) {
+        return new String(bytes, offset, ID_SIZE, StandardCharsets.US_ASCII).trim();
+    }
+
+    private RelayedReading reading(String sensorId, Double temperature, Double humidity,
+                                   Instant at) {
+        return new RelayedReading(deviceId(), sensorId, sensorCount() == 1,
+                temperature, humidity, (short) rssiDbm, at);
     }
 
     /** One line for the page, in the terms a reader cares about. */

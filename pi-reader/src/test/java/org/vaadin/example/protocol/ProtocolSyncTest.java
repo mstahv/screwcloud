@@ -56,16 +56,36 @@ class ProtocolSyncTest {
     void theHeaderSizesMatch() {
         assertEquals(constant("PROTOCOL_VERSION"), Protocol.VERSION);
         assertEquals(constant("PROTOCOL_HEADER_SIZE"), Protocol.HEADER_SIZE);
-        assertEquals(constant("PROTOCOL_SENSOR_SIZE"), Protocol.SENSOR_SIZE);
         assertEquals(constant("PROTOCOL_ID_SIZE"), Protocol.ID_SIZE);
         assertEquals(constant("PROTOCOL_MAX_SENSORS"), Protocol.MAX_SENSORS);
     }
 
     @Test
-    void theSentinelsMatch() {
-        assertEquals(constant("PROTOCOL_TEMPERATURE_INVALID"),
-                Protocol.TEMPERATURE_INVALID & 0xFFFF);
-        assertEquals(constant("PROTOCOL_HUMIDITY_INVALID"), Protocol.HUMIDITY_INVALID);
+    void theSensorRecordSizesMatch() {
+        assertEquals(constant("PROTOCOL_SENSOR_HEADER_SIZE"), Protocol.SENSOR_HEADER_SIZE);
+        assertEquals(constant("PROTOCOL_FIELD_SIZE"), Protocol.FIELD_SIZE);
+        assertEquals(constant("PROTOCOL_MAX_FIELDS"), Protocol.MAX_FIELDS);
+    }
+
+    /**
+     * The registry numbers, which are the part that must never drift: a type
+     * means one measurement with one scaling, in every firmware and every
+     * reader, forever. Two implementations disagreeing about what 4 means would
+     * file carbon dioxide as particulates and nothing would look broken.
+     *
+     * <p>The reserved ones are checked too, even though nothing sends them yet.
+     * Reserving a number is only worth anything if both sides reserve the same
+     * one.
+     */
+    @Test
+    void theFieldTypeRegistryMatches() {
+        assertEquals(constant("PROTOCOL_FIELD_TEMPERATURE"), Protocol.FIELD_TEMPERATURE);
+        assertEquals(constant("PROTOCOL_FIELD_HUMIDITY"), Protocol.FIELD_HUMIDITY);
+        assertEquals(constant("PROTOCOL_FIELD_PRESSURE"), Protocol.FIELD_PRESSURE);
+        assertEquals(constant("PROTOCOL_FIELD_CO2"), Protocol.FIELD_CO2);
+        assertEquals(constant("PROTOCOL_FIELD_PM25"), Protocol.FIELD_PM25);
+        assertEquals(constant("PROTOCOL_FIELD_VOC"), Protocol.FIELD_VOC);
+        assertEquals(constant("PROTOCOL_FIELD_NOX"), Protocol.FIELD_NOX);
     }
 
     /**
@@ -76,14 +96,29 @@ class ProtocolSyncTest {
      */
     @Test
     void theScalingIsStillAHundredthAndStillRounded() {
-        assertTrue(expression("encodeTemperature").contains("celsius * 100.0f"),
-                "temperature scaling changed in the firmware: " + expression("encodeTemperature"));
-        assertTrue(expression("encodeTemperature").contains("lroundf"),
+        assertTrue(expression("addTemperature").contains("celsius * 100.0f"),
+                "temperature scaling changed in the firmware: " + expression("addTemperature"));
+        assertTrue(expression("addTemperature").contains("lroundf"),
                 "the firmware stopped rounding temperatures");
-        assertTrue(expression("encodeHumidity").contains("percent * 100.0f"),
-                "humidity scaling changed in the firmware: " + expression("encodeHumidity"));
-        assertTrue(expression("encodeHumidity").contains("lroundf"),
-                "the firmware stopped rounding humidities");
+        assertTrue(expression("addScaled").contains("lroundf"),
+                "the firmware stopped rounding the scaled fields");
+    }
+
+    /**
+     * The scale each unsigned field is sent in, which since version 2 lives at
+     * the call rather than in a function of its own. A hundredth for humidity, a
+     * whole ppm for carbon dioxide, a tenth for particulates — get one of these
+     * wrong in one implementation and the number is off by a factor of ten in a
+     * way nothing else notices.
+     */
+    @Test
+    void theUnsignedFieldsAreSentInTheSameUnits() {
+        assertTrue(call("PROTOCOL_FIELD_HUMIDITY").contains("100.0f"),
+                "humidity scaling changed in the firmware: " + call("PROTOCOL_FIELD_HUMIDITY"));
+        assertTrue(call("PROTOCOL_FIELD_CO2").contains("1.0f"),
+                "CO2 scaling changed in the firmware: " + call("PROTOCOL_FIELD_CO2"));
+        assertTrue(call("PROTOCOL_FIELD_PM25").contains("10.0f"),
+                "PM2.5 scaling changed in the firmware: " + call("PROTOCOL_FIELD_PM25"));
     }
 
     /**
@@ -92,8 +127,15 @@ class ProtocolSyncTest {
      */
     @Test
     void roundingAgreesWithTheFirmwareAtAHalf() {
-        assertEquals(2145, Protocol.encodeTemperature(21.445));
-        assertEquals(-1235, Protocol.encodeTemperature(-12.345));
+        assertEquals(2145, Protocol.temperature(21.445).value());
+        assertEquals(-1235, (short) Protocol.temperature(-12.345).value());
+    }
+
+    /** The {@code addScaled} call that sends one field, with its scale and limit. */
+    private static String call(String fieldType) {
+        Matcher matcher = Pattern.compile("addScaled\\([^;]*" + fieldType + "[^;]*;").matcher(source);
+        assertTrue(matcher.find(), fieldType + " is not sent by " + HEADER);
+        return matcher.group();
     }
 
     private static int constant(String name) {

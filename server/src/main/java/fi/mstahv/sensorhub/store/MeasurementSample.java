@@ -25,8 +25,11 @@ import fi.mstahv.sensorhub.validation.SensorId;
  * form "this sensor's values over this interval". The packet's sequence number
  * is kept on every row so readings from the same packet can be identified.
  *
- * <p>Temperature and humidity may be null: in the fixed size protocol a missing
- * value arrives as a sentinel, and that is a different thing from zero.
+ * <p>Every reading may be null, and null is a different thing from zero: it
+ * means the sensor did not send that value. Most sensors send two of the four —
+ * the air columns belong to a Ruuvi Air and are empty for every plain tag, which
+ * is the same shape this table already had for the humidity a RuuviTag Pro 2in1
+ * never reports.
  */
 @Entity
 @Table(name = "measurement_sample", indexes = {
@@ -70,6 +73,18 @@ public class MeasurementSample {
     @DecimalMin(value = "0", message = "Humidity cannot be negative")
     private Double humidity;
 
+    /*
+       Air quality, from a Ruuvi Air. Negative is impossible for both — there is
+       no such thing as less than no carbon dioxide — and as with the two above,
+       no upper limit: a room that has been shut for a week and a reading taken
+       beside a fire are both the sensor telling the truth as it sees it.
+    */
+    @DecimalMin(value = "0", message = "A CO2 concentration cannot be negative")
+    private Double co2;
+
+    @DecimalMin(value = "0", message = "A particulate concentration cannot be negative")
+    private Double pm25;
+
     @NotNull
     @Column(nullable = false)
     private Instant receivedAt;
@@ -83,12 +98,20 @@ public class MeasurementSample {
     protected MeasurementSample() {
     }
 
+    /** A sensor that measures only temperature and humidity, which is most of them. */
     public MeasurementSample(String deviceId, String sensorId, Double temperature, Double humidity,
                              Instant receivedAt, int sequence) {
+        this(deviceId, sensorId, temperature, humidity, null, null, receivedAt, sequence);
+    }
+
+    public MeasurementSample(String deviceId, String sensorId, Double temperature, Double humidity,
+                             Double co2, Double pm25, Instant receivedAt, int sequence) {
         this.deviceId = deviceId;
         this.sensorId = sensorId;
         this.temperature = temperature;
         this.humidity = humidity;
+        this.co2 = co2;
+        this.pm25 = pm25;
         this.receivedAt = receivedAt;
         this.sequence = sequence;
     }
@@ -111,6 +134,14 @@ public class MeasurementSample {
 
     public Double getHumidity() {
         return humidity;
+    }
+
+    public Double getCo2() {
+        return co2;
+    }
+
+    public Double getPm25() {
+        return pm25;
     }
 
     public Instant getReceivedAt() {

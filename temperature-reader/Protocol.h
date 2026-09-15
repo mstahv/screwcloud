@@ -6,39 +6,99 @@
 /*
   Binary wire format of a measurement packet.
 
-  Fixed size and big endian, in the same spirit as Ruuvi's own format. The goal
-  is a small packet, because NB-IoT traffic is metered.
+  Big endian, in the same spirit as Ruuvi's own formats. The goal is a small
+  packet, because NB-IoT traffic is metered.
 
   Header, 8 bytes:
-    0     version     uint8, currently 1
-    1..4  deviceId    4 x ASCII
+    0     version     uint8, currently 2
+    1..4  deviceId    4 x ASCII, space padded
     5     count       uint8, number of sensors
     6..7  sequence    uint16, increments per packet and wraps
 
-  Sensor, 8 bytes, repeated count times:
+  Sensor record, 5 bytes plus its fields, repeated count times:
     0..3  id          4 x ASCII, space padded
-    4..5  temperature int16, unit 0.01 °C, 0x8000 = no value
-    6..7  humidity    uint16, unit 0.01 %RH, 0xFFFF = no value
+    4     fields      uint8, number of fields that follow
+    then per field, 3 bytes:
+      0   type        uint8, from the registry below
+      1..2 value      uint16 or int16 depending on the type
 
-  With three sensors the packet is 32 bytes. The IP and UDP headers already take
-  28 bytes, so shrinking the payload further barely affects the total.
+  A plain RuuviTag sends two fields and costs 11 bytes; a Ruuvi Air sends four
+  and costs 17. The largest packet this can build is 8 x (5 + 7 x 3) + 8 = 216
+  bytes, well inside the ~508 bytes a UDP datagram carries safely.
 
-  The format is extended by bumping the version, never by quietly adding fields
-  — the receiver recognises older devices from the version byte.
+  WHY THIS SHAPE, AND WHY VERSION 2
+
+  Version 1 was a fixed 8-byte sensor record: temperature and humidity, with
+  sentinel values for "missing". It had no room for a third reading, which is
+  what the Ruuvi Air wanted — see protocol-evolution.md, which worked through
+  the alternatives and recommended exactly this one.
+
+  Two things follow from type-length-value that are worth stating, because both
+  are easy to undo by accident:
+
+  1. A MISSING FIELD IS NOT SENT. Version 1 needed sentinels because a fixed
+     record cannot leave anything out; here absence is the natural encoding, and
+     so the sentinel constants are gone. A reading that would not survive the
+     round trip — out of range, or not measured — is simply omitted, and the
+     receiver reports null for it exactly as before.
+
+  2. AN UNKNOWN TYPE IS SKIPPED, NOT AN ERROR. Every field is the same three
+     bytes, so a receiver that has never heard of a type steps over it and
+     carries on. That is what lets a new measurement reach devices and servers
+     on their own schedules instead of in one coordinated release.
+
+  Version 1 devices keep sending version 1 forever and are none the wiser: the
+  version byte is the first thing a receiver reads, and the server still decodes
+  both. That was the whole point of having it.
 */
 
-static const uint8_t PROTOCOL_VERSION = 1;
+static const uint8_t PROTOCOL_VERSION = 2;
 static const uint8_t PROTOCOL_HEADER_SIZE = 8;
-static const uint8_t PROTOCOL_SENSOR_SIZE = 8;
 static const uint8_t PROTOCOL_ID_SIZE = 4;
 static const uint8_t PROTOCOL_MAX_SENSORS = 8;
 
-static const int16_t PROTOCOL_TEMPERATURE_INVALID = (int16_t)0x8000;
-static const uint16_t PROTOCOL_HUMIDITY_INVALID = 0xFFFF;
+/*
+   Sensor record: the identifier and the field count that precede the fields,
+   so PROTOCOL_ID_SIZE + 1. Written out as a number rather than as that sum
+   because the readers' sync tests read these values straight out of this file,
+   and they compare literals — a constant defined as an expression is a constant
+   they quietly stop checking.
+*/
+static const uint8_t PROTOCOL_SENSOR_HEADER_SIZE = 5;
+
+/* One field: a type byte and a 16-bit value. */
+static const uint8_t PROTOCOL_FIELD_SIZE = 3;
+static const uint8_t PROTOCOL_MAX_FIELDS = 7;
+
+/*
+   The field type registry.
+
+   Numbers are permanent: a type means the same thing and carries the same
+   scaling forever, in every firmware and every reader. Adding a measurement
+   means taking the next free number here, never reusing or redefining one — a
+   receiver that has not been updated must be able to skip what it does not know
+   without being wrong about what it does.
+
+   The reserved three are decoded by some readers already and have no column on
+   the server, so nothing sends them yet. They have numbers so that whoever adds
+   them does not have to renumber anything.
+*/
+static const uint8_t PROTOCOL_FIELD_TEMPERATURE = 1;  // int16,  0.01 °C
+static const uint8_t PROTOCOL_FIELD_HUMIDITY = 2;     // uint16, 0.01 %RH
+static const uint8_t PROTOCOL_FIELD_PRESSURE = 3;     // uint16, 0.1 hPa   (reserved)
+static const uint8_t PROTOCOL_FIELD_CO2 = 4;          // uint16, ppm
+static const uint8_t PROTOCOL_FIELD_PM25 = 5;         // uint16, 0.1 µg/m³
+static const uint8_t PROTOCOL_FIELD_VOC = 6;          // uint16, index     (reserved)
+static const uint8_t PROTOCOL_FIELD_NOX = 7;          // uint16, index     (reserved)
 
 /*
    A sensor-agnostic reading. Sensor classes fill this in, which keeps the
    packing logic from knowing anything about the DHT22 or a RuuviTag.
+
+   NAN means "not measured", and a NAN never reaches the wire: the packer leaves
+   the field out. A device that has no air sensor therefore costs nothing for
+   the fields it does not have, which is the main thing this format buys over
+   version 1.
 
    id is at most 3 characters, because the same identifier is drawn on the OLED
    in the large font where nothing longer fits.
@@ -47,6 +107,8 @@ struct SensorReading {
   char id[PROTOCOL_ID_SIZE + 1] = "";
   float temperature = NAN;  // °C
   float humidity = NAN;     // %RH
+  float co2 = NAN;          // ppm
+  float pm25 = NAN;         // µg/m³
 };
 
 class MeasurementPacket {
@@ -66,15 +128,33 @@ public:
     if (buffer[5] >= PROTOCOL_MAX_SENSORS) {
       return false;
     }
-    uint8_t *field = &buffer[length];
 
-    for (uint8_t i = 0; i < PROTOCOL_ID_SIZE; i++) {
-      field[i] = reading.id[i] != '\0' ? reading.id[i] : ' ';
+    /*
+       The identifier and the field count go down first, then the fields, and
+       the count is filled in as each one is written. A record whose fields
+       would not fit is not started at all, so a full buffer never leaves a
+       half-written sensor behind.
+    */
+    const uint8_t largestRecord =
+        PROTOCOL_SENSOR_HEADER_SIZE + PROTOCOL_MAX_FIELDS * PROTOCOL_FIELD_SIZE;
+    if ((size_t)length + largestRecord > sizeof(buffer)) {
+      return false;
     }
-    writeInt16(&field[4], encodeTemperature(reading.temperature));
-    writeUint16(&field[6], encodeHumidity(reading.humidity));
 
-    length += PROTOCOL_SENSOR_SIZE;
+    uint8_t *record = &buffer[length];
+    for (uint8_t i = 0; i < PROTOCOL_ID_SIZE; i++) {
+      record[i] = reading.id[i] != '\0' ? reading.id[i] : ' ';
+    }
+    uint8_t *fieldCount = &record[PROTOCOL_ID_SIZE];
+    *fieldCount = 0;
+
+    uint8_t *cursor = record + PROTOCOL_SENSOR_HEADER_SIZE;
+    addTemperature(cursor, *fieldCount, reading.temperature);
+    addScaled(cursor, *fieldCount, PROTOCOL_FIELD_HUMIDITY, reading.humidity, 100.0f, 655.0f);
+    addScaled(cursor, *fieldCount, PROTOCOL_FIELD_CO2, reading.co2, 1.0f, 65535.0f);
+    addScaled(cursor, *fieldCount, PROTOCOL_FIELD_PM25, reading.pm25, 10.0f, 6553.0f);
+
+    length = (uint8_t)(cursor - buffer);
     buffer[5]++;
     return true;
   }
@@ -92,7 +172,9 @@ public:
   }
 
 private:
-  uint8_t buffer[PROTOCOL_HEADER_SIZE + PROTOCOL_MAX_SENSORS * PROTOCOL_SENSOR_SIZE];
+  uint8_t buffer[PROTOCOL_HEADER_SIZE
+                 + PROTOCOL_MAX_SENSORS
+                       * (PROTOCOL_SENSOR_HEADER_SIZE + PROTOCOL_MAX_FIELDS * PROTOCOL_FIELD_SIZE)];
   uint8_t length = 0;
 
   static void writeUint16(uint8_t *p, uint16_t value) {
@@ -100,25 +182,35 @@ private:
     p[1] = (uint8_t)(value & 0xFF);
   }
 
-  static void writeInt16(uint8_t *p, int16_t value) {
-    writeUint16(p, (uint16_t)value);
+  static void writeField(uint8_t *&cursor, uint8_t &fieldCount, uint8_t type, uint16_t value) {
+    cursor[0] = type;
+    writeUint16(&cursor[1], value);
+    cursor += PROTOCOL_FIELD_SIZE;
+    fieldCount++;
   }
 
   /*
-     Values that do not fit the field are marked as missing. Silent overflow
-     would be worse, because the server could not tell it from a real reading.
+     Temperature is the one signed field, so it gets its own bounds rather than
+     sharing the unsigned helper below.
   */
-  static int16_t encodeTemperature(float celsius) {
+  static void addTemperature(uint8_t *&cursor, uint8_t &fieldCount, float celsius) {
     if (isnan(celsius) || celsius < -327.0f || celsius > 327.0f) {
-      return PROTOCOL_TEMPERATURE_INVALID;
+      return;
     }
-    return (int16_t)lroundf(celsius * 100.0f);
+    writeField(cursor, fieldCount, PROTOCOL_FIELD_TEMPERATURE,
+               (uint16_t)(int16_t)lroundf(celsius * 100.0f));
   }
 
-  static uint16_t encodeHumidity(float percent) {
-    if (isnan(percent) || percent < 0.0f || percent > 655.0f) {
-      return PROTOCOL_HUMIDITY_INVALID;
+  /*
+     An unsigned field, scaled and range checked. Out of range is left out
+     rather than clamped: a value that does not fit is not a measurement, and
+     sending a wrong one would be indistinguishable from a real reading.
+  */
+  static void addScaled(uint8_t *&cursor, uint8_t &fieldCount, uint8_t type,
+                        float value, float scale, float limit) {
+    if (isnan(value) || value < 0.0f || value > limit) {
+      return;
     }
-    return (uint16_t)lroundf(percent * 100.0f);
+    writeField(cursor, fieldCount, type, (uint16_t)lroundf(value * scale));
   }
 };

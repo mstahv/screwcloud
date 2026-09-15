@@ -2,13 +2,36 @@ package fi.mstahv.sensorhub.protocol;
 
 /**
  * One sensor's reading. A value is null when the sensor did not provide it — a
- * RuuviTag Pro 2in1, for instance, does not measure humidity at all.
+ * RuuviTag Pro 2in1, for instance, does not measure humidity at all, and only a
+ * Ruuvi Air measures the air.
+ *
+ * <p>Most readings carry two of these four. That is the shape the wire format
+ * was changed to allow: in protocol version 1 every sensor record had room for
+ * temperature and humidity and nothing else, so a device measuring CO₂ had
+ * nowhere to put it. Version 2 sends only the fields a sensor actually has, and
+ * nulls here are what "did not send it" looks like on this side.
  *
  * @param sensorId at most 4 characters, for example "DHT" or "RBF"
  * @param temperature in degrees Celsius, null if missing
  * @param humidity relative humidity in percent, null if missing
+ * @param co2 carbon dioxide in ppm, null unless the sensor measures air
+ * @param pm25 particulates under 2.5 µm, in µg/m³, null unless measured
  */
-public record SensorMeasurement(String sensorId, Double temperature, Double humidity) {
+public record SensorMeasurement(String sensorId, Double temperature, Double humidity,
+                                Double co2, Double pm25) {
+
+    /**
+     * A reading from a sensor that measures only the two things every sensor
+     * has. Most callers and every test that predates the air fields.
+     */
+    public SensorMeasurement(String sensorId, Double temperature, Double humidity) {
+        this(sensorId, temperature, humidity, null, null);
+    }
+
+    /** Whether this sensor said anything about the air it is standing in. */
+    public boolean hasAirQuality() {
+        return co2 != null || pm25 != null;
+    }
 
     /**
      * What the firmware calls the microcontroller's own die temperature

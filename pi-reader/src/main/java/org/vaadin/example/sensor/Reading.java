@@ -50,6 +50,30 @@ public interface Reading {
     /** Relative humidity in percent, or null. */
     Double humidity();
 
+    /*
+       The air, which only a Ruuvi Air measures.
+
+       These are defaulted rather than left on AirReading, and that is a change of
+       mind worth marking: the note above says device-specific values stay on the
+       concrete class. They did, until these two started travelling to the server
+       — and this interface is defined as what everything downstream of the radio
+       cares about, the packet included. A value the packet carries belongs here
+       by that definition.
+
+       Ruuvi's sequence number, movement counter and battery voltage are still on
+       RuuviReading, because nothing downstream asks for them.
+    */
+
+    /** Carbon dioxide in ppm, or null for a sensor that does not measure it. */
+    default Double co2() {
+        return null;
+    }
+
+    /** Particulates under 2.5 µm in µg/m³, or null. */
+    default Double pm25() {
+        return null;
+    }
+
     /** Signal strength as this receiver saw it, or null when it is not known. */
     Short rssi();
 

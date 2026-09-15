@@ -20,7 +20,15 @@ import java.util.List;
 
 /**
  * One sensor's readings and its temperature curve. The temperature is the gauge
- * in the media slot, the humidity a line of text under it.
+ * in the media slot, the curve under it, and the other readings as lines of text
+ * below that.
+ *
+ * <p>The curve comes before the text, which is the other way round from how this
+ * card started. Both say something about the temperature the gauge is already
+ * showing — the curve says where it has been, the text says what else the sensor
+ * measures — and the curve is the one a reader looks at. Putting a line of
+ * humidity between the dial and its own history separated two halves of one
+ * thought to make room for a different one.
  *
  * <p>A card is created once per sensor and updated via {@link #update}.
  * Recreating the components on every refresh would force Vaadin to resend the
@@ -34,8 +42,16 @@ import java.util.List;
 class SensorCard extends Card {
 
     private final TemperatureBandGauge gauge = new TemperatureBandGauge();
-    private final Reading humidity = new Reading();
     private final TemperatureSparkLine sparkLine = new TemperatureSparkLine();
+    private final Reading humidity = new Reading();
+
+    /*
+       Air quality, which only a Ruuvi Air has. Hidden rather than dashed when the
+       sensor does not measure it: a dash means "measured and missing", and every
+       plain tag would otherwise carry two permanent dashes for instruments it
+       does not have.
+    */
+    private final Reading airQuality = new Reading();
 
     /*
        VDetails takes a supplier rather than a component: the grid is built when
@@ -93,7 +109,7 @@ class SensorCard extends Card {
             }
         });
 
-        add(humidity, sparkLine, heatSums, measurements);
+        add(sparkLine, humidity, airQuality, heatSums, measurements);
     }
 
     /*
@@ -257,6 +273,7 @@ class SensorCard extends Card {
         gauge.setTemperature(sensor.temperature());
 
         humidity.setText(Readings.format(sensor.humidity(), "%.1f %% RH"));
+        showAirQuality(sensor);
         sparkLine.setHistory(history);
         lastTemperature = sensor.temperature();
         showHeatSums(lastTemperature);
@@ -270,6 +287,26 @@ class SensorCard extends Card {
         if (openMeasurements != null) {
             openMeasurements.refresh();
         }
+    }
+
+    /**
+     * CO₂ and particulates, on one line, and only for a sensor that has them.
+     *
+     * <p>Together rather than on a line each: they are read as a pair — how stale
+     * the air is and how dirty it is — and a card is a small thing to spend two
+     * rows of on a device most readers do not own.
+     *
+     * <p>CO₂ without decimals because the sensor's own accuracy is tens of ppm,
+     * and particulates with one because the numbers that matter are small.
+     */
+    private void showAirQuality(SensorMeasurement sensor) {
+        airQuality.setVisible(sensor.hasAirQuality());
+        if (!sensor.hasAirQuality()) {
+            return;
+        }
+        airQuality.setText("%s CO2 · %s PM2.5".formatted(
+                Readings.format(sensor.co2(), "%.0f ppm"),
+                Readings.format(sensor.pm25(), "%.1f ug/m3")));
     }
 
     /*

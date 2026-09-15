@@ -333,6 +333,13 @@ struct RuuviMeasurement {
     sensorIdTo(reading.id, sizeof(reading.id));
     reading.temperature = temperature;
     reading.humidity = humidity;
+    /*
+       NAN on every tag that is not a Ruuvi Air, and the packer leaves out what
+       is NAN — so a plain tag's record is the same size it always was, and no
+       caller has to know which kind of device it is holding.
+    */
+    reading.co2 = co2;
+    reading.pm25 = pm25;
   }
 
   /*

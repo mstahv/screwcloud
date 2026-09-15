@@ -34,7 +34,12 @@ import org.vaadin.example.names.SensorNames;
 import org.vaadin.example.sensor.Reading;
 
 /**
- * One tag's card: the temperature on a gauge, the humidity and the age under it,
+ * One tag's card: the temperature on a gauge, its curve under that, and the
+ * humidity and the age below — the curve first because it is about the number
+ * the gauge is already showing, and a line of text between the two separated
+ * halves of one thought. The same order as the server's cards.
+ *
+ * Previously: the temperature on a gauge, the humidity and the age under it,
  * and the last day as a curve.
  *
  * <p>Built to match the server's sensor card, from the same gauge and the same
@@ -124,7 +129,7 @@ class SensorCard extends Card {
 
         age.add(heardAt);
 
-        add(humidity, airQuality, age, quiet, sparkLine);
+        add(sparkLine, humidity, airQuality, age, quiet);
     }
 
     void update(Reading reading, List<HistoryPoint> history, Instant now) {

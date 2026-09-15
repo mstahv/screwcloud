@@ -3,6 +3,7 @@ package org.vaadin.example.protocol;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -13,6 +14,11 @@ import java.util.List;
  * branch in a send path that cannot report anything anyway; here the caller can
  * choose which readings to leave out and say so in the log, and a silent drop
  * would look exactly like a tag that had gone quiet.
+ *
+ * <p>A sensor's record carries only the fields it has. A plain RuuviTag sends two
+ * and costs 11 bytes; a Ruuvi Air sends four and costs 17. The size is therefore
+ * computed rather than multiplied out, which is the one thing that changed here
+ * when the format stopped being fixed width.
  */
 public final class MeasurementPacket {
 
@@ -33,22 +39,53 @@ public final class MeasurementPacket {
                             .formatted(Protocol.MAX_SENSORS, sensors.size()));
         }
 
-        ByteBuffer buffer = ByteBuffer
-                .allocate(Protocol.HEADER_SIZE + sensors.size() * Protocol.SENSOR_SIZE)
-                .order(ByteOrder.BIG_ENDIAN);
+        List<List<Protocol.Field>> records = sensors.stream()
+                .map(MeasurementPacket::fieldsOf)
+                .toList();
 
+        int size = Protocol.HEADER_SIZE + records.stream()
+                .mapToInt(fields -> Protocol.SENSOR_HEADER_SIZE + fields.size() * Protocol.FIELD_SIZE)
+                .sum();
+
+        ByteBuffer buffer = ByteBuffer.allocate(size).order(ByteOrder.BIG_ENDIAN);
         buffer.put((byte) Protocol.VERSION);
         putId(buffer, deviceId);
         buffer.put((byte) sensors.size());
         buffer.putShort((short) sequence);
 
-        for (SensorReading sensor : sensors) {
-            putId(buffer, sensor.id());
-            buffer.putShort(Protocol.encodeTemperature(sensor.temperature()));
-            buffer.putShort((short) Protocol.encodeHumidity(sensor.humidity()));
+        for (int i = 0; i < sensors.size(); i++) {
+            putId(buffer, sensors.get(i).id());
+            List<Protocol.Field> fields = records.get(i);
+            buffer.put((byte) fields.size());
+            for (Protocol.Field field : fields) {
+                buffer.put((byte) field.type());
+                buffer.putShort((short) field.value());
+            }
         }
 
         return buffer.array();
+    }
+
+    /**
+     * The fields this sensor actually has, in registry order.
+     *
+     * <p>Order is not required by the format — a decoder reads types, not
+     * positions — but a packet whose bytes are the same shape every time is a
+     * packet somebody can read in a hex dump.
+     */
+    private static List<Protocol.Field> fieldsOf(SensorReading sensor) {
+        List<Protocol.Field> fields = new ArrayList<>(Protocol.MAX_FIELDS);
+        add(fields, Protocol.temperature(sensor.temperature()));
+        add(fields, Protocol.humidity(sensor.humidity()));
+        add(fields, Protocol.co2(sensor.co2()));
+        add(fields, Protocol.pm25(sensor.pm25()));
+        return fields;
+    }
+
+    private static void add(List<Protocol.Field> fields, Protocol.Field field) {
+        if (field != null) {
+            fields.add(field);
+        }
     }
 
     /**
