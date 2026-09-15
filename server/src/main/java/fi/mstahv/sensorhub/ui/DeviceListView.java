@@ -185,6 +185,14 @@ public class DeviceListView extends VerticalLayout {
                 return;  // the token has not come back from the browser yet
             }
             String added = clientDevices.add(clientId, device.deviceId());
+            /*
+               A picture, so the new card is not the one blank thing on a page
+               somebody is seeing for the first time. Chosen from what this
+               browser's other devices already show, and never over one the
+               device already has — see DefaultFeaturedImage.
+            */
+            DefaultFeaturedImage.assignIfMissing(added, clientDevices.devicesFor(clientId),
+                    deviceSettings);
             // Ready for the next one, and the Add button disabled until there is one.
             setEntity(new NewDevice(""));
             Notification.show("Device %s added".formatted(added));
