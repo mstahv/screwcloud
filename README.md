@@ -128,6 +128,10 @@ For an ESP32-S3 instead, see [esp32-s3-reader](#esp32-s3-reader).
 The onboard LED tells you the state from across the room: two short flashes and
 a long pause means the last send succeeded, fast steady pulsing means it failed.
 
+Setting one up for somebody who does not want any of this on their computer is a
+different job, and a short one: see
+[Handing a built firmware to somebody else](#handing-a-built-firmware-to-somebody-else).
+
 ### Demo server
 
 The default `SERVER_HOST` points at the public demo server **r.pakast.in**
@@ -349,6 +353,115 @@ cp temperature-reader/config.h.example temperature-reader/config.h
 Keep placeholders in the template and real values only in your own copy. If
 `config.h` was tracked at some earlier point, untrack it with
 `git rm --cached temperature-reader/config.h`.
+
+### Handing a built firmware to somebody else
+
+A Pico takes firmware by drag and drop. Hold its **BOOTSEL** button while
+plugging in the USB cable and it appears as an ordinary USB drive; copy a `.uf2`
+file onto that drive and it flashes itself and restarts. No IDE, no drivers, no
+command line, nothing installed. So the person receiving a device never needs a
+toolchain — they need one file and two sentences.
+
+What they do not get is a way to type in their own WiFi password. The settings
+are compiled in, which means **one build per recipient**. Why that is, and what
+it would take to change, is at the end of this section.
+
+#### Building the file
+
+Edit `config.h` first, and change two things, not one:
+
+| | |
+|---|---|
+| `WIFI_SSID`, `WIFI_PASSWORD` | the recipient's network |
+| `DEVICE_ID` | **must be unique.** Four characters, and it is what the server files the readings under — two devices sharing one id file as one device and overwrite each other's history |
+
+Then, in the Arduino IDE, with the board settings from above: **Sketch → Export
+Compiled Binary**. The `.uf2` lands in a `build/` folder beside the sketch.
+
+Or from the command line, which is easier to repeat for a second recipient:
+
+```bash
+# once, if arduino-cli has never seen this core
+arduino-cli core install rp2040:rp2040 \
+  --additional-urls https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+arduino-cli lib install "DHT sensor library" "Adafruit Unified Sensor" \
+  "Adafruit SH110X" "Adafruit GFX Library"
+
+# per build
+arduino-cli compile \
+  --fqbn rp2040:rp2040:rpipico2w:ipbtstack=ipv4btcble \
+  --export-binaries \
+  temperature-reader
+```
+
+`ipbtstack=ipv4btcble` is the command-line spelling of **Tools → IP/Bluetooth
+Stack → IPv4 + Bluetooth**, and it is not optional: without it BTstack is not
+found and the compile fails. If that string ever stops matching, ask the core
+itself rather than guessing:
+
+```bash
+arduino-cli board details --fqbn rp2040:rp2040:rpipico2w
+```
+
+The compile prints the path of the `.uf2` it wrote when it finishes. That single
+file is what you send. It is a few hundred kilobytes and goes through email.
+
+> **It contains their WiFi password in clear text**, because it contains
+> `config.h`. That is their own secret going back to them, so it is not a
+> disaster, but it does mean a build belongs to one recipient and must not be
+> forwarded to the next one — who would also inherit the wrong `DEVICE_ID`.
+
+#### What to send with it
+
+Everything below is written to be pasted into a message as it stands.
+
+> 1. Take the USB cable out of the device, if it is plugged in.
+> 2. Find the single small button on the Pico board — the one marked
+>    **BOOTSEL**. Press and hold it.
+> 3. While still holding it, plug the USB cable into your computer.
+> 4. Let go of the button. A drive called **RP2350** appears, like a memory
+>    stick.
+> 5. Copy the file I sent you onto that drive.
+> 6. The drive disappears by itself after a second or two and the device starts
+>    up. On a Mac you may get a warning that a disk was not ejected properly —
+>    that is normal here, and nothing is wrong.
+>
+> The display comes on right away. The bottom row says `Not sent yet` at first,
+> and should change to `Sent ok` within a minute or so.
+
+#### When it does not work
+
+| What happens | What it means |
+|---|---|
+| No drive appears | The button was not held, or was let go too early. Unplug and start again. A charge-only USB cable also does this — try another cable |
+| The drive appears but stays after copying | The file was built for the wrong chip. `RP2350` is a Pico 2; a plain Pico wants a different build |
+| Drive appears, display stays dark | The firmware is fine and something else is wrong — see the link status codes |
+
+#### Why the settings are not in a separate file
+
+The obvious idea is one binary for everyone plus a small text file the recipient
+edits — same drive, same drag and drop. It does not work, for a specific reason
+worth recording so nobody spends an evening rediscovering it.
+
+The drive a Pico shows in BOOTSEL mode is the bootloader's, and it only accepts
+`.uf2` images; it is not a filesystem you can put a text file on. A running
+sketch can present a drive of its own through the core's
+[SingleFileDrive](https://arduino-pico.readthedocs.io/en/latest/singlefile.html)
+library, but its documentation is explicit that the emulation "only allows for
+the reading of the single file, and deleting it" — the PC cannot write to it.
+It is a way to get a log file *out*, not a way to get settings *in*.
+
+Shipping a prepared LittleFS image alongside the sketch would work technically
+and gains nothing: the image would still have to be built per recipient, which
+is the very work it was meant to avoid.
+
+The real answer, when it is worth the effort, is provisioning over WiFi: the
+device brings up its own access point when it has no credentials, the recipient
+connects a phone to it and types their network and password into a small web
+page, and it is written to LittleFS and used from then on. The hardware is
+willing — the Pico 2 W does AP mode, and this device has a display to put the
+network name and the progress on. It is a project rather than an afternoon,
+which is why the firmware currently compiles the settings in.
 
 ## temperature-reader
 
