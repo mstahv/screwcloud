@@ -66,7 +66,7 @@ public class FirmwareBuildView extends VerticalLayout {
             add(new Unavailable());
             return;
         }
-        add(new RequestForm(), outcome);
+        add(new SupportedBoard(), new RequestForm(), outcome);
     }
 
     /**
@@ -79,6 +79,27 @@ public class FirmwareBuildView extends VerticalLayout {
                     new Paragraph("This server has not been set up to build firmware. "
                             + "Everything else works as usual — see \"Building firmware on the "
                             + "server\" in the README for what it takes."));
+        }
+    }
+
+    /**
+     * Which board this builds for, said before the form rather than after it.
+     *
+     * <p>The firmware is compiled for one target and there is no choosing it
+     * here, so somebody holding a different board should find that out while
+     * they still have their hands free — not from a file that copies onto the
+     * drive and does nothing, which is what an RP2040 board does with an RP2350
+     * image.
+     *
+     * <p>Named for the board rather than for the limitation. "Only supports X"
+     * reads as an apology for a missing feature; this is simply what the thing
+     * is for.
+     */
+    private static class SupportedBoard extends Section {
+        SupportedBoard() {
+            add(new Hint("Builds for the Raspberry Pi Pico 2 W. Other boards — including "
+                    + "the original Pico W — need a different build, and an image for the "
+                    + "wrong chip copies across without doing anything."));
         }
     }
 
