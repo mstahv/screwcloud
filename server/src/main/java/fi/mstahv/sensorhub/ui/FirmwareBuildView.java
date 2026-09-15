@@ -12,7 +12,6 @@ import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.html.Section;
 import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.IntegerField;
@@ -23,6 +22,7 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.theme.aura.Aura;
 
 import org.vaadin.firitin.form.BeanValidationForm;
+import org.vaadin.firitin.layouts.NavigationView;
 
 import fi.mstahv.sensorhub.firmware.BuildJob;
 import fi.mstahv.sensorhub.firmware.DeviceIdSuggester;
@@ -43,12 +43,18 @@ import fi.mstahv.sensorhub.validation.WifiPassphrase;
  * <p>If this server has no toolchain the page says so plainly instead of
  * offering a button that cannot work. That is not an error state; the feature is
  * optional, and a server without it is a server that simply does not do this.
+ *
+ * <p>A {@link NavigationView}, like the device and settings views: this is one
+ * level down from the list of devices and the reader needs the way back. It is
+ * reached from "Add a device", and somebody who arrives, reads what board it
+ * builds for and decides it is not their errand should not have to find the
+ * browser's own back button.
  */
 @Route("firmware")
 @PageTitle("Build firmware · ScrewCloud")
 @StyleSheet(Aura.STYLESHEET)
 @StyleSheet("/styles/sunset-glass.css")
-public class FirmwareBuildView extends VerticalLayout {
+public class FirmwareBuildView extends NavigationView {
 
     private final FirmwareBuilds builds;
     private final DeviceIdSuggester deviceIds;
@@ -57,11 +63,15 @@ public class FirmwareBuildView extends VerticalLayout {
     private BuildJob job;
 
     public FirmwareBuildView(FirmwareBuilds builds, DeviceIdSuggester deviceIds) {
+        /*
+           The arrow carries "Devices" as its accessible name rather than as
+           text: the destination has to be said, but not shown. The same wording
+           as the device view's, because it is the same destination.
+        */
+        super("Build firmware", DeviceListView.class, "Devices");
         this.builds = builds;
         this.deviceIds = deviceIds;
-        setMinHeight("100%");
 
-        add(new BrandHeader());
         if (!builds.isAvailable()) {
             add(new Unavailable());
             return;
@@ -186,8 +196,12 @@ public class FirmwareBuildView extends VerticalLayout {
 
         @Override
         protected Component createContent() {
-            return new Section(new SectionHeading("Build firmware for a device"),
-                    new FieldRow(ssid, password),
+            /*
+               No heading of its own: the bar above already says what this view
+               is, and a section that is the whole view does not need naming
+               twice.
+            */
+            return new Section(new FieldRow(ssid, password),
                     new FieldRow(deviceId, sendIntervalMinutes, transport),
                     /*
                        What the identifier is *for*, which is not what it looks
