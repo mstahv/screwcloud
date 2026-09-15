@@ -14,6 +14,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouterLink;
 import com.vaadin.flow.theme.aura.Aura;
 
 import jakarta.validation.constraints.NotBlank;
@@ -200,8 +201,18 @@ public class DeviceListView extends VerticalLayout {
                text, which is as wide as the field and broke the sentence across two
                lines mid-phrase.
             */
+            /*
+               The build link sits under the form rather than beside it: adding a
+               device you already have is the common errand, and building one is
+               the answer to "I do not have a device yet", which is a different
+               sentence and belongs after the first.
+            */
+            RouterLink build = new RouterLink("Build firmware for a new device",
+                    FirmwareBuildView.class);
+
             return new Section(new SectionHeading("Add a device"), form,
-                    new Hint("The same 4 characters as DEVICE_ID in config.h"));
+                    new Hint("The same 4 characters as DEVICE_ID in config.h"),
+                    build);
         }
     }
 

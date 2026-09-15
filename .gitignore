@@ -51,3 +51,6 @@ flow-viritin/
 # The Gauge add-on checkout, likewise its own repository: the empty-value
 # support the sensor cards lean on is built there.
 gauge-addon/
+
+# Arduino IDE's build output for the LoRa sketch, alongside the sketch itself.
+lora-node/build/

@@ -1,0 +1,159 @@
+package fi.mstahv.sensorhub.firmware;
+
+import java.io.IOException;
+import java.io.StringWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * The generator is what stands between a text field and a compiler, so most of
+ * this is about what must <i>not</i> come out of it.
+ *
+ * <p>The template is the firmware's real {@code config.h.example}, read from the
+ * repository rather than pasted here. That makes these tests the drift detector
+ * the class documents: rename a declaration in the firmware and they fail, which
+ * is the point.
+ */
+class ConfigHeaderTest {
+
+    private static final Path TEMPLATE =
+            Path.of("..", "temperature-reader", "config.h.example");
+
+    private static String template() throws IOException {
+        return Files.readString(TEMPLATE);
+    }
+
+    private static String generate(FirmwareRequest request) throws IOException {
+        StringWriter out = new StringWriter();
+        ConfigHeader.write(request, template(), out);
+        return out.toString();
+    }
+
+    private static FirmwareRequest request(String ssid, String password) {
+        return new FirmwareRequest("ABCD", ssid, password, 5, FirmwareTransport.AUTOMATIC);
+    }
+
+    @Test
+    void theRepositoryTemplateStillHasEverythingThisNeeds() throws IOException {
+        // Fails loudly if the firmware renames a setting. That is the contract.
+        generate(request("net", "password"));
+    }
+
+    @Test
+    void valuesBecomeByteArraysRatherThanStringLiterals() throws IOException {
+        String header = generate(request("Wifi", "hunter22"));
+
+        assertTrue(header.contains(
+                "static const char WIFI_SSID[] = { 0x57, 0x69, 0x66, 0x69, 0x00 };"), header);
+        assertTrue(header.contains("static const char WIFI_PASSWORD[] = "
+                + "{ 0x68, 0x75, 0x6E, 0x74, 0x65, 0x72, 0x32, 0x32, 0x00 };"), header);
+    }
+
+    @Test
+    void theDeviceIdIsUpperCasedAndStripped() throws IOException {
+        String header = generate(
+                new FirmwareRequest("  topi ", "net", "password", 5, FirmwareTransport.AUTOMATIC));
+
+        // T O P I, then the terminator.
+        assertTrue(header.contains(
+                "static const char DEVICE_ID[5] = { 0x54, 0x4F, 0x50, 0x49, 0x00 };"), header);
+    }
+
+    /**
+     * The reason the byte arrays exist. Every one of these would end a C string
+     * literal, open a comment, or start a preprocessor directive; none of them
+     * can reach the output as anything but a number.
+     */
+    @Test
+    void nothingATypistCanEnterBecomesSyntax() throws IOException {
+        String hostile = "\"; system(\"rm -rf /\"); //";
+        String header = generate(request("net", hostile));
+
+        String generated = lineWith(header, "static const char WIFI_PASSWORD[]");
+        assertFalse(generated.contains("system"), generated);
+        assertFalse(generated.contains("\""), generated);
+        assertTrue(generated.matches("static const char WIFI_PASSWORD\\[] = \\{( 0x[0-9A-F]{2},)+ 0x00 };"),
+                generated);
+    }
+
+    @Test
+    void aPreprocessorDirectiveIsJustBytesToo() throws IOException {
+        String header = generate(request("net", "#include \"/etc/passwd\""));
+
+        assertFalse(header.contains("/etc/passwd"), header);
+        assertEquals(0, header.lines().filter(line -> line.startsWith("#include")).count(),
+                "an #include the user typed must not have become one the compiler would obey");
+    }
+
+    @Test
+    void multiByteCharactersAreCountedAsTheRadioCountsThem() throws IOException {
+        // "Mökki" is five characters and six bytes: ö is two.
+        String header = generate(request("Mökki", "password"));
+
+        assertTrue(header.contains(
+                "static const char WIFI_SSID[] = { 0x4D, 0xC3, 0xB6, 0x6B, 0x6B, 0x69, 0x00 };"),
+                header);
+    }
+
+    @Test
+    void anOpenNetworkGetsAnEmptyPassword() throws IOException {
+        String header = generate(request("net", ""));
+
+        assertTrue(header.contains("static const char WIFI_PASSWORD[] = { 0x00 };"), header);
+    }
+
+    @Test
+    void aValueTooLongForTheFirmwareIsRefusedHereAsWell() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ConfigHeader.byteArray("x".repeat(33), 32));
+    }
+
+    @Test
+    void theSendIntervalIsWrittenInMinutes() throws IOException {
+        String header = generate(
+                new FirmwareRequest("ABCD", "net", "password", 15, FirmwareTransport.AUTOMATIC));
+
+        assertTrue(header.contains(
+                "static const unsigned long SEND_INTERVAL_MS = 15UL * 60UL * 1000UL;"), header);
+    }
+
+    @Test
+    void exactlyOneTransportIsDefinedWhicheverWasAsked() throws IOException {
+        for (FirmwareTransport transport : FirmwareTransport.values()) {
+            String header = generate(
+                    new FirmwareRequest("ABCD", "net", "password", 5, transport));
+
+            assertTrue(header.contains("\n#define " + transport.macro() + "\n"),
+                    transport + " should be the one defined");
+            for (FirmwareTransport other : FirmwareTransport.values()) {
+                if (other != transport) {
+                    assertTrue(header.contains("\n//#define " + other.macro() + "\n"),
+                            other + " should be commented out for " + transport);
+                }
+            }
+        }
+    }
+
+    @Test
+    void aTemplateThatNoLongerDeclaresASettingStopsTheBuild() throws IOException {
+        String mangled = template().replace("static const char WIFI_SSID[]",
+                "static const char WIFI_NETWORK[]");
+
+        StringWriter out = new StringWriter();
+        IllegalStateException thrown = assertThrows(IllegalStateException.class,
+                () -> ConfigHeader.write(request("net", "password"), mangled, out));
+        assertTrue(thrown.getMessage().contains("WIFI_SSID"), thrown.getMessage());
+    }
+
+    private static String lineWith(String text, String needle) {
+        return text.lines().filter(line -> line.contains(needle)).findFirst().orElseThrow();
+    }
+
+}

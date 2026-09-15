@@ -2440,6 +2440,158 @@ install — that is the one piece to arrange yourself. Its `vmhosting.conf` is
 already in `.gitignore`. The pi-reader README says more, because there the same
 tool is doing a job that is otherwise genuinely fiddly.
 
+### The firmware build page
+
+`/firmware`, linked from under "Add a device" on the front page. Somebody with no
+toolchain fills in their network, gets a `.uf2` built from the current source,
+and is shown the six steps for getting it onto the board. It exists so that
+handing somebody a device does not mean building one per recipient by hand — the
+alternative is in [Handing a built firmware to somebody
+else](#handing-a-built-firmware-to-somebody-else), which is still what you do
+when the server has no toolchain.
+
+Three things it does that a build on your own laptop does not:
+
+- **It suggests a free device identifier.** Four characters from an alphabet with
+  `I`, `O`, `0` and `1` left out, because these are read off a 128-pixel display
+  across a room. Taken means either a device has reported under it or firmware
+  has been built for it — the second half matters, because a device built this
+  morning and flashed tonight has sent nothing all day, and without it two people
+  asking on the same afternoon get the same identifier.
+
+  An identifier already in use is a **warning and never a refusal**. Building
+  again with the same ID is how a WiFi password gets changed and how firmware
+  gets updated, and the device's readings and history continue under it — so
+  there is nothing to protect anybody from. The sentence is there for the reader
+  who typed a neighbour's four characters by accident.
+- **It builds one at a time.** A queue of five, a five-minute timeout, and "busy,
+  try again in a minute" when it is full — which is an answer rather than an
+  error.
+- **It forgets the file.** The `.uf2` carries the WiFi password in clear text, so
+  it is deleted the moment it has been downloaded, and swept after fifteen
+  minutes if nobody came back for it.
+
+The configuration is written as byte arrays rather than as C string literals —
+`{ 0x68, 0x75, ... }` and not `"hunter22"` — so that nothing a reader can type
+becomes syntax a compiler would act on. That is the whole security argument for
+running a compiler behind a web form, and `ConfigHeader` is the class to read if
+you want to check it.
+
+### Building firmware on the server
+
+The firmware build page compiles a `.uf2` on demand, so the machine needs the
+same toolchain a developer has: `arduino-cli`, the arduino-pico core and the
+four libraries. This is installed once. If it is not installed, the feature is
+simply absent — the page is not offered and nothing else changes, the same
+arrangement as the VAPID keys.
+
+Everything below happens **as the user the application runs as**, and that is the
+part worth being careful about. Installing the core as root puts it in root's
+home, where the service cannot see it, and the symptom is a compile that fails
+with a missing platform on a machine where `arduino-cli core list` looks
+perfectly correct — because you ran that as yourself.
+
+**1. Room on the disk.** About 1.5 GB for the core and its toolchains, plus
+build directories. Less than a postgres, more than people expect.
+
+**2. `arduino-cli`.** One binary, no dependencies. `/usr/local/bin` is the one
+step wanting root, and it is worth it: a binary on the path is a binary the
+service finds without being told where it is.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+  | sudo BINDIR=/usr/local/bin sh
+arduino-cli version
+```
+
+Without root, `BINDIR="$HOME/bin"` works as well and is looked for too.
+
+**3. One directory, and no environment variable.** The core and the libraries go
+to `~/.arduino15`, which is arduino-cli's own default and also where the
+application looks — so there is nothing to export and nothing that can disagree.
+What does need creating is where builds happen:
+
+```bash
+mkdir -p "$HOME/screwcloud-builds"
+```
+
+Under `$HOME` rather than `/var/lib`, because that is the one directory the
+service user certainly owns and can write to without anybody granting it
+anything. A path under `/var/lib` needs creating and chowning as root first, and
+forgetting that produces a permission error during somebody's first build rather
+than during the install — the wrong end of the day to find out. On this
+deployment `$HOME` is `/home/r`.
+
+**4. The core and the libraries.** Several hundred megabytes, downloaded once
+here rather than during somebody's first build:
+
+```bash
+arduino-cli core install rp2040:rp2040 \
+  --additional-urls https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+arduino-cli lib install "DHT sensor library" "Adafruit Unified Sensor" \
+  "Adafruit SH110X" "Adafruit GFX Library"
+```
+
+**5. Write down what you got, then pin it.**
+
+```bash
+arduino-cli core list
+arduino-cli lib list
+```
+
+Add the versions those print back onto the commands above as `@version`, and
+keep them there. Unpinned, the next reinstall quietly picks up a different
+compiler and different libraries, and a build that worked in the spring fails in
+the autumn for reasons unconnected to anything anyone changed. This is not about
+tracking what shipped to whom; it is about the build not moving underneath you.
+
+**6. Prove the whole chain before trusting it.** A real compile, of the real
+sketch, as the service user:
+
+```bash
+git clone https://github.com/mstahv/screwcloud.git /tmp/fwcheck
+cp /tmp/fwcheck/temperature-reader/config.h.example \
+   /tmp/fwcheck/temperature-reader/config.h
+arduino-cli compile \
+  --fqbn rp2040:rp2040:rpipico2w:ipbtstack=ipv4btcble \
+  --export-binaries /tmp/fwcheck/temperature-reader
+```
+
+A `.uf2` under `build/` means the server can do this. Nothing short of a real
+compile does, because every one of the ways this goes wrong — wrong user, wrong
+data directory, missing library, a core installed for the wrong architecture —
+looks fine until something actually asks the compiler to work.
+
+**7. Restart the application.** There is nothing to configure: it looks for
+`arduino-cli` on the path and then in `~/bin` and `/usr/local/bin`, and for the
+core in `~/.arduino15`, which is where the steps above put them. It says which
+it found, at startup:
+
+```
+Firmware builds available: arduino-cli with rp2040:rp2040 under /home/r/.arduino15
+```
+
+or, if the toolchain is not there, one line saying the feature is unavailable
+and that everything else is unaffected. Both are worth a glance the first time.
+
+Only a deployment that put things somewhere else needs to say so, with boot2vm
+alongside the VAPID keys:
+
+```bash
+Deploy env set ARDUINO_CLI=/opt/arduino-cli/arduino-cli
+Deploy env set ARDUINO_DATA_DIR=/opt/arduino-cli/data
+```
+
+Spelled out rather than left to `$HOME`, because these are read by a service
+whose environment is whatever the deployment gives it, and a home directory that
+resolved differently there than in your shell is a confusing afternoon. Set
+wrongly, they are a warning in the log at startup rather than a silent absence —
+the application treats "nobody installed this" and "somebody pointed me at the
+wrong place" as different situations.
+
+`git` is needed too, for the clone the builds come from, and is on any machine
+that got this far.
+
 ### Testing without a device
 
 ```bash
