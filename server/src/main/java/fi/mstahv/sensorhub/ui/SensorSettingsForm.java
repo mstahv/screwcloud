@@ -4,6 +4,7 @@ import java.util.function.Consumer;
 
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.html.Hr;
 import com.vaadin.flow.component.html.Section;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.html.Span;
@@ -32,8 +33,11 @@ import org.vaadin.firitin.layouts.Column;
  * alert. Warning is what falls between the two.
  *
  * <p>The degree-day counters are managed here as well. They are not settings in the
- * same sense — a counter is a thing that is running — but they answer the same
- * question as the rest of this form: what is this thermometer being used for.
+ * same sense — a counter is a thing that is running, and each one saves itself as
+ * it is changed — but they answer the same question as the rest of this form: what
+ * is this thermometer being used for. They come after Save, below a rule, so that
+ * the button row closes what it actually saves and the counters are not mistaken
+ * for one more section waiting on it.
  *
  * <p>Bound with Viritin's {@link BeanValidationForm}, which is what ties the fields
  * to {@link Values} and its constraints: the fields are matched to the record's
@@ -161,10 +165,20 @@ class SensorSettingsForm extends BeanValidationForm<SensorSettingsForm.Values> {
         if (alertOptions.available()) {
             layout.add(new FormSection("Notify this browser when", alerts));
         }
-        if (counters != null) {
-            layout.add(new FormSection("Degree-day counters", counters));
-        }
         layout.add(new ButtonRow());
+        /*
+           After the buttons, not before them. The counters save themselves as they
+           are changed and Start is a button of their own, so a Save under them
+           promised something it did not do — and a reader who started a counter
+           and then pressed Save to make sure had pressed a button that was not
+           about that at all. The rule draws the line the layout is making.
+        */
+        if (counters != null) {
+            layout.add(new Hr(),
+                    new FormSection("Degree-day counters", counters,
+                            new Hint("Counters keep themselves: a change is saved as you make "
+                                    + "it, and Start begins a counter right away.")));
+        }
         /*
            23rem is what the two limit rows need to line up. On a phone that is wider
            than the screen, and a popover sizes itself to its content — so the form

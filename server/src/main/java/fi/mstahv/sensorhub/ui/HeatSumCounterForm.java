@@ -184,17 +184,19 @@ class HeatSumCounterForm extends Div {
         }
 
         /*
-           A plain tertiary button rather than the form's DefaultButton, for two
-           reasons that are really one: this starts a row among the popover's
-           content, and the popover's verdict is the settings form's Save above.
-           Tertiary styling says the first; skipping DefaultButton's ENTER shortcut
-           says the second — a form keeping the default look would say it with
+           An ordinary button rather than the form's DefaultButton: this starts a
+           counter, it does not conclude the popover, and the accent belongs to the
+           settings form's Save. Skipping DefaultButton's ENTER shortcut says the
+           same thing — a form keeping the default look would say it with
            setSaveOnEnter(false).
+
+           Ordinary, and not tertiary as it first was. Tertiary is a link dressed as
+           a button, and next to two fields it read as a label; the thing that
+           starts a counter has to look like something that does something.
         */
         @Override
         protected Button createSaveButton() {
             return new Button(getSaveCaption()){{
-                addThemeVariants(ButtonVariant.TERTIARY);
                 setVisible(false);
             }};
         }
