@@ -365,17 +365,18 @@ public class FirmwareBuildView extends NavigationView {
                 case UF2_DRIVE -> outcome.add(
                         new Section(new SectionHeading("Ready"),
                                 downloadLink(updated),
-                                new Hint("The file is kept for a few minutes and then deleted, "
-                                        + "because it contains your WiFi password.")),
+                                new Hint("The file is kept while you are on this page and for a "
+                                        + "few minutes after, then deleted, because it contains "
+                                        + "your WiFi password.")),
                         new PicoFlashingInstructions());
                 case SERIAL -> {
                     Section download = new Section(new SectionHeading("Or take the file"),
                             downloadLink(updated),
                             new Hint("For writing with esptool from a command line. The file is "
-                                    + "kept for a few minutes and then deleted, because it "
-                                    + "contains your WiFi password."));
-                    outcome.add(new SerialFlasher(builds, updated, () -> download.setVisible(false)),
-                            download, new Esp32FlashingInstructions());
+                                    + "kept while you are on this page and for a few minutes "
+                                    + "after, then deleted, because it contains your WiFi "
+                                    + "password."));
+                    outcome.add(new SerialFlasher(updated), download, new Esp32FlashingInstructions());
                 }
             }
         }
@@ -392,8 +393,14 @@ public class FirmwareBuildView extends NavigationView {
      *
      * <p>Nothing is written to a shared location and no URL is minted that
      * anybody could guess or pass on: the handler runs inside this session and
-     * streams the file straight out of the job. Once it has been read the job is
-     * discarded, because the file holds a WiFi password and the errand is over.
+     * streams the file straight out of the job.
+     *
+     * <p>Reading it does not delete it. It used to, on the grounds that the file
+     * holds a WiFi password and the errand was over — but the errand is not over
+     * at the first download: the second click on the same link, a browser that
+     * fetches twice, the flasher reading the same image, all found nothing and
+     * put a stack trace in the log. The file goes when the reader leaves the
+     * page ({@link #release()}), and the sweep catches a tab left open.
      */
     private Anchor downloadLink(BuildJob built) {
         Anchor link = new Anchor();
@@ -403,14 +410,25 @@ public class FirmwareBuildView extends NavigationView {
             event.setFileName(built.fileName());
             event.setContentType("application/octet-stream");
             built.writeTo(event.getOutputStream());
-            builds.discard(built);
         });
         return link;
     }
 
+    /**
+     * Lets go of the build this view is showing, file included.
+     *
+     * <p>Called when another build replaces it and when the view detaches, which
+     * between them are every way a reader stops looking at it. A build still
+     * running is left to finish — the worker holds it — but nobody is listening
+     * any more, and whatever it produces is for the sweep.
+     */
     private void release() {
         if (job != null) {
-            job.onChange(null);
+            if (job.isFinished()) {
+                builds.discard(job);
+            } else {
+                job.onChange(null);
+            }
             job = null;
         }
     }

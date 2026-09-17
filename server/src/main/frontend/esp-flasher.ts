@@ -17,11 +17,17 @@ import { ESPLoader, Transport } from "esptool-js";
 
 /** The @ClientCallable methods of SerialFlasher. */
 interface FlasherServer {
+  started(): void;
   stage(text: string): void;
   progress(percent: number): void;
   flashed(): void;
-  failed(message: string): void;
+  failed(message: string, detail: string): void;
 }
+
+const LOG = "[ScrewCloud flasher]";
+
+/** What Transport takes: the browser's SerialPort, named through esptool-js. */
+type Port = ConstructorParameters<typeof Transport>[0];
 
 type FlasherElement = HTMLElement & { $server: FlasherServer };
 
@@ -41,22 +47,56 @@ const quietTerminal = {
   write(_text: string): void {},
 };
 
-async function flashEsp32(element: FlasherElement, image: HTMLAnchorElement): Promise<void> {
-  const server = element.$server;
-  const serial = (navigator as any).serial;
-  if (!serial) {
-    server.failed("This browser cannot open serial ports. Use Chrome or Edge on a computer.");
-    return;
+/*
+  Attaches the flasher to the button. The port has to be asked for inside the
+  click's own handler — the browser only shows its port dialog while it is
+  handling a user gesture, and a click that has been to the server and back
+  is not one any more. So the button's click never reaches the server: the
+  listener below asks for the port first, synchronously, and tells the server
+  afterwards.
+*/
+function armFlasher(element: FlasherElement, button: HTMLElement, image: HTMLAnchorElement): boolean {
+  if ((button as any).__screwcloudArmed) {
+    return true;
   }
+  (button as any).__screwcloudArmed = true;
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    const serial = (navigator as any).serial;
+    if (!serial) {
+      element.$server.failed(
+        "This browser cannot open serial ports. Use Chrome or Edge on a computer.",
+        "navigator.serial is undefined",
+      );
+      return;
+    }
+    // Before any await: this is the call that needs the gesture.
+    const port: Promise<Port> = serial.requestPort({});
+    element.$server.started();
+    console.info(LOG, "asked for a port");
+    void flashEsp32(element, port, image);
+  });
+  console.info(LOG, "armed", button);
+  return true;
+}
+
+async function flashEsp32(
+  element: FlasherElement,
+  chosenPort: Promise<Port>,
+  image: HTMLAnchorElement,
+): Promise<void> {
+  const server = element.$server;
 
   let transport: Transport | undefined;
   try {
-    const port = await serial.requestPort({});
+    const port = await chosenPort;
+    console.info(LOG, "port chosen", port.getInfo?.());
     server.stage("Connecting to the board");
     transport = new Transport(port, false);
     const loader = new ESPLoader({ transport, baudrate: BAUDRATE, terminal: quietTerminal });
 
     const chip = await loader.main();
+    console.info(LOG, "connected to", chip);
     if (!chip.includes(EXPECTED_CHIP)) {
       throw new Error(
         `This board is a ${chip}, and the firmware was built for an ${EXPECTED_CHIP}. ` +
@@ -74,6 +114,7 @@ async function flashEsp32(element: FlasherElement, image: HTMLAnchorElement): Pr
       );
     }
     const data = new Uint8Array(await response.arrayBuffer());
+    console.info(LOG, "image fetched,", data.length, "bytes");
 
     server.stage("Writing");
     let lastReported = -1;
@@ -100,9 +141,11 @@ async function flashEsp32(element: FlasherElement, image: HTMLAnchorElement): Pr
 
     server.stage("Restarting the board");
     await loader.after("hard_reset");
+    console.info(LOG, "done");
     server.flashed();
   } catch (error) {
-    server.failed(describe(error));
+    console.error(LOG, error);
+    server.failed(describe(error), String(error));
   } finally {
     if (transport) {
       try {
@@ -119,6 +162,9 @@ function describe(error: unknown): string {
   if (error instanceof DOMException && error.name === "NotFoundError") {
     return "No port was chosen. Press the button again and pick the board's port.";
   }
+  if (error instanceof DOMException && error.name === "SecurityError") {
+    return "The browser would not ask for a port: it wants the request to come straight from a click. Press the button again; if it repeats, reload the page.";
+  }
   if (error instanceof DOMException && (error.name === "NetworkError" || error.name === "InvalidStateError")) {
     return "The port could not be opened. If another program — the Arduino IDE's serial monitor, say — has it open, close that and try again.";
   }
@@ -131,8 +177,8 @@ function describe(error: unknown): string {
 
 declare global {
   interface Window {
-    ScrewCloud?: { flashEsp32?: typeof flashEsp32 };
+    ScrewCloud?: { armFlasher?: typeof armFlasher };
   }
 }
 
-window.ScrewCloud = { ...(window.ScrewCloud ?? {}), flashEsp32 };
+window.ScrewCloud = { ...(window.ScrewCloud ?? {}), armFlasher };

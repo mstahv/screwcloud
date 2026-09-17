@@ -11,8 +11,10 @@ import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.html.Section;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import fi.mstahv.sensorhub.firmware.BuildJob;
-import fi.mstahv.sensorhub.firmware.FirmwareBuilds;
 
 /**
  * Writes a built ESP32 image onto a board plugged into the reader's computer,
@@ -25,6 +27,16 @@ import fi.mstahv.sensorhub.firmware.FirmwareBuilds;
  * handler bound to this session. Nothing about the board's memory layout lives
  * here: the image is written at address zero and knows its own layout.
  *
+ * <h2>The click stays in the browser</h2>
+ *
+ * <p>Asking for a serial port is allowed only while the browser is handling a
+ * user gesture, and a click that has been to the server and back is not one any
+ * more — Chrome shows no dialog and says why only in the console. So the button
+ * has no server-side click listener. The script attaches its own to the button's
+ * element when this attaches, asks for the port first thing inside it, and only
+ * then tells the server that a flash has started. Every word the reader sees
+ * still comes from here; the browser just gets to ask its question in time.
+ *
  * <h2>Chrome and Edge, on a computer</h2>
  *
  * <p>Web Serial is what makes this possible and it is not everywhere: Safari does
@@ -32,38 +44,31 @@ import fi.mstahv.sensorhub.firmware.FirmwareBuilds;
  * button is not offered; the reader is told so and pointed at the download,
  * which is the same file and the same result by way of a command line.
  *
- * <h2>The image outlives a failed attempt, not a successful one</h2>
+ * <h2>The image stays for as long as the page does</h2>
  *
- * <p>The download link deletes the file the moment it has been read, because it
- * holds a WiFi password. A flash can fail halfway — a cable pulled, a port picked
- * wrong — and the reader will want to press the button again, so this handler
- * does not delete on read. It deletes when the board reports the write complete,
- * and the sweep catches the rest.
+ * <p>A flash can fail halfway — a cable pulled, a port picked wrong — and the
+ * reader will want to press the button again; and having flashed one board they
+ * may still want the file. So nothing here deletes the image. The view does,
+ * when the reader leaves it, and the sweep catches a tab left open.
  */
 @NpmPackage(value = "esptool-js", version = "0.6.1")
 @JsModule("./esp-flasher.ts")
 class SerialFlasher extends Section {
 
-    private final FirmwareBuilds builds;
+    private static final Logger log = LoggerFactory.getLogger(SerialFlasher.class);
+
     private final BuildJob job;
-    private final Runnable onFlashed;
 
     private final Button flash = new Button("Connect and flash");
     private final ProgressBar bar = new ProgressBar(0, 100);
     private final Paragraph status = new Paragraph();
     private final Anchor image = new Anchor();
 
-    /**
-     * @param onFlashed told once the board has been written, so the page can take
-     *        away a download link to a file that no longer exists
-     */
-    SerialFlasher(FirmwareBuilds builds, BuildJob job, Runnable onFlashed) {
-        this.builds = builds;
+    SerialFlasher(BuildJob job) {
         this.job = job;
-        this.onFlashed = onFlashed;
 
         flash.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        flash.addClickListener(click -> start());
+        // No click listener here: the browser's own handles the click, see above.
         flash.setVisible(false);  // until the browser has said it can
 
         bar.setVisible(false);
@@ -103,25 +108,44 @@ class SerialFlasher extends Section {
     private void offer(boolean supported) {
         flash.setVisible(supported);
         if (!supported) {
+            log.info("Not offering to flash {}: the browser has no Web Serial", job.deviceId());
             say("This browser cannot open serial ports, so it cannot flash the board. "
                     + "Use Chrome or Edge on a computer — or download the file below and write "
                     + "it with esptool, as described further down.");
+            return;
         }
+        /*
+           Hands the button to the script, which listens for the click itself.
+           If the module is not there — the bundle was built without it, say —
+           the promise rejects and the reader is told rather than left with a
+           button that does nothing.
+        */
+        getElement().executeJs("return window.ScrewCloud.armFlasher(this, $0, $1)",
+                        flash.getElement(), image.getElement())
+                .then(armed -> log.debug("Flasher armed for {}", job.deviceId()),
+                        failure -> {
+                            log.warn("The flasher script could not be armed for {}: {}",
+                                    job.deviceId(), failure);
+                            flash.setVisible(false);
+                            say("The flasher could not be started in this browser. "
+                                    + "Download the file below and write it with esptool instead.");
+                        });
     }
 
-    private void start() {
+    /** The browser has asked for a port; from here on the button is out of play. */
+    @ClientCallable
+    void started() {
+        log.info("Flashing {} from the browser", job.deviceId());
         flash.setEnabled(false);
         bar.setValue(0);
         bar.setVisible(true);
         say("Choose the board's port in the dialog the browser opens.");
-        getElement().executeJs("return window.ScrewCloud.flashEsp32(this, $0)", image.getElement())
-                .then(done -> { }, failure -> failed(
-                        "The flasher could not be started in this browser. " + failure));
     }
 
     /** Where the flasher is, in the reader's words. */
     @ClientCallable
     void stage(String text) {
+        log.info("Flashing {}: {}", job.deviceId(), text);
         say(text);
     }
 
@@ -133,19 +157,20 @@ class SerialFlasher extends Section {
 
     @ClientCallable
     void flashed() {
+        log.info("Flashed {} from the browser", job.deviceId());
         bar.setValue(100);
         say("Done. The board is restarting; within a minute or so its light should "
                 + "settle into two green blinks and a pause.");
-        /*
-           The file has done its job and holds a password; the same rule as the
-           download link, at the moment the equivalent of a download has happened.
-        */
-        builds.discard(job);
-        onFlashed.run();
     }
 
+    /**
+     * @param message what the reader is told
+     * @param detail what the browser actually said, for the log — the reader's
+     *        sentence is chosen for acting on, this one for finding out
+     */
     @ClientCallable
-    void failed(String message) {
+    void failed(String message, String detail) {
+        log.warn("Flashing {} failed: {} ({})", job.deviceId(), message, detail);
         bar.setVisible(false);
         flash.setEnabled(true);
         say(message);

@@ -2568,9 +2568,10 @@ Three things it does that a build on your own laptop does not:
   try again in a minute" when it is full — which is an answer rather than an
   error.
 - **It forgets the file.** The image carries the WiFi password in clear text, so
-  it is deleted the moment it has been downloaded or written to a board, and
-  swept after fifteen minutes if nobody came back for it. A flash that fails
-  halfway does *not* delete it — the reader will want to press the button again.
+  it is deleted when the reader leaves the page, and swept after fifteen minutes
+  if a tab was left open. Not on download, as it once was: the second click on
+  the same link, and the flasher reading the image the link had already served,
+  both found nothing and put a stack trace in the log.
 
 The configuration is written as byte arrays rather than as C string literals —
 `{ 0x68, 0x75, ... }` and not `"hunter22"` — so that nothing a reader can type
