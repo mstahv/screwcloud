@@ -72,8 +72,8 @@ once, the switch is now in Settings → Notifications → ScrewCloud, like any a
 
 <img src="iphone/05-notifications-on.jpg" width="300" alt="The installed app with Notifications on this browser and Notify if it stops reporting highlighted">
 
-While you are here: **Notify if it stops reporting** on the device's card (6)
-tells you when the device itself goes quiet — a dead battery, a router someone
+While you are here: **Notify if it stops reporting** on the device's card, also
+highlighted above, tells you when the device itself goes quiet — a dead battery, a router someone
 unplugged — which is a different thing from the temperature being wrong, and
 worth knowing before a weekend.
 
