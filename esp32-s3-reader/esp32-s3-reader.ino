@@ -16,6 +16,15 @@
   can be the same they are, line for line, because ProtocolSyncTest in the
   server module reads both and complains when they drift.
 
+  It works in cycles rather than continuously. The radios are what make an
+  ESP32 hot: scanning for advertisements without pause and holding a WiFi
+  association cost more than the rest of the chip put together, and a device
+  that reports every five minutes needs neither for more than a fraction of
+  that. So each cycle listens for a short window, sends what it heard, switches
+  both radios off and waits — awake by default, so the light and the serial
+  console keep working, or in light sleep if config.h asks for it. See
+  "Power" in config.h.example for the numbers.
+
   Developed against a Waveshare ESP32-S3-Zero, which has no plain LED — status is
   shown on its WS2812 RGB LED instead, where the colour carries the meaning.
 
@@ -30,6 +39,7 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <NimBLEDevice.h>
+#include <esp_sleep.h>
 #include <esp_task_wdt.h>
 
 #include "config.h"
@@ -50,6 +60,18 @@ static const uint8_t RUUVI_FORMAT_5_LEN = 24;  // bytes after the company id
 */
 #ifndef INTERNAL_SENSOR_ID
 #define INTERNAL_SENSOR_ID "CPU"
+#endif
+
+/*
+   Likewise for the power settings, which arrived after the first devices were
+   configured. The defaults are the awake cycle described in config.h.example;
+   light sleep stays off until a config asks for it.
+*/
+#ifndef LISTEN_MS
+#define LISTEN_MS 20000UL
+#endif
+#ifndef CPU_FREQUENCY_MHZ
+#define CPU_FREQUENCY_MHZ 80
 #endif
 
 /*
@@ -382,7 +404,7 @@ class RuuviScanCallbacks : public NimBLEScanCallbacks {
 
 static RuuviScanCallbacks scanCallbacks;
 
-static void startScanning() {
+static void setupScanning() {
   NimBLEDevice::init("");
 
   NimBLEScan *scan = NimBLEDevice::getScan();
@@ -396,7 +418,26 @@ static void startScanning() {
   scan->setWindow(SCAN_WINDOW_MS);
   // 0 = do not accumulate a result list; we only care about the callbacks.
   scan->setMaxResults(0);
-  scan->start(0);  // 0 = scan forever
+}
+
+/*
+   Scanning is the single most expensive thing this device does — the receiver
+   is on for the whole window, and the window is the whole interval — so it runs
+   only while there is something to listen for. Started at the top of each cycle,
+   stopped before the send.
+*/
+static void startScanning() {
+  NimBLEScan *scan = NimBLEDevice::getScan();
+  if (!scan->isScanning()) {
+    scan->start(0);  // 0 = until stopped
+  }
+}
+
+static void stopScanning() {
+  NimBLEScan *scan = NimBLEDevice::getScan();
+  if (scan->isScanning()) {
+    scan->stop();
+  }
 }
 
 /* ==========================================================================
@@ -604,6 +645,16 @@ static bool connectWiFi() {
 }
 
 /*
+   The radio off between sends. An association costs tens of milliamps just to
+   keep, and connecting again takes a few seconds against an interval of minutes.
+   connectWiFi() brings it back when the next packet is ready.
+*/
+static void disconnectWiFi() {
+  WiFi.disconnect(true /* radio off */);
+  WiFi.mode(WIFI_OFF);
+}
+
+/*
    Sends one packet and says why not if it could not. The reasons are the Pico
    WiFi transport's, word for word.
 */
@@ -638,6 +689,7 @@ static void reportMeasurements() {
   packet.begin(DEVICE_ID, ++sequence);
 
   SensorReading reading;
+  internalTemperature.update();
   if (internalTemperature.hasReading()) {
     internalTemperature.fillReading(reading);
     packet.add(reading);
@@ -708,6 +760,7 @@ static void printReadings() {
   RuuviReading readings[MAX_RUUVI_TAGS];
   uint8_t count = ruuviTags.snapshot(readings, MAX_RUUVI_TAGS);
 
+  internalTemperature.update();
   internalTemperature.printTo(Serial);
   if (count == 0) {
     Serial.println("RuuviTag: nothing heard yet");
@@ -738,28 +791,110 @@ static void startWatchdog() {
   esp_task_wdt_add(NULL);
 }
 
+/* ==========================================================================
+   The cycle
+
+   Two phases, and the radios follow them:
+
+     listening   BLE scanning, for LISTEN_MS. Long enough that every tag in
+                 range has advertised several times over.
+     resting     both radios off, until the next cycle is due. Awake, unless
+                 LIGHT_SLEEP_BETWEEN_SENDS is defined — then the chip sleeps
+                 and wakes on its timer.
+
+   The send sits between the two: scanning stops, WiFi comes up, the packet
+   goes, WiFi goes down. A failed send shortens the rest to RETRY_INTERVAL_MS.
+
+   The first cycle starts at boot, so the first packet leaves about LISTEN_MS
+   after power-on — the same wait as the old FIRST_SEND_DELAY_MS, for the same
+   reason.
+   ========================================================================== */
+
+enum class Phase : uint8_t { Listening, Resting };
+
+static Phase phase = Phase::Listening;
+static unsigned long phaseStartedAt = 0;
+static unsigned long restFor = 0;
+
+static void startListening() {
+  phase = Phase::Listening;
+  phaseStartedAt = millis();
+  startScanning();
+  Serial.printf("Listening for %lu s\n", (unsigned long)(LISTEN_MS / 1000UL));
+}
+
+static void startResting() {
+  stopScanning();
+  reportMeasurements();
+  disconnectWiFi();
+
+  phase = Phase::Resting;
+  phaseStartedAt = millis();
+  /*
+     The interval is measured send to send, so the rest is what is left of it
+     after the listening window — and shorter after a failure, so a link that
+     comes back is noticed within a minute rather than five.
+  */
+  unsigned long interval = linkState.status == LinkStatus::Failed
+                               ? RETRY_INTERVAL_MS : SEND_INTERVAL_MS;
+  restFor = interval > LISTEN_MS ? interval - LISTEN_MS : 0;
+  Serial.printf("Resting for %lu s\n", restFor / 1000UL);
+}
+
+#ifdef LIGHT_SLEEP_BETWEEN_SENDS
+/*
+   Light sleep until the next cycle: CPU halted, RAM kept, radios already off.
+   Two things have to be arranged around it. The watchdog's timer would fire the
+   moment the chip wakes, having "missed" its feedings for minutes, so this task
+   leaves the watchdog's care before sleeping and returns to it after. And the
+   light is switched off — it cannot be blinked from a halted CPU, and a light
+   frozen on would read as a state that does not exist.
+
+   The USB console drops while the chip sleeps and comes back after; that is the
+   price of this mode, and why it is not the default.
+*/
+static void sleepUntilNextCycle() {
+  unsigned long elapsed = millis() - phaseStartedAt;
+  if (elapsed >= restFor) {
+    return;
+  }
+  unsigned long remaining = restFor - elapsed;
+  neopixelWrite(RGB_LED_PIN, 0, 0, 0);
+  Serial.printf("Light sleep for %lu s\n", remaining / 1000UL);
+  Serial.flush();
+
+  esp_task_wdt_delete(NULL);
+  esp_sleep_enable_timer_wakeup((uint64_t)remaining * 1000ULL);
+  esp_light_sleep_start();
+  esp_task_wdt_add(NULL);
+  esp_task_wdt_reset();
+}
+#endif
+
 void setup() {
   Serial.begin(115200);
 
+  /*
+     Slower, and cooler for it. The radios need at least 80 MHz; nothing here
+     needs more — the work between two packets is parsing a few dozen bytes of
+     advertisement, and the rest is waiting.
+  */
+  setCpuFrequencyMhz(CPU_FREQUENCY_MHZ);
+
   statusLed.begin();
   ruuviTags.begin();
-  startScanning();
+  setupScanning();
 
-  // Connecting here is only for fast feedback; a failure is not fatal since
-  // sendPacket() reconnects as needed. Flagging it right away puts a wrong WiFi
-  // password on the LED instead of only after the first send attempt.
-  if (!connectWiFi()) {
-    linkState.recordResult(false, "NO WIFI");
-    statusLed.setStatus(linkState.status);
-  }
+  Serial.printf("ScrewCloud ESP32-S3 reader, device %s -> %s:%u, CPU %u MHz\n",
+                DEVICE_ID, SERVER_HOST, (unsigned)SERVER_PORT, (unsigned)getCpuFrequencyMhz());
 
-  Serial.printf("ScrewCloud ESP32-S3 reader, device %s -> %s:%u\n",
-                DEVICE_ID, SERVER_HOST, (unsigned)SERVER_PORT);
+  startListening();
 
   /*
      Started last, so that everything above is free to take as long as it needs.
-     A watchdog armed before the WiFi connect would turn a slow boot into a boot
-     loop — one that hides the console output explaining why the boot was slow.
+     A watchdog armed before the radios were up would turn a slow boot into a
+     boot loop — one that hides the console output explaining why the boot was
+     slow.
   */
   startWatchdog();
 }
@@ -769,29 +904,26 @@ void loop() {
 
   statusLed.update();
 
-  static unsigned long lastPrint = 0;
-  if (millis() - lastPrint >= PRINT_INTERVAL_MS) {
-    lastPrint = millis();
-    internalTemperature.update();
-    printReadings();
-  }
-
-  // The first send happens soon after boot so that a working connection is
-  // visible immediately rather than one send interval later.
-  static unsigned long lastSend = 0;
-  static bool firstSendDone = false;
-  unsigned long sendInterval;
-  if (!firstSendDone) {
-    sendInterval = FIRST_SEND_DELAY_MS;
-  } else if (linkState.status == LinkStatus::Failed) {
-    sendInterval = RETRY_INTERVAL_MS;
-  } else {
-    sendInterval = SEND_INTERVAL_MS;
-  }
-  if (millis() - lastSend >= sendInterval) {
-    lastSend = millis();
-    firstSendDone = true;
-    reportMeasurements();
+  switch (phase) {
+    case Phase::Listening: {
+      static unsigned long lastPrint = 0;
+      if (millis() - lastPrint >= PRINT_INTERVAL_MS) {
+        lastPrint = millis();
+        printReadings();
+      }
+      if (millis() - phaseStartedAt >= LISTEN_MS) {
+        startResting();
+      }
+      break;
+    }
+    case Phase::Resting:
+#ifdef LIGHT_SLEEP_BETWEEN_SENDS
+      sleepUntilNextCycle();
+#endif
+      if (millis() - phaseStartedAt >= restFor) {
+        startListening();
+      }
+      break;
   }
 
   // Yield to the WiFi and BLE tasks. There is no run loop of ours to service.

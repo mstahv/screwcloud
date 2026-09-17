@@ -680,6 +680,37 @@ A Ruuvi Air's CO₂ and PM2.5 travel to the server alongside its temperature and
 humidity, exactly as from the Pico, and the chip temperature is sent as sensor
 `CPU` unless `ENABLE_INTERNAL_TEMPERATURE` is commented out in `config.h`.
 
+### Power, and why it works in cycles
+
+The first version scanned for advertisements without pause, held its WiFi
+association and ran the CPU at 240 MHz, and the board ran hot enough to notice.
+None of that is needed by a device that reports every five minutes, so the
+firmware now works in cycles:
+
+| Phase | Radios | How long |
+|---|---|---|
+| listening | BLE scan on, WiFi off | `LISTEN_MS`, 20 s by default |
+| send | scan stopped, WiFi up for the packet and then off | a few seconds |
+| resting | both off | the rest of `SEND_INTERVAL_MS`, or `RETRY_INTERVAL_MS` after a failure |
+
+A RuuviTag advertises every ~1.3 s, so twenty seconds hears every device in
+range many times over, and at a five minute interval the receiver is on seven
+per cent of the time instead of all of it. The CPU runs at 80 MHz, the minimum
+the radios accept and more than the work needs. The light and the serial console
+work throughout, because the chip stays awake — it only has less to do.
+
+`LIGHT_SLEEP_BETWEEN_SENDS` in `config.h` goes further and halts the CPU between
+cycles, woken by a timer. It is off by default because two things stop working
+while the chip sleeps: the light is dark between cycles, and the USB console
+drops and reconnects each time, which makes watching the log a chore. Enable it
+once the device is proven and put away. Around it the watchdog is stood down and
+re-armed — its timer would otherwise fire the moment the chip wakes, having
+"missed" its feedings for minutes.
+
+The first packet leaves about `LISTEN_MS` after power-on, which is what the
+earlier `FIRST_SEND_DELAY_MS` used to arrange; that constant is gone from the
+template, and an old `config.h` that still has it compiles with a warning.
+
 ### What is shared, and why by copy
 
 `Protocol.h` is **byte identical** in both sketches, and the Ruuvi Data Format 5
@@ -737,6 +768,7 @@ acceleration or battery voltage, since it does not report them.
 | Internal temperature | `analogReadTemp()`, sent as sensor `CPU` | `temperatureRead()`, sent as sensor `CPU` |
 | Watchdog | `rp2040.wdt_*`, fed from the transport's wait loops | `esp_task_wdt_*`, fed from the WiFi connect wait |
 | Restart when stuck | `rp2040.reboot()`, held back by a SIM waiting for its PIN | `ESP.restart()`, held back only by a boot too young |
+| Radios | BLE scanning and the transport up throughout | in cycles: scan for a window, WiFi for the send, both off between — see Power |
 | Shared state | none needed | mutex — see below |
 
 **The one real structural difference is concurrency.** On the Pico, BTstack

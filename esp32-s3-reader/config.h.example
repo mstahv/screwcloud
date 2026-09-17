@@ -41,20 +41,53 @@ static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 static const char SERVER_HOST[] = "r.pakast.in";
 static const uint16_t SERVER_PORT = 5555;
 
-// Send interval. Default 5 min.
+// Send interval, measured from one send to the next. Default 5 min.
 static const unsigned long SEND_INTERVAL_MS = 5UL * 60UL * 1000UL;
-
-/*
-   The first send happens before that, so a working connection is visible right
-   after boot. Long enough for at least one RuuviTag to be heard.
-*/
-static const unsigned long FIRST_SEND_DELAY_MS = 30000;
 
 // After a failed send, retry sooner than the normal interval.
 static const unsigned long RETRY_INTERVAL_MS = 60000;
 
-// How often the readings are printed to the serial console.
+// How often the readings are printed to the serial console while listening.
 static const unsigned long PRINT_INTERVAL_MS = 5000;
+
+/* ==========================================================================
+   Power
+
+   An ESP32 with both radios busy runs hot: continuous BLE scanning and a held
+   WiFi association are most of what the chip draws, and a device that reports
+   every five minutes needs neither for more than a fraction of that. So the
+   firmware works in cycles — listen, send, rest — and these decide the shape.
+   ========================================================================== */
+
+/*
+   How long each cycle listens for advertisements before sending. A RuuviTag
+   advertises every ~1.3 s and a Ruuvi Air more often, so twenty seconds hears
+   every device in range many times over. This is also how long the first
+   packet takes after power-on.
+
+   The scan is fully on during the window and fully off outside it, which is
+   what the saving is: at a five minute interval the receiver is on seven per
+   cent of the time instead of all of it.
+*/
+#define LISTEN_MS 20000UL
+
+/*
+   CPU clock while running. The radios need at least 80; the default 240 buys
+   nothing here but heat, since the work between two packets is parsing a few
+   dozen bytes of advertisement and then waiting.
+*/
+#define CPU_FREQUENCY_MHZ 80
+
+/*
+   Light sleep between cycles: CPU halted, RAM kept, woken by a timer. Cooler
+   still, and the right choice for a device on a battery or in a closed box —
+   but two things stop working while it sleeps. The light is dark between
+   cycles (it blinks its status during the listening window and the send), and
+   the USB serial console drops and reconnects every cycle, which makes
+   watching the log a chore. Off by default for those two reasons; enable it
+   once the device is proven and put away.
+*/
+//#define LIGHT_SLEEP_BETWEEN_SENDS
 
 /* ==========================================================================
    Ruuvi devices — tags and Airs alike
