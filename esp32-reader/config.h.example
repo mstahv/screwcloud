@@ -91,6 +91,19 @@ static const unsigned long PRINT_INTERVAL_MS = 5000;
 */
 //#define LIGHT_SLEEP_BETWEEN_SENDS
 
+/*
+   Whether the light keeps blinking its status while the device rests between
+   sends. Set to 0 and it blinks only while listening and around the send — the
+   outcome is still shown every cycle, just not for the minutes in between,
+   when it is telling an empty room.
+
+   Honest numbers: at this brightness the LED costs a couple of milliamps on
+   average, against twenty-odd for the chip awake at 80 MHz. It is a saving,
+   and a small one; the large one is LIGHT_SLEEP_BETWEEN_SENDS above, which
+   turns the light off between cycles anyway.
+*/
+#define STATUS_LED_WHILE_RESTING 1
+
 /* ==========================================================================
    Ruuvi devices — tags and Airs alike
    ========================================================================== */

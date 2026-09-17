@@ -45,7 +45,7 @@ class ConfigHeaderTest {
     }
 
     private static FirmwareRequest request(String ssid, String password) {
-        return new FirmwareRequest(Board.PICO_2_W, "ABCD", ssid, password, 5, FirmwareTransport.AUTOMATIC);
+        return new FirmwareRequest(Board.PICO_2_W, "ABCD", ssid, password, 5, FirmwareTransport.AUTOMATIC, false);
     }
 
     @ParameterizedTest
@@ -53,13 +53,13 @@ class ConfigHeaderTest {
     void theRepositoryTemplateStillHasEverythingThisNeeds(Board board) throws IOException {
         // Fails loudly if the firmware renames a setting. That is the contract.
         generate(new FirmwareRequest(board, "ABCD", "net", "password", 5,
-                FirmwareTransport.AUTOMATIC));
+                FirmwareTransport.AUTOMATIC, false));
     }
 
     @Test
     void theEsp32GetsTheSameValuesAndNoRadioQuestion() throws IOException {
         String header = generate(new FirmwareRequest(Board.ESP32_S3, "abcd", "Wifi", "hunter22",
-                15, FirmwareTransport.AUTOMATIC));
+                15, FirmwareTransport.AUTOMATIC, false));
 
         assertTrue(header.contains(
                 "static const char DEVICE_ID[5] = { 0x41, 0x42, 0x43, 0x44, 0x00 };"), header);
@@ -78,6 +78,28 @@ class ConfigHeaderTest {
     }
 
     @Test
+    void theEsp32SleepsOnlyWhenAsked() throws IOException {
+        String awake = generate(new FirmwareRequest(Board.ESP32_C3, "ABCD", "net", "password", 5,
+                FirmwareTransport.WIFI, false));
+        String asleep = generate(new FirmwareRequest(Board.ESP32_C3, "ABCD", "net", "password", 5,
+                FirmwareTransport.WIFI, true));
+
+        assertTrue(awake.contains("\n//#define LIGHT_SLEEP_BETWEEN_SENDS\n"), awake);
+        assertFalse(awake.contains("\n#define LIGHT_SLEEP_BETWEEN_SENDS\n"), awake);
+        assertTrue(asleep.contains("\n#define LIGHT_SLEEP_BETWEEN_SENDS\n"), asleep);
+        assertFalse(asleep.contains("\n//#define LIGHT_SLEEP_BETWEEN_SENDS\n"), asleep);
+    }
+
+    @Test
+    void thePicoIsNotAskedToSleep() throws IOException {
+        // Its template has no such line, and asking for one would trip the drift detector.
+        String header = generate(new FirmwareRequest(Board.PICO_2_W, "ABCD", "net", "password", 5,
+                FirmwareTransport.AUTOMATIC, true));
+
+        assertFalse(header.contains("LIGHT_SLEEP_BETWEEN_SENDS"), header);
+    }
+
+    @Test
     void valuesBecomeByteArraysRatherThanStringLiterals() throws IOException {
         String header = generate(request("Wifi", "hunter22"));
 
@@ -90,7 +112,7 @@ class ConfigHeaderTest {
     @Test
     void theDeviceIdIsUpperCasedAndStripped() throws IOException {
         String header = generate(
-                new FirmwareRequest(Board.PICO_2_W, "  topi ", "net", "password", 5, FirmwareTransport.AUTOMATIC));
+                new FirmwareRequest(Board.PICO_2_W, "  topi ", "net", "password", 5, FirmwareTransport.AUTOMATIC, false));
 
         // T O P I, then the terminator.
         assertTrue(header.contains(
@@ -149,7 +171,7 @@ class ConfigHeaderTest {
     @Test
     void theSendIntervalIsWrittenInMinutes() throws IOException {
         String header = generate(
-                new FirmwareRequest(Board.PICO_2_W, "ABCD", "net", "password", 15, FirmwareTransport.AUTOMATIC));
+                new FirmwareRequest(Board.PICO_2_W, "ABCD", "net", "password", 15, FirmwareTransport.AUTOMATIC, false));
 
         assertTrue(header.contains(
                 "static const unsigned long SEND_INTERVAL_MS = 15UL * 60UL * 1000UL;"), header);
@@ -159,7 +181,7 @@ class ConfigHeaderTest {
     void exactlyOneTransportIsDefinedWhicheverWasAsked() throws IOException {
         for (FirmwareTransport transport : FirmwareTransport.values()) {
             String header = generate(
-                    new FirmwareRequest(Board.PICO_2_W, "ABCD", "net", "password", 5, transport));
+                    new FirmwareRequest(Board.PICO_2_W, "ABCD", "net", "password", 5, transport, false));
 
             assertTrue(header.contains("\n#define " + transport.macro() + "\n"),
                     transport + " should be the one defined");

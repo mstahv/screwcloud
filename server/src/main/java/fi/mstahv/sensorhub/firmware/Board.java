@@ -174,6 +174,17 @@ public enum Board {
         return esptoolChip;
     }
 
+    /**
+     * Whether the sketch has {@code LIGHT_SLEEP_BETWEEN_SENDS} to offer.
+     *
+     * <p>The ESP32 sketch rests between sends and can sleep through the rest;
+     * the Pico's runs a transport that must stay awake for a modem, and has no
+     * such line in its template.
+     */
+    public boolean offersSleep() {
+        return this != PICO_2_W;
+    }
+
     /** A directory name for this board's own build output. */
     public String key() {
         return name().toLowerCase().replace('_', '-');

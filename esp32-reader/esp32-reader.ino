@@ -80,6 +80,15 @@ static const uint8_t RUUVI_FORMAT_5_LEN = 24;  // bytes after the company id
 #ifndef CPU_FREQUENCY_MHZ
 #define CPU_FREQUENCY_MHZ 80
 #endif
+/*
+   A config written before the LED had a rest setting keeps the light on all
+   the time, which is what it did then. A value rather than a bare define, so
+   that "off" is something a config can say (0) instead of something it can
+   only leave unsaid — which this default would then quietly overrule.
+*/
+#ifndef STATUS_LED_WHILE_RESTING
+#define STATUS_LED_WHILE_RESTING 1
+#endif
 
 /*
    How many sends in a row may fail before the device restarts itself. A failing
@@ -582,6 +591,18 @@ struct StatusLed {
     applyStep();
   }
 
+  /** Dark, until resume(). For the rest between sends, when nobody is watching. */
+  void off() {
+    neopixelWrite(RGB_LED_PIN, 0, 0, 0);
+  }
+
+  /** Back to the rhythm from its first step, so a glance sees a whole pattern. */
+  void resume() {
+    step = 0;
+    stepStartedAt = millis();
+    applyStep();
+  }
+
 private:
   LinkStatus status = LinkStatus::Unknown;
   uint8_t step = 0;
@@ -827,6 +848,9 @@ static void startListening() {
   phase = Phase::Listening;
   phaseStartedAt = millis();
   startScanning();
+#if !STATUS_LED_WHILE_RESTING
+  statusLed.resume();
+#endif
   Serial.printf("Listening for %lu s\n", (unsigned long)(LISTEN_MS / 1000UL));
 }
 
@@ -845,6 +869,14 @@ static void startResting() {
   unsigned long interval = linkState.status == LinkStatus::Failed
                                ? RETRY_INTERVAL_MS : SEND_INTERVAL_MS;
   restFor = interval > LISTEN_MS ? interval - LISTEN_MS : 0;
+#if !STATUS_LED_WHILE_RESTING
+  /*
+     The light goes out for the rest. It has just shown the send's outcome for
+     the few seconds around it and will again at the next cycle; between, it
+     would be telling an empty room.
+  */
+  statusLed.off();
+#endif
   Serial.printf("Resting for %lu s\n", restFor / 1000UL);
 }
 
@@ -911,7 +943,13 @@ void setup() {
 void loop() {
   esp_task_wdt_reset();
 
+#if STATUS_LED_WHILE_RESTING
   statusLed.update();
+#else
+  if (phase == Phase::Listening) {
+    statusLed.update();
+  }
+#endif
 
   switch (phase) {
     case Phase::Listening: {

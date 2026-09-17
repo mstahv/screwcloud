@@ -62,7 +62,10 @@ class Esp32FlashingInstructions extends Section {
                 new ListItem("Blue, a slow steady blink — nothing sent yet. Normal for the "
                         + "first minute or so after starting."),
                 new ListItem("Red, fast flickering — it cannot send. Usually the WiFi name or "
-                        + "password; build again and check them."));
+                        + "password; build again and check them."),
+                new ListItem("Dark for minutes at a time — it is resting between sends, which "
+                        + "is what a firmware built with \"Sleep between sends\" does. It "
+                        + "blinks again each time it listens and sends."));
 
         add(new SectionHeading("Getting it onto the device"), steps,
                 new SectionHeading("If it does not go smoothly"), trouble, command,

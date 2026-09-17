@@ -62,6 +62,11 @@ public final class ConfigHeader {
     private static final Pattern SEND_INTERVAL =
             Pattern.compile("^static const unsigned long SEND_INTERVAL_MS = .*;$", Pattern.MULTILINE);
 
+    /** The ESP32's sleep switch, live or commented out — whichever the template ships with. */
+    static final String SLEEP_MACRO = "LIGHT_SLEEP_BETWEEN_SENDS";
+    private static final Pattern SLEEP =
+            Pattern.compile("^(?://)?#define " + SLEEP_MACRO + "[ \t]*$", Pattern.MULTILINE);
+
     private ConfigHeader() {
     }
 
@@ -97,6 +102,15 @@ public final class ConfigHeader {
         */
         if (request.board().choosesTransport()) {
             result = selectTransport(result, request.transport());
+        }
+        /*
+           The same shape as the transport choice: the template's line is rewritten
+           live or commented out, whichever it shipped as, so the result does not
+           depend on the default the firmware happens to have that month.
+        */
+        if (request.board().offersSleep()) {
+            result = replaceOnce(result, SLEEP, SLEEP_MACRO,
+                    (request.sleepBetweenSends() ? "" : "//") + "#define " + SLEEP_MACRO);
         }
         out.write(result);
     }

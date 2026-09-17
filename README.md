@@ -713,9 +713,17 @@ work throughout, because the chip stays awake — it only has less to do.
 cycles, woken by a timer. It is off by default because two things stop working
 while the chip sleeps: the light is dark between cycles, and the USB console
 drops and reconnects each time, which makes watching the log a chore. Enable it
-once the device is proven and put away. Around it the watchdog is stood down and
-re-armed — its timer would otherwise fire the moment the chip wakes, having
-"missed" its feedings for minutes.
+once the device is proven and put away — on the firmware build page it is the
+"Sleep between sends" box. Around it the watchdog is stood down and re-armed —
+its timer would otherwise fire the moment the chip wakes, having "missed" its
+feedings for minutes.
+
+The light's own cost is small — a couple of milliamps on average at this
+brightness, against twenty-odd for the chip awake at 80 MHz — but it is there,
+and `STATUS_LED_WHILE_RESTING` in `config.h` is where to give it up: set to 0,
+the light blinks only while listening and around the send, and is dark for
+the minutes in between when it would be telling an empty room. With light sleep
+on it is dark between cycles regardless.
 
 The first packet leaves about `LISTEN_MS` after power-on, which is what the
 earlier `FIRST_SEND_DELAY_MS` used to arrange; that constant is gone from the

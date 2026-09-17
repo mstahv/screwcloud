@@ -8,6 +8,7 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.UIDetachedException;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.dependency.StyleSheet;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Paragraph;
@@ -189,6 +190,7 @@ public class FirmwareBuildView extends NavigationView {
         private final PasswordField password = new PasswordField("WiFi password");
         private final IntegerField sendIntervalMinutes = new IntegerField("Send interval");
         private final Select<FirmwareTransport> transport = new Select<>();
+        private final Checkbox sleepBetweenSends = new Checkbox("Sleep between sends");
 
         RequestForm() {
             super(FirmwareRequest.class);
@@ -234,10 +236,20 @@ public class FirmwareBuildView extends NavigationView {
             transport.setItems(FirmwareTransport.values());
             transport.setItemLabelGenerator(FirmwareTransport::caption);
 
+            /*
+               The ESP32's question, as the radio is the Pico's. Off by default
+               and said plainly what it costs: a device on a desk with its log
+               being watched wants the console; one in a shed wants to be cool.
+            */
+            sleepBetweenSends.setHelperText("Cooler and thriftier: the chip halts between sends. "
+                    + "While it does, the light is dark and the USB console drops out, so "
+                    + "leave this off until the device is proven.");
+
             setSaveCaption("Build");
             setSavedHandler(this::startBuild);
             setEntity(new FirmwareRequest(boards.getFirst(), deviceIds.suggest().orElse(""), "", "",
-                    FirmwareRequest.DEFAULT_SEND_INTERVAL_MINUTES, FirmwareTransport.AUTOMATIC));
+                    FirmwareRequest.DEFAULT_SEND_INTERVAL_MINUTES, FirmwareTransport.AUTOMATIC,
+                    false));
             boardChosen(boards.getFirst());
         }
 
@@ -251,6 +263,7 @@ public class FirmwareBuildView extends NavigationView {
                 return;
             }
             transport.setVisible(chosen.choosesTransport());
+            sleepBetweenSends.setVisible(chosen.offersSleep());
             supportedBoard.show(chosen);
         }
 
@@ -286,6 +299,7 @@ public class FirmwareBuildView extends NavigationView {
             return new Section(new FieldRow(board),
                     new FieldRow(ssid, password),
                     new FieldRow(deviceId, sendIntervalMinutes, transport),
+                    sleepBetweenSends,
                     /*
                        What the identifier is *for*, which is not what it looks
                        like. A reader meeting this field has no reason to care

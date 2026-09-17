@@ -32,6 +32,8 @@ import fi.mstahv.sensorhub.validation.WifiPassphrase;
  * @param sendIntervalMinutes how often the device reports
  * @param transport which radio to use, or to decide at boot — the Pico's
  *        question; a board with one radio ignores it
+ * @param sleepBetweenSends whether the chip sleeps between sends — the ESP32's
+ *        question; see {@link Board#offersSleep()}
  */
 public record FirmwareRequest(
         @NotNull Board board,
@@ -39,7 +41,8 @@ public record FirmwareRequest(
         @NotBlank @Ssid String ssid,
         @WifiPassphrase String password,
         @Min(1) @Max(60) int sendIntervalMinutes,
-        @NotNull FirmwareTransport transport) {
+        @NotNull FirmwareTransport transport,
+        boolean sleepBetweenSends) {
 
     /** What the device's config.h ships with, and a sensible default here too. */
     public static final int DEFAULT_SEND_INTERVAL_MINUTES = 5;
@@ -61,6 +64,7 @@ public record FirmwareRequest(
     public String toString() {
         return "FirmwareRequest[board=%s, deviceId=%s, ssid=%s, password=%s, "
                 .formatted(board, deviceId, ssid, password.isEmpty() ? "<none>" : "<hidden>")
-                + "sendIntervalMinutes=%d, transport=%s]".formatted(sendIntervalMinutes, transport);
+                + "sendIntervalMinutes=%d, transport=%s, sleepBetweenSends=%s]"
+                .formatted(sendIntervalMinutes, transport, sleepBetweenSends);
     }
 }
