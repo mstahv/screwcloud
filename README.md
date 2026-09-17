@@ -72,6 +72,12 @@ temperature bands that colour the gauge, which of that sensor's alerts this brow
 wants as push notifications, and the degree-day counters — the one above reads
 `hirvi · 11.0 / 40.0 °Cd` with the forecast underneath.
 
+**On an iPhone**, notifications need the site added to the Home Screen first, and
+Apple has hidden that well. There is an illustrated walk-through of the whole
+path, from Safari to a phone that buzzes before the meat is over-hung:
+[Getting a notification on an iPhone](docs/iphone-notifications.md). Android
+users can skim it; the in-app half applies to them as it stands.
+
 ## Quick start (Pico 2 W)
 
 Minimum hardware: a **Raspberry Pi Pico 2 W** and a **RuuviTag**. No DHT22, no

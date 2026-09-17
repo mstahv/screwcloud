@@ -1,3 +1,8 @@
+# Raw phone screenshots dropped into docs/ for the guides. The annotated, downscaled
+# copies the guides actually show live in docs/iphone/ and are tracked; the five
+# megabyte originals are not.
+docs/IMG_*.PNG
+
 # Device-specific configuration: holds the WiFi password.
 # Copy the matching config.h.example to config.h and edit that.
 temperature-reader/config.h
