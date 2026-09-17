@@ -25,6 +25,7 @@ public class BuildJob {
     }
 
     private final String id = UUID.randomUUID().toString();
+    private final Board board;
     private final String deviceId;
     private final Instant requestedAt;
 
@@ -34,13 +35,19 @@ public class BuildJob {
     private volatile Instant finishedAt;
     private volatile Consumer<BuildJob> listener = job -> { };
 
-    BuildJob(String deviceId, Instant requestedAt) {
+    BuildJob(Board board, String deviceId, Instant requestedAt) {
+        this.board = board;
         this.deviceId = deviceId;
         this.requestedAt = requestedAt;
     }
 
     public String id() {
         return id;
+    }
+
+    /** What the image is for, which decides how it gets onto the device. */
+    public Board board() {
+        return board;
     }
 
     public String deviceId() {
@@ -87,7 +94,7 @@ public class BuildJob {
 
     /** What the downloaded file should be called. */
     public String fileName() {
-        return "screwcloud-%s.uf2".formatted(deviceId.toLowerCase());
+        return board.fileName(deviceId);
     }
 
     /**

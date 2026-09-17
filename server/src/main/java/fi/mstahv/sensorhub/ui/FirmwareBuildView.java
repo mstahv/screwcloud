@@ -1,5 +1,6 @@
 package fi.mstahv.sensorhub.ui;
 
+import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 
 import com.vaadin.flow.component.AttachEvent;
@@ -24,6 +25,7 @@ import com.vaadin.flow.theme.aura.Aura;
 import org.vaadin.firitin.form.BeanValidationForm;
 import org.vaadin.firitin.layouts.NavigationView;
 
+import fi.mstahv.sensorhub.firmware.Board;
 import fi.mstahv.sensorhub.firmware.BuildJob;
 import fi.mstahv.sensorhub.firmware.DeviceIdSuggester;
 import fi.mstahv.sensorhub.firmware.FirmwareBuilds;
@@ -37,8 +39,14 @@ import fi.mstahv.sensorhub.validation.WifiPassphrase;
  * Builds a device's firmware here, so nobody has to install a toolchain.
  *
  * <p>The errand is short and the page is shaped like it: a form, a wait, a file,
- * and then the six steps for getting the file onto the board. Nothing else — a
- * reader arriving here has a Pico in one hand.
+ * and then the steps for getting the file onto the board. Nothing else — a reader
+ * arriving here has a board in one hand.
+ *
+ * <p>Two boards, one form. The Pico and the ESP32 want the same four answers and
+ * differ in what comes out: a file to drop onto a drive, or an image the browser
+ * can write over a serial port itself. The board is the first choice on the
+ * form, and it decides which of those the reader is shown afterwards — and
+ * whether the radio question is asked at all, since only the Pico has two.
  *
  * <p>If this server has no toolchain the page says so plainly instead of
  * offering a button that cannot work. That is not an error state; the feature is
@@ -60,6 +68,7 @@ public class FirmwareBuildView extends NavigationView {
     private final DeviceIdSuggester deviceIds;
 
     private final Section outcome = new Section();
+    private final SupportedBoard supportedBoard = new SupportedBoard();
     private BuildJob job;
 
     public FirmwareBuildView(FirmwareBuilds builds, DeviceIdSuggester deviceIds) {
@@ -76,7 +85,7 @@ public class FirmwareBuildView extends NavigationView {
             add(new Unavailable());
             return;
         }
-        add(new SupportedBoard(), new RequestForm(), outcome);
+        add(supportedBoard, new RequestForm(), outcome);
     }
 
     /**
@@ -93,23 +102,37 @@ public class FirmwareBuildView extends NavigationView {
     }
 
     /**
-     * Which board this builds for, said before the form rather than after it.
+     * Which board the chosen firmware is for, said before the form rather than
+     * after it.
      *
-     * <p>The firmware is compiled for one target and there is no choosing it
-     * here, so somebody holding a different board should find that out while
-     * they still have their hands free — not from a file that copies onto the
-     * drive and does nothing, which is what an RP2040 board does with an RP2350
-     * image.
+     * <p>The firmware is compiled for one chip, so somebody holding a different
+     * board should find that out while they still have their hands free — not
+     * from a file that copies onto the drive and does nothing, which is what an
+     * RP2040 board does with an RP2350 image, or from a flasher that stops and
+     * says the chip is wrong.
      *
      * <p>Named for the board rather than for the limitation. "Only supports X"
      * reads as an apology for a missing feature; this is simply what the thing
-     * is for.
+     * is for. It follows the form's board choice, so it always describes the
+     * one about to be built.
      */
     private static class SupportedBoard extends Section {
+
+        private final Hint hint = new Hint("");
+
         SupportedBoard() {
-            add(new Hint("Builds for the Raspberry Pi Pico 2 W. Other boards — including "
-                    + "the original Pico W — need a different build, and an image for the "
-                    + "wrong chip copies across without doing anything."));
+            add(hint);
+        }
+
+        void show(Board board) {
+            hint.setText(switch (board) {
+                case PICO_2_W -> "Builds for the Raspberry Pi Pico 2 W. Other boards — including "
+                        + "the original Pico W — need a different build, and an image for the "
+                        + "wrong chip copies across without doing anything.";
+                case ESP32_S3 -> "Builds for an ESP32-S3 with 4 MB of flash, such as the "
+                        + "Waveshare ESP32-S3-Zero. Other ESP32 chips need a different build; "
+                        + "the flasher checks and stops before writing anything.";
+            });
         }
     }
 
@@ -129,6 +152,7 @@ public class FirmwareBuildView extends NavigationView {
            them. They live here rather than on the view because the binder
            reflects over the fields of the component it is given.
         */
+        private final Select<Board> board = new Select<>();
         private final TextField deviceId = new TextField("Device ID");
         private final TextField ssid = new TextField("WiFi network");
         private final PasswordField password = new PasswordField("WiFi password");
@@ -138,6 +162,19 @@ public class FirmwareBuildView extends NavigationView {
         RequestForm() {
             super(FirmwareRequest.class);
             asSection();
+
+            /*
+               The first question, because it changes the rest of the form and
+               what comes after the build. Only the boards this server can build
+               for are offered, and with one of them the question is not asked —
+               a select with one option is a label that costs a click.
+            */
+            List<Board> boards = builds.availableBoards();
+            board.setLabel("Board");
+            board.setItems(boards);
+            board.setItemLabelGenerator(Board::caption);
+            board.setVisible(boards.size() > 1);
+            board.addValueChangeListener(change -> boardChosen(change.getValue()));
 
             /*
                By hand, like DeviceListView's: @DeviceId is a constraint of this
@@ -168,8 +205,22 @@ public class FirmwareBuildView extends NavigationView {
 
             setSaveCaption("Build");
             setSavedHandler(this::startBuild);
-            setEntity(new FirmwareRequest(deviceIds.suggest().orElse(""), "", "",
+            setEntity(new FirmwareRequest(boards.getFirst(), deviceIds.suggest().orElse(""), "", "",
                     FirmwareRequest.DEFAULT_SEND_INTERVAL_MINUTES, FirmwareTransport.AUTOMATIC));
+            boardChosen(boards.getFirst());
+        }
+
+        /*
+           The radio is the Pico's question. The ESP32 has WiFi and nothing else,
+           and a select for a choice that does not exist would only make a reader
+           wonder what they were missing.
+        */
+        private void boardChosen(Board chosen) {
+            if (chosen == null) {
+                return;
+            }
+            transport.setVisible(chosen.choosesTransport());
+            supportedBoard.show(chosen);
         }
 
         private void startBuild(FirmwareRequest request) {
@@ -201,7 +252,8 @@ public class FirmwareBuildView extends NavigationView {
                is, and a section that is the whole view does not need naming
                twice.
             */
-            return new Section(new FieldRow(ssid, password),
+            return new Section(new FieldRow(board),
+                    new FieldRow(ssid, password),
                     new FieldRow(deviceId, sendIntervalMinutes, transport),
                     /*
                        What the identifier is *for*, which is not what it looks
@@ -300,13 +352,32 @@ public class FirmwareBuildView extends NavigationView {
                     : "Waiting — %d build(s) ahead".formatted(ahead);
         }
 
+        /*
+           What "ready" looks like depends on how the board takes its firmware.
+           The Pico's file is dropped onto a drive, so the file is the thing and
+           it comes first. The ESP32's is written over a serial port, which the
+           browser can do itself, so the button comes first and the file is the
+           fallback for a browser that cannot.
+        */
         private void ready(BuildJob updated) {
             outcome.removeAll();
-            outcome.add(new Section(new SectionHeading("Ready"),
-                    downloadLink(updated),
-                    new Hint("The file is kept for a few minutes and then deleted, "
-                            + "because it contains your WiFi password.")),
-                    new FlashingInstructions());
+            switch (updated.board().flashing()) {
+                case UF2_DRIVE -> outcome.add(
+                        new Section(new SectionHeading("Ready"),
+                                downloadLink(updated),
+                                new Hint("The file is kept for a few minutes and then deleted, "
+                                        + "because it contains your WiFi password.")),
+                        new PicoFlashingInstructions());
+                case SERIAL -> {
+                    Section download = new Section(new SectionHeading("Or take the file"),
+                            downloadLink(updated),
+                            new Hint("For writing with esptool from a command line. The file is "
+                                    + "kept for a few minutes and then deleted, because it "
+                                    + "contains your WiFi password."));
+                    outcome.add(new SerialFlasher(builds, updated, () -> download.setVisible(false)),
+                            download, new Esp32FlashingInstructions());
+                }
+            }
         }
 
         private void failed(BuildJob updated) {

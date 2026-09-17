@@ -11,6 +11,9 @@
   Only DEVICE_ID, WIFI_SSID and WIFI_PASSWORD need changing. Everything else has
   a working default, including the server address, which points at the public
   demo server.
+
+  Nothing is wired to this board and nothing needs configuring away: a bare
+  ESP32-S3 with a RuuviTag or a Ruuvi Air in range is a complete setup.
 */
 
 /*
@@ -54,7 +57,7 @@ static const unsigned long RETRY_INTERVAL_MS = 60000;
 static const unsigned long PRINT_INTERVAL_MS = 5000;
 
 /* ==========================================================================
-   RuuviTags
+   Ruuvi devices — tags and Airs alike
    ========================================================================== */
 
 // How many distinct tags are kept in memory at once.
@@ -63,6 +66,7 @@ static const uint8_t MAX_RUUVI_TAGS = 8;
 /*
    A tag broadcasts every ~1285 ms, so a reading older than this means the tag is
    out of range or its battery is dead. Stale readings are left out of the packet.
+   A Ruuvi Air broadcasts more often still, so the same limit serves it.
 */
 static const unsigned long RUUVI_STALE_MS = 60000;
 
@@ -76,6 +80,26 @@ static const unsigned long RUUVI_STALE_MS = 60000;
 */
 static const uint16_t SCAN_INTERVAL_MS = 30;
 static const uint16_t SCAN_WINDOW_MS = 30;
+
+/* ==========================================================================
+   The chip's own temperature sensor
+   ========================================================================== */
+
+/*
+   Reported as its own sensor so it can be followed in the web UI like any other.
+   It is not a room thermometer: the sensor is on the same die as the CPU and the
+   radios, so it reads well above the air around it and moves with the load.
+   Worth watching, not worth trusting.
+
+   Comment it out to leave it out of the packet.
+*/
+#define ENABLE_INTERNAL_TEMPERATURE
+
+/*
+   The identifier the chip temperature is reported under. At most 3 characters,
+   like every sensor id, and distinct from any RuuviTag label.
+*/
+#define INTERNAL_SENSOR_ID "CPU"
 
 /* ==========================================================================
    Status LED

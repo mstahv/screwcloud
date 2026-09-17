@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -20,30 +22,59 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * repository rather than pasted here. That makes these tests the drift detector
  * the class documents: rename a declaration in the firmware and they fail, which
  * is the point.
+ *
+ * <p>Most of what is checked is the same for both boards, and is checked against
+ * the Pico's template. The ESP32's is put through the same generator at the end,
+ * because it is the second template and the one somebody editing the first will
+ * not think of.
  */
 class ConfigHeaderTest {
 
-    private static final Path TEMPLATE =
-            Path.of("..", "temperature-reader", "config.h.example");
+    private static Path template(Board board) {
+        return Path.of("..", board.sketch(), "config.h.example");
+    }
 
     private static String template() throws IOException {
-        return Files.readString(TEMPLATE);
+        return Files.readString(template(Board.PICO_2_W));
     }
 
     private static String generate(FirmwareRequest request) throws IOException {
         StringWriter out = new StringWriter();
-        ConfigHeader.write(request, template(), out);
+        ConfigHeader.write(request, Files.readString(template(request.board())), out);
         return out.toString();
     }
 
     private static FirmwareRequest request(String ssid, String password) {
-        return new FirmwareRequest("ABCD", ssid, password, 5, FirmwareTransport.AUTOMATIC);
+        return new FirmwareRequest(Board.PICO_2_W, "ABCD", ssid, password, 5, FirmwareTransport.AUTOMATIC);
+    }
+
+    @ParameterizedTest
+    @EnumSource(Board.class)
+    void theRepositoryTemplateStillHasEverythingThisNeeds(Board board) throws IOException {
+        // Fails loudly if the firmware renames a setting. That is the contract.
+        generate(new FirmwareRequest(board, "ABCD", "net", "password", 5,
+                FirmwareTransport.AUTOMATIC));
     }
 
     @Test
-    void theRepositoryTemplateStillHasEverythingThisNeeds() throws IOException {
-        // Fails loudly if the firmware renames a setting. That is the contract.
-        generate(request("net", "password"));
+    void theEsp32GetsTheSameValuesAndNoRadioQuestion() throws IOException {
+        String header = generate(new FirmwareRequest(Board.ESP32_S3, "abcd", "Wifi", "hunter22",
+                15, FirmwareTransport.AUTOMATIC));
+
+        assertTrue(header.contains(
+                "static const char DEVICE_ID[5] = { 0x41, 0x42, 0x43, 0x44, 0x00 };"), header);
+        assertTrue(header.contains(
+                "static const char WIFI_SSID[] = { 0x57, 0x69, 0x66, 0x69, 0x00 };"), header);
+        assertTrue(header.contains("static const char WIFI_PASSWORD[] = "
+                + "{ 0x68, 0x75, 0x6E, 0x74, 0x65, 0x72, 0x32, 0x32, 0x00 };"), header);
+        assertTrue(header.contains(
+                "static const unsigned long SEND_INTERVAL_MS = 15UL * 60UL * 1000UL;"), header);
+        /*
+           The ESP32 has one radio and its template has no TRANSPORT_* lines.
+           The generator must not have invented any, and — the case this test is
+           really for — must not have refused the template for lacking them.
+        */
+        assertFalse(header.contains("TRANSPORT_"), header);
     }
 
     @Test
@@ -59,7 +90,7 @@ class ConfigHeaderTest {
     @Test
     void theDeviceIdIsUpperCasedAndStripped() throws IOException {
         String header = generate(
-                new FirmwareRequest("  topi ", "net", "password", 5, FirmwareTransport.AUTOMATIC));
+                new FirmwareRequest(Board.PICO_2_W, "  topi ", "net", "password", 5, FirmwareTransport.AUTOMATIC));
 
         // T O P I, then the terminator.
         assertTrue(header.contains(
@@ -118,7 +149,7 @@ class ConfigHeaderTest {
     @Test
     void theSendIntervalIsWrittenInMinutes() throws IOException {
         String header = generate(
-                new FirmwareRequest("ABCD", "net", "password", 15, FirmwareTransport.AUTOMATIC));
+                new FirmwareRequest(Board.PICO_2_W, "ABCD", "net", "password", 15, FirmwareTransport.AUTOMATIC));
 
         assertTrue(header.contains(
                 "static const unsigned long SEND_INTERVAL_MS = 15UL * 60UL * 1000UL;"), header);
@@ -128,7 +159,7 @@ class ConfigHeaderTest {
     void exactlyOneTransportIsDefinedWhicheverWasAsked() throws IOException {
         for (FirmwareTransport transport : FirmwareTransport.values()) {
             String header = generate(
-                    new FirmwareRequest("ABCD", "net", "password", 5, transport));
+                    new FirmwareRequest(Board.PICO_2_W, "ABCD", "net", "password", 5, transport));
 
             assertTrue(header.contains("\n#define " + transport.macro() + "\n"),
                     transport + " should be the one defined");

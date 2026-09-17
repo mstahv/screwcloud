@@ -3,7 +3,9 @@ package fi.mstahv.sensorhub.firmware;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -28,7 +30,7 @@ import org.springframework.stereotype.Service;
  * so that is one INFO line. A path somebody set explicitly and got wrong is a
  * mistake they want to hear about, so that is a WARN naming what was tried.
  *
- * <h2>It checks for the core, not just the binary</h2>
+ * <h2>It checks for the cores, not just the binary</h2>
  *
  * <p>Asking only whether {@code arduino-cli} answers would let the page be
  * offered on a machine that cannot build for a Pico — the binary is one download
@@ -36,12 +38,13 @@ import org.springframework.stereotype.Service;
  * matter. Both are checked here, at startup, because every way this is wrong
  * looks fine until something asks the compiler to work, and the right time to
  * find that out is not while somebody waits for a download.
+ *
+ * <p>Per board. A server with the Pico core and not the ESP32 one builds for the
+ * Pico and offers nothing else, rather than offering both and failing one — the
+ * page lists the boards this machine can actually build for.
  */
 @Service
 public class ArduinoCli {
-
-    /** The platform the firmware is built for, and what a usable install has. */
-    static final String CORE = "rp2040:rp2040";
 
     private static final Logger log = LoggerFactory.getLogger(ArduinoCli.class);
 
@@ -56,19 +59,35 @@ public class ArduinoCli {
 
     private final String executable;
     private final Path dataDir;
-    private final boolean available;
+    private final Set<Board> boards = EnumSet.noneOf(Board.class);
 
     ArduinoCli(@Value("${sensorhub.firmware.arduino-cli:}") String configured,
                @Value("${sensorhub.firmware.data-dir:${user.home}/.arduino15}") Path dataDir) {
         this.dataDir = dataDir;
         this.executable = configured.isBlank() ? discover() : configured;
-        this.available = executable != null && hasCore();
+        if (executable != null && answersVersion(executable) && listsCores()) {
+            for (Board board : Board.values()) {
+                if (coreIsInstalled(board)) {
+                    boards.add(board);
+                }
+            }
+        }
         report(configured);
     }
 
-    /** Whether the build page should be offered at all. */
+    /** Whether the build page should be offered at all: at least one board. */
     public boolean isAvailable() {
-        return available;
+        return !boards.isEmpty();
+    }
+
+    /** Whether this server can build for the board. */
+    public boolean isAvailable(Board board) {
+        return boards.contains(board);
+    }
+
+    /** The boards this server can build for, in the order {@link Board} declares them. */
+    public List<Board> availableBoards() {
+        return Board.all().stream().filter(boards::contains).toList();
     }
 
     /** The binary to run, once {@link #isAvailable()} has said there is one. */
@@ -100,22 +119,19 @@ public class ArduinoCli {
         return run(List.of(candidate, "version"), 10) == 0;
     }
 
-    private boolean hasCore() {
-        if (!answersVersion(executable)) {
-            return false;
-        }
+    private boolean listsCores() {
         /*
            Reads the local install rather than the network, so this is fast, but
            it is given room: the first call after an install can be doing
            bookkeeping the next thousand will not.
         */
-        return run(List.of(executable, "core", "list"), 60) == 0 && coreIsInstalled();
+        return run(List.of(executable, "core", "list"), 60) == 0;
     }
 
-    private boolean coreIsInstalled() {
+    private boolean coreIsInstalled(Board board) {
         // The core's own directory is the cheapest honest answer, and needs no
         // parsing of output whose format is not ours.
-        return Files.isDirectory(dataDir.resolve("packages").resolve("rp2040"));
+        return Files.isDirectory(dataDir.resolve("packages").resolve(board.packageDirectory()));
     }
 
     private int run(List<String> command, int timeoutSeconds) {
@@ -138,17 +154,25 @@ public class ArduinoCli {
     }
 
     private void report(String configured) {
-        if (available) {
-            log.info("Firmware builds available: {} with {} under {}", executable, CORE, dataDir);
+        String cores = String.join(", ", Board.all().stream().map(Board::core).toList());
+        if (isAvailable()) {
+            log.info("Firmware builds available: {} under {}, for {}", executable, dataDir,
+                    String.join(", ", availableBoards().stream().map(Board::caption).toList()));
+            for (Board board : Board.values()) {
+                if (!isAvailable(board)) {
+                    log.info("Not for the {}: the {} core is not installed under {}",
+                            board.caption(), board.core(), dataDir);
+                }
+            }
         } else if (!configured.isBlank()) {
             log.warn("Firmware builds unavailable: sensorhub.firmware.arduino-cli is set to '{}', "
-                    + "but it does not answer or the {} core is missing from {}. "
+                    + "but it does not answer or none of the cores ({}) is under {}. "
                     + "See \"Building firmware on the server\" in the README.",
-                    configured, CORE, dataDir);
+                    configured, cores, dataDir);
         } else if (executable != null) {
-            log.warn("Firmware builds unavailable: {} answers, but the {} core is not installed "
-                    + "under {}. See \"Building firmware on the server\" in the README.",
-                    executable, CORE, dataDir);
+            log.warn("Firmware builds unavailable: {} answers, but none of the cores ({}) is "
+                    + "installed under {}. See \"Building firmware on the server\" in the README.",
+                    executable, cores, dataDir);
         } else {
             log.info("Firmware builds unavailable: no arduino-cli found. The feature is optional "
                     + "and everything else works as before.");

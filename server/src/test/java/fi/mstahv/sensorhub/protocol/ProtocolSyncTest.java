@@ -39,7 +39,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  *
  * <p>Only what both variants must share is checked. The ESP32 variant deliberately
  * decodes fewer fields (no pressure, acceleration or battery), so the sketches are
- * not expected to match line for line.
+ * not expected to match line for line. What they do share includes the Ruuvi Air's
+ * Data Format 6, whose scaling differs from the tag's and is checked separately.
  *
  * <p>Every check has the same shape: pull one value out of each sketch and compare
  * the two <b>against each other</b>. Comparing them to values written into the
@@ -130,7 +131,18 @@ class ProtocolSyncTest {
                 new Rule("humidity scaling", "humidity\\s*=\\s*(rawHumidity\\s*\\*[^;]+);"),
                 new Rule("temperature sentinel", "rawTemperature\\s*!=\\s*(.+?)\\)\\s*\\{"),
                 new Rule("humidity sentinel", "rawHumidity\\s*!=\\s*(.+?)\\)\\s*\\{"),
-                new Rule("MAC offset", "memcpy\\(mac,\\s*&data\\[(\\d+)\\]"));
+                new Rule("MAC offset", "memcpy\\(mac,\\s*&data\\[(\\d+)\\]"),
+                /*
+                   The Ruuvi Air's format divides where the tag's multiplies, so
+                   these are separate rules rather than the ones above matching
+                   twice: the first match of each pattern is the tag's, and the
+                   Air's lines are the ones with a slash.
+                */
+                new Rule("Ruuvi Air temperature scaling", "temperature\\s*=\\s*(rawTemperature\\s*/[^;]+);"),
+                new Rule("Ruuvi Air humidity scaling", "humidity\\s*=\\s*(rawHumidity\\s*/[^;]+);"),
+                new Rule("Ruuvi Air PM2.5 scaling", "pm25\\s*=\\s*(rawPm25\\s*/[^;]+);"),
+                new Rule("Ruuvi Air CO2 offset", "rawCo2\\s*=\\s*readUint16\\(&data\\[(\\d+)\\]"),
+                new Rule("Ruuvi Air MAC offset", "memcpy\\(&mac\\[3\\],\\s*&data\\[(\\d+)\\]"));
     }
 
     /**

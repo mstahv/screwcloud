@@ -45,7 +45,7 @@ class FirmwareRequestTest {
     }
 
     private static FirmwareRequest valid() {
-        return new FirmwareRequest("AB2C", "Mökkiverkko", "hunter22", 5,
+        return new FirmwareRequest(Board.PICO_2_W, "AB2C", "Mökkiverkko", "hunter22", 5,
                 FirmwareTransport.AUTOMATIC);
     }
 
@@ -60,24 +60,24 @@ class FirmwareRequestTest {
         String tooLong = "ö".repeat(16) + "a".repeat(8);
         assertEquals(40, tooLong.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
 
-        assertFalse(violations(new FirmwareRequest("AB2C", tooLong, "hunter22", 5,
+        assertFalse(violations(new FirmwareRequest(Board.PICO_2_W, "AB2C", tooLong, "hunter22", 5,
                 FirmwareTransport.AUTOMATIC)).isEmpty(),
                 "a name that fits in characters but not in bytes must be refused");
 
         // And 32 plain ASCII characters are 32 bytes, which fits exactly.
-        assertTrue(violations(new FirmwareRequest("AB2C", "a".repeat(32), "hunter22", 5,
+        assertTrue(violations(new FirmwareRequest(Board.PICO_2_W, "AB2C", "a".repeat(32), "hunter22", 5,
                 FirmwareTransport.AUTOMATIC)).isEmpty());
     }
 
     @Test
     void anOpenNetworkNeedsNoPassword() {
-        assertTrue(violations(new FirmwareRequest("AB2C", "Open", "", 5,
+        assertTrue(violations(new FirmwareRequest(Board.PICO_2_W, "AB2C", "Open", "", 5,
                 FirmwareTransport.AUTOMATIC)).isEmpty());
     }
 
     @Test
     void aPasswordShorterThanWpaAllowsIsATypoAndIsSaidSo() {
-        assertFalse(violations(new FirmwareRequest("AB2C", "net", "short", 5,
+        assertFalse(violations(new FirmwareRequest(Board.PICO_2_W, "AB2C", "net", "short", 5,
                 FirmwareTransport.AUTOMATIC)).isEmpty());
     }
 
@@ -91,7 +91,7 @@ class FirmwareRequestTest {
         for (String password : new String[]{
                 "he said \"no\"", "back\\slash", "semi;colon#hash", "'quoted'", "%s %d %n",
                 "*/ end of comment", "a".repeat(63)}) {
-            assertTrue(violations(new FirmwareRequest("AB2C", "net", password, 5,
+            assertTrue(violations(new FirmwareRequest(Board.PICO_2_W, "AB2C", "net", password, 5,
                     FirmwareTransport.AUTOMATIC)).isEmpty(),
                     "should be a usable password: " + password);
         }
@@ -99,23 +99,23 @@ class FirmwareRequestTest {
 
     @Test
     void aPasswordPastWpaMaximumIsRefused() {
-        assertFalse(violations(new FirmwareRequest("AB2C", "net", "a".repeat(64), 5,
+        assertFalse(violations(new FirmwareRequest(Board.PICO_2_W, "AB2C", "net", "a".repeat(64), 5,
                 FirmwareTransport.AUTOMATIC)).isEmpty());
     }
 
     @Test
     void theSendIntervalStaysWithinItsRange() {
-        assertFalse(violations(new FirmwareRequest("AB2C", "net", "hunter22", 0,
+        assertFalse(violations(new FirmwareRequest(Board.PICO_2_W, "AB2C", "net", "hunter22", 0,
                 FirmwareTransport.AUTOMATIC)).isEmpty());
-        assertFalse(violations(new FirmwareRequest("AB2C", "net", "hunter22", 61,
+        assertFalse(violations(new FirmwareRequest(Board.PICO_2_W, "AB2C", "net", "hunter22", 61,
                 FirmwareTransport.AUTOMATIC)).isEmpty());
     }
 
     @Test
     void theDeviceIdFollowsTheSameRuleAsEverywhereElse() {
-        assertFalse(violations(new FirmwareRequest("TOOLONG", "net", "hunter22", 5,
+        assertFalse(violations(new FirmwareRequest(Board.PICO_2_W, "TOOLONG", "net", "hunter22", 5,
                 FirmwareTransport.AUTOMATIC)).isEmpty());
-        assertFalse(violations(new FirmwareRequest("A-B", "net", "hunter22", 5,
+        assertFalse(violations(new FirmwareRequest(Board.PICO_2_W, "A-B", "net", "hunter22", 5,
                 FirmwareTransport.AUTOMATIC)).isEmpty());
     }
 

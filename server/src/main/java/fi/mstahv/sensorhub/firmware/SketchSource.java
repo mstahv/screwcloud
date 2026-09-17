@@ -40,9 +40,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class SketchSource {
 
-    /** The sketch that gets built, relative to the repository root. */
-    static final String SKETCH = "temperature-reader";
-
     /** The template {@link ConfigHeader} edits, inside that directory. */
     static final String TEMPLATE = "config.h.example";
 
@@ -81,12 +78,16 @@ public class SketchSource {
      * <p>Safe because builds are serialised. One at a time was chosen for the
      * queue's sake; this is the second thing it buys.
      *
+     * <p>One working copy per board, each with its own marker: the two sketches
+     * are different directories in the same checkout, and refreshing one must
+     * not throw away the other's incremental build.
+     *
      * @return the sketch directory, which is where the build runs
      */
-    public Path syncInto(Path sketchRoot) throws IOException {
+    public Path syncInto(Path sketchRoot, Board board) throws IOException {
         String head = update();
-        Path sketch = sketchRoot.resolve(SKETCH);
-        Path marker = sketchRoot.resolve(".source-commit");
+        Path sketch = sketchRoot.resolve(board.sketch());
+        Path marker = sketchRoot.resolve(".source-commit-" + board.sketch());
         String previous = Files.exists(marker) ? Files.readString(marker).strip() : null;
 
         if (head != null && head.equals(previous) && Files.isDirectory(sketch)) {
@@ -97,7 +98,7 @@ public class SketchSource {
         log.info("Firmware source is now {}; refreshing the working copy", head);
         deleteTree(sketch);
         Files.createDirectories(sketchRoot);
-        copyTree(clone.resolve(SKETCH), sketch);
+        copyTree(clone.resolve(board.sketch()), sketch);
         if (head != null) {
             Files.writeString(marker, head);
         }

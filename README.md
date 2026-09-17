@@ -47,8 +47,9 @@ Four readers, all speaking the same protocol to the same server:
 - **`temperature-reader`** for the Raspberry Pi Pico 2 W — the full version:
   RuuviTags and Ruuvi Airs over BLE, an optional wired DHT22, an optional OLED,
   and WiFi or NB-IoT for connectivity.
-- **`esp32-s3-reader`** for the ESP32-S3 — minimal: RuuviTags and WiFi, nothing
-  else.
+- **`esp32-s3-reader`** for the ESP32-S3 — the same Ruuvi side, RuuviTags and
+  Ruuvi Airs over BLE, and WiFi; nothing wired to the board. It can be built and
+  flashed from the server's firmware page without installing anything.
 - **`pi-reader`** for a Raspberry Pi that is already there doing something else —
   the same job in Java, with a page of its own on the local network that keeps
   showing the temperature when the internet does not. It also reads a Nordic
@@ -166,7 +167,7 @@ the choice and avoid both.
 | Directory | Description |
 |---|---|
 | `temperature-reader/` | Full firmware for the Raspberry Pi Pico 2 W: RuuviTags, DHT22, OLED, WiFi or NB-IoT |
-| `esp32-s3-reader/` | Minimal firmware for the ESP32-S3: RuuviTags and WiFi only |
+| `esp32-s3-reader/` | Firmware for the ESP32-S3: RuuviTags, Ruuvi Airs and WiFi, nothing wired to the board |
 | [`pi-reader/`](pi-reader/) | The same reader in Java on a Raspberry Pi: Quarkus, Vaadin, BlueZ — RuuviTags and a Nordic Thingy:52, plus a local page for when the server is unreachable and a LoRa relay for nodes out of WiFi range |
 | `pico-sleeper/` | An experiment: a bare Pico 2 W sending only its own die temperature, asleep in between, over WiFi or LoRa |
 | `lora-node/` | A Pico with a Core1121, transmitting so the LoRa receiver at the other end can be tested |
@@ -194,8 +195,9 @@ The minimum setup is a bare Pico 2 W and one RuuviTag; see
 [Quick start](#quick-start-pico-2-w).
 
 Alternatively an **ESP32-S3** board (developed against a Waveshare
-ESP32-S3-Zero) with the `esp32-s3-reader` firmware. That variant supports
-RuuviTags and WiFi only — see [esp32-s3-reader](#esp32-s3-reader).
+ESP32-S3-Zero) with the `esp32-s3-reader` firmware. That variant hears the same
+Ruuvi devices and sends over WiFi, and has nothing wired to it — see
+[esp32-s3-reader](#esp32-s3-reader).
 
 ## Wiring
 
@@ -361,6 +363,12 @@ plugging in the USB cable and it appears as an ordinary USB drive; copy a `.uf2`
 file onto that drive and it flashes itself and restarts. No IDE, no drivers, no
 command line, nothing installed. So the person receiving a device never needs a
 toolchain — they need one file and two sentences.
+
+An ESP32-S3 has no such drive; it takes firmware over its serial port. The
+server's [firmware build page](#the-firmware-build-page) does that from the
+browser, which is the way to hand one over. By hand it is the merged image the
+`arduino-cli` compile below leaves as `*.merged.bin`, written with
+`esptool.py --chip esp32s3 write_flash 0x0 <file>`.
 
 What they do not get is a way to type in their own WiFi password. The settings
 are compiled in, which means **one build per recipient**. Why that is, and what
@@ -632,29 +640,45 @@ per-core on the RP2350, so core 0's BTstack is then undisturbed.
 
 ## esp32-s3-reader
 
-A deliberately minimal variant: **RuuviTags and WiFi only.** No DHT22, no
-display, no NB-IoT. Developed against a Waveshare ESP32-S3-Zero.
+The Pico firmware with the hardware taken out: **RuuviTags and Ruuvi Airs over
+BLE, the chip's own temperature, and WiFi.** No DHT22, no display, no NB-IoT —
+and no way to add them, on purpose. Everything that is not about wiring is the
+same as on the Pico: the wire format, the Ruuvi decoding, the identifier a tag
+gets, the failure reasons, the restart after a link has been down for six sends
+and the hardware watchdog behind that. Developed against a Waveshare
+ESP32-S3-Zero.
 
-About 400 lines against the Pico firmware's 840, and it needs one library
-(NimBLE-Arduino) instead of four.
+The easiest way to get one is not to build it at all: the server's
+[firmware build page](#the-firmware-build-page) compiles it for your network and
+writes it onto the board from the browser. What follows is for doing it by hand.
 
 ### Quick start (ESP32-S3)
 
-1. **Install the ESP32 Arduino core** (3.x) from Boards Manager and select your
-   board.
-2. **Install `NimBLE-Arduino`** (2.x) from Library Manager. Nothing else — WiFi
-   and `neopixelWrite()` come with the core.
+1. **Install the ESP32 Arduino core** (3.x) from Boards Manager and select
+   *ESP32S3 Dev Module*. Set **USB CDC On Boot: Enabled** — the S3-Zero has no
+   separate USB-UART chip, and without this the serial monitor stays silent —
+   and **Partition Scheme: Huge APP**, because BLE and WiFi together do not fit
+   the default application partition with anything to spare.
+2. **Install `NimBLE-Arduino`** (2.x) from Library Manager. Nothing else — WiFi,
+   `neopixelWrite()` and `temperatureRead()` come with the core.
 3. **Create your configuration:**
    ```bash
    cd esp32-s3-reader
    cp config.h.example config.h
    ```
    Change `DEVICE_ID`, `WIFI_SSID` and `WIFI_PASSWORD`.
-4. **Flash and open the serial monitor** at 115200 baud.
+4. **Flash and open the serial monitor** at 115200 baud. Within a minute you
+   should see the tags it hears, a line per device, and `Send ok`.
 
-The RGB LED shows the state by colour: **green** two short flashes = the last
-send succeeded, **red** fast pulsing = it failed, **blue** slow blinking =
-nothing sent yet.
+The RGB LED shows the state by colour, in the Pico's three rhythms: **green** two
+short flashes = the last send succeeded, **red** fast pulsing = it failed,
+**blue** slow blinking = nothing sent yet. On a failure the serial log says why
+in the Pico's words — `NO WIFI`, `NO HOST`, `NO SEND` — so a reader who knows one
+board knows the other.
+
+A Ruuvi Air's CO₂ and PM2.5 travel to the server alongside its temperature and
+humidity, exactly as from the Pico, and the chip temperature is sent as sensor
+`CPU` unless `ENABLE_INTERNAL_TEMPERATURE` is commented out in `config.h`.
 
 ### What is shared, and why by copy
 
@@ -710,7 +734,9 @@ acceleration or battery voltage, since it does not report them.
 | Advertisement data | `BLEAdvertisement` copies a fixed 31 bytes and hides the real length, so AD structures are walked by hand | NimBLE gives the manufacturer field with its real length |
 | Scan units | raw 0.625 ms units into `gap_set_scan_params` | milliseconds into `setInterval` / `setWindow` |
 | Status LED | plain GPIO, rhythm only | WS2812 RGB, colour plus rhythm |
-| Internal temperature | `analogReadTemp()`, sent as sensor `CPU` | not read |
+| Internal temperature | `analogReadTemp()`, sent as sensor `CPU` | `temperatureRead()`, sent as sensor `CPU` |
+| Watchdog | `rp2040.wdt_*`, fed from the transport's wait loops | `esp_task_wdt_*`, fed from the WiFi connect wait |
+| Restart when stuck | `rp2040.reboot()`, held back by a SIM waiting for its PIN | `ESP.restart()`, held back only by a boot too young |
 | Shared state | none needed | mutex — see below |
 
 **The one real structural difference is concurrency.** On the Pico, BTstack
@@ -732,7 +758,15 @@ Two consequences of NimBLE that are easy to get wrong:
 A pleasant simplification: `transportIdle()` disappears entirely. The ESP32 has
 no run loop of ours to pump during a network wait, so the whole "BLE must not
 stall while connecting" problem does not exist. `loop()` just calls `delay()` to
-yield to the WiFi and BLE tasks.
+yield to the WiFi and BLE tasks. What the wait loop still has to do is feed the
+watchdog, which is armed at eight seconds and would otherwise fire during a
+twenty-second connect — the same arrangement as the Pico's, with one call where
+the Pico has a function.
+
+The Arduino core may already have the task watchdog running with a timeout of its
+own, and refuses a second `esp_task_wdt_init`. `startWatchdog()` reconfigures it
+in that case rather than giving up, so the outcome is the same either way: our
+timeout, watching our loop.
 
 **Neither firmware has been compiled in this environment** — no Arduino
 toolchain here. The shared protocol code has been verified natively; the
@@ -2490,12 +2524,31 @@ tool is doing a job that is otherwise genuinely fiddly.
 ### The firmware build page
 
 `/firmware`, linked from under "Add a device" on the front page. Somebody with no
-toolchain fills in their network, gets a `.uf2` built from the current source,
-and is shown the six steps for getting it onto the board. It exists so that
+toolchain picks a board, fills in their network, gets firmware built from the
+current source, and is shown how to get it onto the board. It exists so that
 handing somebody a device does not mean building one per recipient by hand — the
 alternative is in [Handing a built firmware to somebody
 else](#handing-a-built-firmware-to-somebody-else), which is still what you do
 when the server has no toolchain.
+
+**Two boards, and two ways onto them.** The Pico 2 W gets a `.uf2` and the six
+steps for dropping it onto the drive the board shows. The ESP32-S3 gets its image
+written **from the browser**: the page opens the board's serial port through the
+Web Serial API and drives Espressif's own flasher, `esptool-js`, over it — pick
+the port when the browser asks, wait half a minute, and the board restarts with
+the new firmware. That works in Chrome and Edge on a computer; Safari and every
+phone lack the API, and the page says so and offers the file for `esptool`
+instead. The board choice is only asked when the server can build for more than
+one — `arduino-cli` is checked for each core at startup, and the list is what it
+found.
+
+The ESP32 image is the core's *merged* binary — bootloader, partition table and
+application at their offsets, written as one file at address zero — with the
+padding trimmed off. The core pads it to the size of the whole flash, four
+megabytes of which about a third is firmware and the rest the erased-flash byte,
+which flashes correctly and slowly. `MergedImage` cuts the tail back to the last
+sector holding anything, so the browser writes a megabyte and a bit rather than
+four.
 
 Three things it does that a build on your own laptop does not:
 
@@ -2514,9 +2567,10 @@ Three things it does that a build on your own laptop does not:
 - **It builds one at a time.** A queue of five, a five-minute timeout, and "busy,
   try again in a minute" when it is full — which is an answer rather than an
   error.
-- **It forgets the file.** The `.uf2` carries the WiFi password in clear text, so
-  it is deleted the moment it has been downloaded, and swept after fifteen
-  minutes if nobody came back for it.
+- **It forgets the file.** The image carries the WiFi password in clear text, so
+  it is deleted the moment it has been downloaded or written to a board, and
+  swept after fifteen minutes if nobody came back for it. A flash that fails
+  halfway does *not* delete it — the reader will want to press the button again.
 
 The configuration is written as byte arrays rather than as C string literals —
 `{ 0x68, 0x75, ... }` and not `"hunter22"` — so that nothing a reader can type
@@ -2526,11 +2580,13 @@ you want to check it.
 
 ### Building firmware on the server
 
-The firmware build page compiles a `.uf2` on demand, so the machine needs the
-same toolchain a developer has: `arduino-cli`, the arduino-pico core and the
-four libraries. This is installed once. If it is not installed, the feature is
-simply absent — the page is not offered and nothing else changes, the same
-arrangement as the VAPID keys.
+The firmware build page compiles on demand, so the machine needs the same
+toolchain a developer has: `arduino-cli`, a core per board — arduino-pico for the
+Pico 2 W, Espressif's for the ESP32-S3 — and the libraries each sketch needs.
+This is installed once. If none of it is installed, the feature is simply absent
+— the page is not offered and nothing else changes, the same arrangement as the
+VAPID keys. If one core is installed and not the other, the page builds for the
+board it can and does not mention the other.
 
 Everything below happens **as the user the application runs as**, and that is the
 part worth being careful about. Installing the core as root puts it in root's
@@ -2569,8 +2625,8 @@ forgetting that produces a permission error during somebody's first build rather
 than during the install — the wrong end of the day to find out. On this
 deployment `$HOME` is `/home/r`.
 
-**4. The core and the libraries.** Several hundred megabytes, downloaded once
-here rather than during somebody's first build:
+**4. The cores and the libraries.** Several hundred megabytes each, downloaded
+once here rather than during somebody's first build. For the Pico 2 W:
 
 ```bash
 arduino-cli core install rp2040:rp2040 \
@@ -2578,6 +2634,17 @@ arduino-cli core install rp2040:rp2040 \
 arduino-cli lib install "DHT sensor library" "Adafruit Unified Sensor" \
   "Adafruit SH110X" "Adafruit GFX Library"
 ```
+
+And for the ESP32-S3, which wants one library where the Pico wants four:
+
+```bash
+arduino-cli core install esp32:esp32 \
+  --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+arduino-cli lib install "NimBLE-Arduino"
+```
+
+Either one alone is fine. The application looks for each core's directory under
+`~/.arduino15/packages` and offers the boards it finds.
 
 **5. Write down what you got, then pin it.**
 
@@ -2609,17 +2676,31 @@ compile does, because every one of the ways this goes wrong — wrong user, wron
 data directory, missing library, a core installed for the wrong architecture —
 looks fine until something actually asks the compiler to work.
 
+The same for the ESP32-S3, with the board options the page uses:
+
+```bash
+cp /tmp/fwcheck/esp32-s3-reader/config.h.example \
+   /tmp/fwcheck/esp32-s3-reader/config.h
+arduino-cli compile \
+  --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc,PartitionScheme=huge_app,FlashSize=4M \
+  --export-binaries /tmp/fwcheck/esp32-s3-reader
+```
+
+This one leaves several files under `build/`; the one the page hands out is
+`esp32-s3-reader.ino.merged.bin`, and its being there is the proof.
+
 **7. Restart the application.** There is nothing to configure: it looks for
 `arduino-cli` on the path and then in `~/bin` and `/usr/local/bin`, and for the
 core in `~/.arduino15`, which is where the steps above put them. It says which
 it found, at startup:
 
 ```
-Firmware builds available: arduino-cli with rp2040:rp2040 under /home/r/.arduino15
+Firmware builds available: arduino-cli under /home/r/.arduino15, for Raspberry Pi Pico 2 W, ESP32-S3
 ```
 
 or, if the toolchain is not there, one line saying the feature is unavailable
-and that everything else is unaffected. Both are worth a glance the first time.
+and that everything else is unaffected — and if one core is missing, a line
+naming which board is not offered. All are worth a glance the first time.
 
 Only a deployment that put things somewhere else needs to say so, with boot2vm
 alongside the VAPID keys:

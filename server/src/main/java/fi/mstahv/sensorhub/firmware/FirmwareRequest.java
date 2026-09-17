@@ -25,13 +25,16 @@ import fi.mstahv.sensorhub.validation.WifiPassphrase;
  * to a log line, and not into {@link #toString()}, which is overridden below for
  * exactly that reason.
  *
+ * @param board which board the firmware is compiled for
  * @param deviceId what the server will file the readings under
  * @param ssid the network the device should join
  * @param password its passphrase, or empty for an open network
  * @param sendIntervalMinutes how often the device reports
- * @param transport which radio to use, or to decide at boot
+ * @param transport which radio to use, or to decide at boot — the Pico's
+ *        question; a board with one radio ignores it
  */
 public record FirmwareRequest(
+        @NotNull Board board,
         @NotBlank @DeviceId String deviceId,
         @NotBlank @Ssid String ssid,
         @WifiPassphrase String password,
@@ -56,8 +59,8 @@ public record FirmwareRequest(
      */
     @Override
     public String toString() {
-        return "FirmwareRequest[deviceId=%s, ssid=%s, password=%s, sendIntervalMinutes=%d, transport=%s]"
-                .formatted(deviceId, ssid, password.isEmpty() ? "<none>" : "<hidden>",
-                        sendIntervalMinutes, transport);
+        return "FirmwareRequest[board=%s, deviceId=%s, ssid=%s, password=%s, "
+                .formatted(board, deviceId, ssid, password.isEmpty() ? "<none>" : "<hidden>")
+                + "sendIntervalMinutes=%d, transport=%s]".formatted(sendIntervalMinutes, transport);
     }
 }

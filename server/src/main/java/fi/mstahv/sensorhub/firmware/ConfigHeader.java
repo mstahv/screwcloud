@@ -90,7 +90,14 @@ public final class ConfigHeader {
         result = replaceOnce(result, SEND_INTERVAL, "SEND_INTERVAL_MS",
                 "static const unsigned long SEND_INTERVAL_MS = %dUL * 60UL * 1000UL;"
                         .formatted(request.sendIntervalMinutes()));
-        result = selectTransport(result, request.transport());
+        /*
+           Only where the template asks. The ESP32 sketch has one radio and no
+           TRANSPORT_* lines, and looking for them there would trip the drift
+           detector over a difference that is not drift.
+        */
+        if (request.board().choosesTransport()) {
+            result = selectTransport(result, request.transport());
+        }
         out.write(result);
     }
 

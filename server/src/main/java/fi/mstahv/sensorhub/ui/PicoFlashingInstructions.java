@@ -11,7 +11,9 @@ import com.vaadin.flow.component.html.UnorderedList;
  * <p>Its own class because it is needed in two places — after a build, and again
  * whenever somebody re-flashes a device they already have — and because it is the
  * part of this feature most likely to be read by a person who does not want to
- * know anything about any of it.
+ * know anything about any of it. The ESP32 has its own, {@link Esp32FlashingInstructions},
+ * because it takes firmware a different way: over the serial port rather than as
+ * a file copied onto a drive.
  *
  * <p>Shown <b>after</b> the build rather than beside the form. These six steps
  * are the ones that matter at the moment the file exists, and put next to the
@@ -32,9 +34,9 @@ import com.vaadin.flow.component.html.UnorderedList;
  * {@code BLINK_STEPS_*} in the firmware, where the numbers are milliseconds
  * alternating on and off.
  */
-class FlashingInstructions extends Section {
+class PicoFlashingInstructions extends Section {
 
-    FlashingInstructions() {
+    PicoFlashingInstructions() {
         OrderedList steps = new OrderedList(
                 new ListItem("Unplug the USB cable from the device, if it is plugged in."),
                 new ListItem("Find the single small button on the Pico board, marked BOOTSEL. "

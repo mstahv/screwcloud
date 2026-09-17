@@ -2,6 +2,7 @@ package fi.mstahv.sensorhub.firmware;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -46,7 +47,9 @@ import org.springframework.validation.annotation.Validated;
  * build directory, and arduino-cli's core cache. That is what turns a rebuild
  * from the minute a cold build takes into seconds — arduino-cli recompiles only
  * what changed, and between two builds the only thing that changed is a config.h
- * of forty bytes.
+ * of forty bytes. The first two are per board, because a Pico's object files are
+ * no use to an ESP32 build and would only be thrown away and rebuilt on every
+ * alternation.
  *
  * <p>None of that would be safe with two compilers in the same directories, so
  * the serialisation chosen for the queue's sake pays for itself twice. The cost
@@ -113,18 +116,24 @@ public class FirmwareBuilds {
         return arduinoCli.isAvailable();
     }
 
+    /** The boards this server can build for. */
+    public List<Board> availableBoards() {
+        return arduinoCli.availableBoards();
+    }
+
     /**
      * Queues a build.
      *
      * @throws RejectedExecutionException when the queue is full, which is a
      *         normal condition and deserves its own answer rather than an error
-     * @throws IllegalStateException when this server has no toolchain
+     * @throws IllegalStateException when this server has no toolchain for the board
      */
     public BuildJob submit(@Valid FirmwareRequest request) {
-        if (!isAvailable()) {
-            throw new IllegalStateException("This server cannot build firmware");
+        if (!arduinoCli.isAvailable(request.board())) {
+            throw new IllegalStateException(
+                    "This server cannot build firmware for the " + request.board().caption());
         }
-        BuildJob job = new BuildJob(request.deviceId(), Instant.now());
+        BuildJob job = new BuildJob(request.board(), request.deviceId(), Instant.now());
         jobs.put(job.id(), job);
         try {
             worker.execute(() -> run(job, request));
@@ -166,7 +175,7 @@ public class FirmwareBuilds {
             job.progress(BuildJob.State.RUNNING, "Fetching the current firmware");
             Files.createDirectories(buildCache);
             Files.createDirectories(artifacts);
-            sketch = source.syncInto(sketchRoot);
+            sketch = source.syncInto(sketchRoot, job.board());
 
             job.progress(BuildJob.State.RUNNING, "Writing the configuration");
             writeConfig(request, sketch);
@@ -215,9 +224,10 @@ public class FirmwareBuilds {
 
     private void compile(BuildJob job, Path sketch) throws IOException {
         Path logFile = workDir.resolve("last-compile.log");
+        Board board = job.board();
         List<String> command = List.of(arduinoCli.executable(), "compile",
-                "--fqbn", "rp2040:rp2040:rpipico2w:ipbtstack=ipv4btcble",
-                "--build-path", buildPath.toString(),
+                "--fqbn", board.fqbn(),
+                "--build-path", buildPath.resolve(board.sketch()).toString(),
                 "--build-cache-path", buildCache.toString(),
                 sketch.toString());
 
@@ -262,10 +272,10 @@ public class FirmwareBuilds {
             return;
         }
 
-        Path built = findImage(buildPath);
+        Path built = findImage(buildPath.resolve(board.sketch()), board);
         if (built == null) {
-            log.error("Firmware build {} for {} produced no .uf2 under {}",
-                    job.id(), job.deviceId(), buildPath);
+            log.error("Firmware build {} for {} produced no {} under {}",
+                    job.id(), job.deviceId(), board.imageSuffix(), buildPath);
             job.progress(BuildJob.State.FAILED,
                     "The build produced nothing. This has been logged.");
             return;
@@ -273,11 +283,18 @@ public class FirmwareBuilds {
 
         /*
            Out of the shared build directory before the next build overwrites it,
-           and into one of this job's own that discard() can delete whole.
+           and into one of this job's own that discard() can delete whole. The
+           ESP32's image loses its padding on the way — see MergedImage.
         */
         Path kept = artifacts.resolve(job.id()).resolve(job.fileName());
         Files.createDirectories(kept.getParent());
-        Files.copy(built, kept, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        if (board.padded()) {
+            try (OutputStream out = Files.newOutputStream(kept)) {
+                MergedImage.writeTrimmed(built, out);
+            }
+        } else {
+            Files.copy(built, kept, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
 
         /*
            Only now, because an identifier spent on a build that failed is an
@@ -288,9 +305,12 @@ public class FirmwareBuilds {
         job.succeeded(kept);
     }
 
-    private static Path findImage(Path buildPath) throws IOException {
+    private static Path findImage(Path buildPath, Board board) throws IOException {
+        if (!Files.isDirectory(buildPath)) {
+            return null;
+        }
         try (Stream<Path> files = Files.walk(buildPath)) {
-            return files.filter(path -> path.getFileName().toString().endsWith(".uf2"))
+            return files.filter(path -> path.getFileName().toString().endsWith(board.imageSuffix()))
                     .findFirst()
                     .orElse(null);
         }
