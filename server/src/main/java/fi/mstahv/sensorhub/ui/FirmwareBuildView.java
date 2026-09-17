@@ -135,8 +135,19 @@ public class FirmwareBuildView extends NavigationView {
 
         private final Hint hint = new Hint("");
 
+        /*
+           Said here, before the build, and not only by the flasher afterwards:
+           somebody on Safari or a phone should learn that this board's firmware
+           is written from the browser — and from which browsers — while they can
+           still switch, not after they have waited for a compile.
+        */
+        private final Hint browserNote = new Hint("Flashing an ESP32-S3 happens from this page "
+                + "over the board's USB port, which needs a Chromium-based browser — Chrome or "
+                + "Edge on a computer. Safari, Firefox and phones cannot open serial ports; "
+                + "from those you can still download the file and write it with esptool.");
+
         SupportedBoard() {
-            add(hint);
+            add(hint, browserNote);
         }
 
         void show(Board board) {
@@ -148,6 +159,7 @@ public class FirmwareBuildView extends NavigationView {
                         + "Waveshare ESP32-S3-Zero. Other ESP32 chips need a different build; "
                         + "the flasher checks and stops before writing anything.";
             });
+            browserNote.setVisible(board.flashing() == Board.Flashing.SERIAL);
         }
     }
 
