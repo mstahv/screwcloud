@@ -2550,6 +2550,13 @@ which flashes correctly and slowly. `MergedImage` cuts the tail back to the last
 sector holding anything, so the browser writes a megabyte and a bit rather than
 four.
 
+Either way, the page ends with the next step: **"Add XXXX to my devices"**, which
+puts the device on this browser's list — the same thing the front page's form
+does, picture included — and opens the device's own page, where the first packet
+will land. The reader has the identifier in front of them at exactly that moment
+and nowhere else; without the button they walk to the front page and type the
+same four characters into a form.
+
 Three things it does that a build on your own laptop does not:
 
 - **It suggests a free device identifier.** Four characters from an alphabet with

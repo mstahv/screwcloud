@@ -31,6 +31,8 @@ import fi.mstahv.sensorhub.firmware.DeviceIdSuggester;
 import fi.mstahv.sensorhub.firmware.FirmwareBuilds;
 import fi.mstahv.sensorhub.firmware.FirmwareRequest;
 import fi.mstahv.sensorhub.firmware.FirmwareTransport;
+import fi.mstahv.sensorhub.store.ClientDeviceStore;
+import fi.mstahv.sensorhub.store.DeviceSettingsStore;
 import fi.mstahv.sensorhub.validation.DeviceId;
 import fi.mstahv.sensorhub.validation.Ssid;
 import fi.mstahv.sensorhub.validation.WifiPassphrase;
@@ -47,6 +49,11 @@ import fi.mstahv.sensorhub.validation.WifiPassphrase;
  * can write over a serial port itself. The board is the first choice on the
  * form, and it decides which of those the reader is shown afterwards — and
  * whether the radio question is asked at all, since only the Pico has two.
+ *
+ * <p>Once the firmware is on the board the page does not stop: it offers to put
+ * the device on this browser's list and open its page, because the reader has
+ * the identifier in front of them at exactly that moment and nowhere else —
+ * see {@link AddToDevices}.
  *
  * <p>If this server has no toolchain the page says so plainly instead of
  * offering a button that cannot work. That is not an error state; the feature is
@@ -66,12 +73,18 @@ public class FirmwareBuildView extends NavigationView {
 
     private final FirmwareBuilds builds;
     private final DeviceIdSuggester deviceIds;
+    private final ClientDeviceStore clientDevices;
+    private final DeviceSettingsStore deviceSettings;
+
+    /** This browser's token, or null until the browser has answered. */
+    private String clientId;
 
     private final Section outcome = new Section();
     private final SupportedBoard supportedBoard = new SupportedBoard();
     private BuildJob job;
 
-    public FirmwareBuildView(FirmwareBuilds builds, DeviceIdSuggester deviceIds) {
+    public FirmwareBuildView(FirmwareBuilds builds, DeviceIdSuggester deviceIds,
+                             ClientDeviceStore clientDevices, DeviceSettingsStore deviceSettings) {
         /*
            The arrow carries "Devices" as its accessible name rather than as
            text: the destination has to be said, but not shown. The same wording
@@ -80,6 +93,8 @@ public class FirmwareBuildView extends NavigationView {
         super("Build firmware", DeviceListView.class, "Devices");
         this.builds = builds;
         this.deviceIds = deviceIds;
+        this.clientDevices = clientDevices;
+        this.deviceSettings = deviceSettings;
 
         if (!builds.isAvailable()) {
             add(new Unavailable());
@@ -361,6 +376,8 @@ public class FirmwareBuildView extends NavigationView {
         */
         private void ready(BuildJob updated) {
             outcome.removeAll();
+            AddToDevices follow = new AddToDevices(updated.deviceId(), clientDevices,
+                    deviceSettings, () -> clientId);
             switch (updated.board().flashing()) {
                 case UF2_DRIVE -> outcome.add(
                         new Section(new SectionHeading("Ready"),
@@ -368,6 +385,7 @@ public class FirmwareBuildView extends NavigationView {
                                 new Hint("The file is kept while you are on this page and for a "
                                         + "few minutes after, then deleted, because it contains "
                                         + "your WiFi password.")),
+                        follow,
                         new PicoFlashingInstructions());
                 case SERIAL -> {
                     Section download = new Section(new SectionHeading("Or take the file"),
@@ -376,7 +394,8 @@ public class FirmwareBuildView extends NavigationView {
                                     + "kept while you are on this page and for a few minutes "
                                     + "after, then deleted, because it contains your WiFi "
                                     + "password."));
-                    outcome.add(new SerialFlasher(updated), download, new Esp32FlashingInstructions());
+                    outcome.add(new SerialFlasher(updated), follow, download,
+                            new Esp32FlashingInstructions());
                 }
             }
         }
@@ -436,6 +455,8 @@ public class FirmwareBuildView extends NavigationView {
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);
+        // Only the "add to my devices" button needs it, minutes from now; see AddToDevices.
+        ClientId.resolve(attachEvent.getUI(), resolved -> clientId = resolved);
     }
 
     @Override
