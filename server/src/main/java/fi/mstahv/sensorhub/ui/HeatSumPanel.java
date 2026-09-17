@@ -6,9 +6,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import com.vaadin.flow.component.badge.Badge;
+import com.vaadin.flow.component.badge.BadgeVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.progressbar.ProgressBar;
+import com.vaadin.flow.component.progressbar.ProgressBarVariant;
 
 import org.vaadin.firitin.layouts.Column;
 import fi.mstahv.sensorhub.alerts.HeatSum;
@@ -25,6 +28,12 @@ import fi.mstahv.sensorhub.store.HeatSumCounter;
  * <p>Each counter shows what it is, how far it has come, and when it will be done.
  * The forecast is the interesting part — the sum alone does not answer "should I be
  * there on Saturday".
+ *
+ * <p>Reaching the target does not stop a counter. The meat is still hanging until
+ * somebody takes it down, and the sum it has reached by then is the number they
+ * want written down — so the sum keeps climbing past the target, and the card
+ * says so in a way that cannot be missed: a badge, a bar turned green, and the
+ * overshoot spelled out. Stopping is the reader's act, from the cog.
  */
 class HeatSumPanel extends Column {
 
@@ -67,14 +76,41 @@ class HeatSumPanel extends Column {
 
             HeatSumCounter counter = progress.counter();
             HeatSum sum = progress.sum();
+            double target = counter.getTarget();
 
             add(new Label("%s · %s / %s °Cd".formatted(
-                    counter.describe(), format(sum.degreeDays()), format(counter.getTarget()))));
+                    counter.describe(), format(sum.degreeDays()), format(target))));
 
-            add(new ProgressBar(0, counter.getTarget(),
-                    Math.min(sum.degreeDays(), counter.getTarget())));
+            /*
+               The bar is the reading at a glance, and it stops at the target: a bar
+               that kept filling past its end would need a second scale nobody
+               has. Past the target it turns green, and the badge beside it says by
+               how much — the number that keeps moving lives in the label above.
+            */
+            ProgressBar bar = new ProgressBar(0, target, Math.min(sum.degreeDays(), target));
+            if (sum.reached(target)) {
+                bar.addThemeVariants(ProgressBarVariant.LUMO_SUCCESS);
+                add(new TargetReached(sum.degreeDays() - target));
+            }
+            add(bar);
 
-            add(new Forecast(sum, counter.getTarget()));
+            add(new Forecast(sum, target));
+        }
+
+        /**
+         * The one thing on the card that must not be missed: the target is behind
+         * this counter, and everything it adds from here on is extra hanging time.
+         * A badge rather than a line of text, because a line of text is what the
+         * forecast under the bar already is, and this is a different kind of fact.
+         */
+        private static class TargetReached extends Badge {
+            TargetReached(double over) {
+                setText(over < 0.05
+                        ? "Target reached"
+                        : "Target reached · %s °Cd over".formatted(format(over)));
+                addThemeVariants(BadgeVariant.SUCCESS);
+                getStyle().setMarginBottom("var(--vaadin-gap-xs)");
+            }
         }
 
         private static class Label extends Span {
@@ -94,7 +130,13 @@ class HeatSumPanel extends Column {
 
             private static String describe(HeatSum sum, double target) {
                 if (sum.reached(target)) {
-                    return "Ready";
+                    /*
+                       Still counting, and said so: a reader who sees "Ready" and a
+                       sum that moved since yesterday would wonder which to believe.
+                       Both are true, and the sentence has room for both.
+                    */
+                    return "Past the target and still counting — stop the counter from "
+                            + "the cog when it comes down";
                 }
                 Optional<Duration> remaining = sum.remaining(target);
                 if (remaining.isPresent()) {

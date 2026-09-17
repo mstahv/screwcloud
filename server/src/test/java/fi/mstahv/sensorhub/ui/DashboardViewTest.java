@@ -43,6 +43,9 @@ class DashboardViewTest {
     @Autowired
     private DeviceUpdates updates;
 
+    @Autowired
+    private fi.mstahv.sensorhub.store.HeatSumCounterStore heatSums;
+
     @Test
     void everySensorInThePacketGetsACard(@Autowired BrowserlessUIContext ui) {
         store("AAAA", Instant.now(), 6.5, 21.0);
@@ -277,6 +280,31 @@ class DashboardViewTest {
         var stored = settings.thresholdsFor("EEEE", "DHT");
         assertTrue(stored.isConfigured());
         assertEquals(2.0, stored.okLow());
+    }
+
+    /*
+       Reaching the target does not stop the counter: the meat hangs until it is
+       taken down, and the number that matters then is the sum it got to. So the
+       sum keeps climbing, and the card has to say — loudly — that the target is
+       behind it.
+    */
+    @Test
+    void aCounterPastItsTargetKeepsCountingAndSaysSo(@Autowired BrowserlessUIContext ui) {
+        Instant sixDaysAgo = Instant.now().minus(Duration.ofDays(6));
+        // Ten degrees for six days is sixty degree-days against a target of forty.
+        store("GGGG", sixDaysAgo, 10.0, 10.0);
+        store("GGGG", Instant.now(), 10.0, 10.0);
+        heatSums.start("GGGG", "DHT", "hirvi", 40.0, sixDaysAgo);
+
+        ui.navigate(DashboardView.class, "GGGG");
+
+        assertTrue(ui.findSpan().withTextContaining("60.0 / 40.0 °Cd").exists(),
+                "the sum runs past the target rather than stopping at it");
+        assertTrue(ui.find(com.vaadin.flow.component.badge.Badge.class)
+                        .withTextContaining("Target reached · 20.0 °Cd over").exists(),
+                "and the overshoot is called out, not left to be read off two numbers");
+        assertTrue(ui.findSpan().withTextContaining("still counting").exists(),
+                "with the forecast line saying it has not stopped");
     }
 
     /*
