@@ -77,6 +77,7 @@ public final class PacketDecoder {
     private static final int FIELD_HUMIDITY = 2;
     private static final int FIELD_CO2 = 4;
     private static final int FIELD_PM25 = 5;
+    private static final int FIELD_BATTERY = 8;
 
     private PacketDecoder() {
     }
@@ -155,6 +156,7 @@ public final class PacketDecoder {
             Double humidity = null;
             Double co2 = null;
             Double pm25 = null;
+            Double batteryVoltage = null;
             for (int field = 0; field < fieldCount; field++) {
                 int type = Byte.toUnsignedInt(buffer.get());
                 short raw = buffer.getShort();
@@ -163,6 +165,7 @@ public final class PacketDecoder {
                     case FIELD_HUMIDITY -> humidity = Short.toUnsignedInt(raw) / 100.0;
                     case FIELD_CO2 -> co2 = (double) Short.toUnsignedInt(raw);
                     case FIELD_PM25 -> pm25 = Short.toUnsignedInt(raw) / 10.0;
+                    case FIELD_BATTERY -> batteryVoltage = Short.toUnsignedInt(raw) / 1000.0;
                     default -> {
                         /*
                            A type from a newer firmware than this server. Already
@@ -172,7 +175,8 @@ public final class PacketDecoder {
                     }
                 }
             }
-            sensors.add(new SensorMeasurement(sensorId, temperature, humidity, co2, pm25));
+            sensors.add(new SensorMeasurement(sensorId, temperature, humidity, co2, pm25,
+                    batteryVoltage));
         }
 
         if (buffer.hasRemaining()) {

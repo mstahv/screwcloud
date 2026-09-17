@@ -54,6 +54,13 @@ class SensorCard extends Card {
     private final Reading airQuality = new Reading();
 
     /*
+       The tag's battery, under the readings about the room. Hidden for a sensor
+       that reports none, like the air line: a dash would say "measured and
+       missing" about a Ruuvi Air on the mains and a DHT22 on the board's 3.3 V.
+    */
+    private final Reading battery = new Reading();
+
+    /*
        VDetails takes a supplier rather than a component: the grid is built when
        the section is opened and thrown away when it is closed. With one card per
        sensor, building every grid up front would mean rows nobody asked to see —
@@ -109,7 +116,7 @@ class SensorCard extends Card {
             }
         });
 
-        add(sparkLine, humidity, airQuality, heatSums, measurements);
+        add(sparkLine, humidity, airQuality, battery, heatSums, measurements);
     }
 
     /*
@@ -274,6 +281,7 @@ class SensorCard extends Card {
 
         humidity.setText(Readings.format(sensor.humidity(), "%.1f %% RH"));
         showAirQuality(sensor);
+        showBattery(sensor);
         sparkLine.setHistory(history);
         lastTemperature = sensor.temperature();
         showHeatSums(lastTemperature);
@@ -307,6 +315,24 @@ class SensorCard extends Card {
         airQuality.setText("%s CO2 · %s PM2.5".formatted(
                 Readings.format(sensor.co2(), "%.0f ppm"),
                 Readings.format(sensor.pm25(), "%.1f ug/m3")));
+    }
+
+    /**
+     * The battery, and a word when it is low.
+     *
+     * <p>Two decimals: a coin cell spends months between 3.0 and 2.9, and the
+     * second decimal is what shows it moving at all. The "low" is the sensor's
+     * own judgement rather than this card's — see {@code LOW_BATTERY_VOLTS} — and
+     * it is a word rather than a colour, because the gauge above already uses
+     * colour to mean something about the temperature.
+     */
+    private void showBattery(SensorMeasurement sensor) {
+        battery.setVisible(sensor.batteryVoltage() != null);
+        if (sensor.batteryVoltage() == null) {
+            return;
+        }
+        String text = "Battery " + Readings.format(sensor.batteryVoltage(), "%.2f V");
+        battery.setText(sensor.hasLowBattery() ? text + " · low, replace it soon" : text);
     }
 
     /*

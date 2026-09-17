@@ -203,6 +203,24 @@ class PacketDecoderTest {
 
     /* ------------------------------------------------------------------ helpers */
 
+    @Test
+    void aTagsBatteryArrivesInVolts() {
+        byte[] packet = packet("LAHT", 1,
+                sensor("RBF", field(1, 2493), field(2, 4077), field(8, 2980)));
+
+        SensorMeasurement tag = PacketDecoder.decode(packet, packet.length, NOW).sensors().getFirst();
+
+        assertEquals(2.98, tag.batteryVoltage(), 0.0001);
+        assertEquals(24.93, tag.temperature(), 0.0001);
+    }
+
+    @Test
+    void aSensorWithoutABatterySaysNothingAboutOne() {
+        byte[] packet = packet("LAHT", 1, sensor("DHT", field(1, 2560), field(2, 3570)));
+
+        assertNull(PacketDecoder.decode(packet, packet.length, NOW).sensors().getFirst().batteryVoltage());
+    }
+
     private static byte[] field(int type, int value) {
         return new byte[]{(byte) type, (byte) (value >> 8), (byte) value};
     }

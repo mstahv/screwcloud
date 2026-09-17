@@ -60,8 +60,9 @@ public interface Reading {
        cares about, the packet included. A value the packet carries belongs here
        by that definition.
 
-       Ruuvi's sequence number, movement counter and battery voltage are still on
-       RuuviReading, because nothing downstream asks for them.
+       Ruuvi's sequence number and movement counter are still on RuuviReading,
+       because nothing downstream asks for them. The battery moved down here the
+       day the packet grew a field for it, by the same rule.
     */
 
     /** Carbon dioxide in ppm, or null for a sensor that does not measure it. */
@@ -71,6 +72,14 @@ public interface Reading {
 
     /** Particulates under 2.5 µm in µg/m³, or null. */
     default Double pm25() {
+        return null;
+    }
+
+    /**
+     * The sensor's own battery in volts, or null for one that has none to report.
+     * A RuuviTag's record component provides this; an Air is on the mains.
+     */
+    default Double batteryVoltage() {
         return null;
     }
 

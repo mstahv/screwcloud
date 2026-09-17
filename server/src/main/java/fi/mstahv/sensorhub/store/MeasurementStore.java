@@ -48,6 +48,7 @@ public class MeasurementStore {
                         sensor.humidity(),
                         sensor.co2(),
                         sensor.pm25(),
+                        sensor.batteryVoltage(),
                         measurement.receivedAt(),
                         measurement.sequence()))
                 .toList());
@@ -78,9 +79,17 @@ public class MeasurementStore {
             return Optional.empty();
         }
 
+        /*
+           Every field the row holds, not the two the format was born with. This
+           used to build the two-value reading, which meant a Ruuvi Air's air and a
+           tag's battery were stored faithfully and then left behind on the way
+           back to the card — the packet had them, the database had them, and the
+           page showed a dash.
+        */
         List<SensorMeasurement> sensors = samples.stream()
                 .map(sample -> new SensorMeasurement(
-                        sample.getSensorId(), sample.getTemperature(), sample.getHumidity()))
+                        sample.getSensorId(), sample.getTemperature(), sample.getHumidity(),
+                        sample.getCo2(), sample.getPm25(), sample.getBatteryVoltage()))
                 .toList();
         return Optional.of(new DeviceMeasurement(
                 deviceId, samples.getFirst().getSequence(), latest, sensors));

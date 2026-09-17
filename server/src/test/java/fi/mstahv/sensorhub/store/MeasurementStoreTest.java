@@ -71,6 +71,31 @@ class MeasurementStoreTest {
         assertTrue(history.getFirst().at().isBefore(history.get(1).at()));
     }
 
+    /*
+       The fields the format grew later have to survive the round trip through the
+       table. They did not, once: stored faithfully, then rebuilt on the way out
+       with the two values version 1 had, so an Air's air and a tag's battery
+       reached the database and never the card.
+    */
+    @Test
+    void everyFieldComesBackOutOfTheStore() {
+        store.store(new DeviceMeasurement("LAHT", 1, NOW, List.of(
+                new SensorMeasurement("RA1", 21.5, 45.0, 812.0, 6.3, null),
+                new SensorMeasurement("RBF", 21.0, 40.0, null, null, 2.98))));
+
+        List<SensorMeasurement> sensors = store.findLatest("LAHT").orElseThrow().sensors();
+        SensorMeasurement air = sensors.stream()
+                .filter(sensor -> sensor.sensorId().equals("RA1")).findFirst().orElseThrow();
+        SensorMeasurement tag = sensors.stream()
+                .filter(sensor -> sensor.sensorId().equals("RBF")).findFirst().orElseThrow();
+
+        assertEquals(812.0, air.co2(), 0.0001);
+        assertEquals(6.3, air.pm25(), 0.0001);
+        assertNull(air.batteryVoltage());
+        assertEquals(2.98, tag.batteryVoltage(), 0.0001);
+        assertNull(tag.co2());
+    }
+
     @Test
     void missingValuesStaySeparateFromZero() {
         store.store(new DeviceMeasurement("LAHT", 1, NOW,

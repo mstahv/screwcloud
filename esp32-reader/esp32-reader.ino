@@ -167,16 +167,17 @@ static const char *ruuviNameFor(const uint8_t mac[6]) {
 
 /*
    Only the fields this firmware reports, plus what the serial log wants to show
-   about a Ruuvi Air. The Pico version also decodes pressure, acceleration and
-   battery voltage for its log; here they are skipped to keep things minimal.
+   about a Ruuvi Air. The Pico version also decodes pressure and acceleration for
+   its log; here they are skipped to keep things minimal.
 */
 struct RuuviReading {
   bool valid = false;
   uint8_t mac[6] = {0};
-  float temperature = NAN;  // °C
-  float humidity = NAN;     // %RH
-  float co2 = NAN;          // ppm, Ruuvi Air only
-  float pm25 = NAN;         // µg/m³, Ruuvi Air only
+  float temperature = NAN;    // °C
+  float humidity = NAN;       // %RH
+  float co2 = NAN;            // ppm, Ruuvi Air only
+  float pm25 = NAN;           // µg/m³, Ruuvi Air only
+  float batteryVoltage = NAN; // V, tags only — an Air runs off the mains
   int rssi = 0;
   unsigned long receivedAt = 0;
 
@@ -215,6 +216,7 @@ struct RuuviReading {
     */
     reading.co2 = co2;
     reading.pm25 = pm25;
+    reading.batteryVoltage = batteryVoltage;
   }
 
   /*
@@ -234,6 +236,19 @@ struct RuuviReading {
     uint16_t rawHumidity = readUint16(&data[3]);
     if (rawHumidity != 0xFFFF) {
       humidity = rawHumidity * 0.0025f;
+    }
+
+    /*
+       The battery shares a word with the transmit power: eleven bits of
+       millivolts above 1.6 V, five bits of power. The power is not wanted here;
+       the byte math is the Pico's, so the two boards report the same volts.
+    */
+    uint16_t powerInfo = readUint16(&data[13]);
+    if (powerInfo != 0xFFFF) {
+      uint16_t batteryMilliVolts = powerInfo >> 5;  // top 11 bits
+      if (batteryMilliVolts != 0x7FF) {
+        batteryVoltage = (1600.0f + batteryMilliVolts) / 1000.0f;
+      }
     }
 
     memcpy(mac, &data[18], sizeof(mac));
@@ -302,6 +317,9 @@ struct RuuviReading {
                millis() - receivedAt, isStale() ? "  [STALE]" : "");
     if (isAir()) {
       out.printf("  CO2 %.0f ppm, PM2.5 %.1f ug/m3\n", co2, pm25);
+    }
+    if (!isnan(batteryVoltage)) {
+      out.printf("  battery %.3f V\n", batteryVoltage);
     }
   }
 };

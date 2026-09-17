@@ -118,7 +118,7 @@ public class ScrewCloudSender {
         byte[] packet = MeasurementPacket.encode(deviceId, sequence++, included.stream()
                 .map(reading -> new SensorReading(
                         reading.sensorId(), reading.temperature(), reading.humidity(),
-                        reading.co2(), reading.pm25()))
+                        reading.co2(), reading.pm25(), reading.batteryVoltage()))
                 .toList());
 
         try (DatagramSocket socket = new DatagramSocket()) {

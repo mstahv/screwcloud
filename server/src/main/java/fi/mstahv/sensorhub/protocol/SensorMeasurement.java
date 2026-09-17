@@ -16,16 +16,37 @@ package fi.mstahv.sensorhub.protocol;
  * @param humidity relative humidity in percent, null if missing
  * @param co2 carbon dioxide in ppm, null unless the sensor measures air
  * @param pm25 particulates under 2.5 µm, in µg/m³, null unless measured
+ * @param batteryVoltage the sensor's own battery in volts, null when it has none
+ *        to report — a Ruuvi Air runs off the mains, a DHT22 off the board
  */
 public record SensorMeasurement(String sensorId, Double temperature, Double humidity,
-                                Double co2, Double pm25) {
+                                Double co2, Double pm25, Double batteryVoltage) {
 
     /**
      * A reading from a sensor that measures only the two things every sensor
      * has. Most callers and every test that predates the air fields.
      */
     public SensorMeasurement(String sensorId, Double temperature, Double humidity) {
-        this(sensorId, temperature, humidity, null, null);
+        this(sensorId, temperature, humidity, null, null, null);
+    }
+
+    /** The air fields without a battery, which is what a Ruuvi Air reports. */
+    public SensorMeasurement(String sensorId, Double temperature, Double humidity,
+                             Double co2, Double pm25) {
+        this(sensorId, temperature, humidity, co2, pm25, null);
+    }
+
+    /**
+     * Below this a RuuviTag's coin cell is on its way out. Ruuvi's own app warns
+     * at the same point; in a cold shed the voltage sags further, so a tag that
+     * reads low on a winter morning may recover by noon — the reading is a hint
+     * to buy a battery, not an emergency.
+     */
+    public static final double LOW_BATTERY_VOLTS = 2.5;
+
+    /** Whether the sensor reported a battery, and it is running low. */
+    public boolean hasLowBattery() {
+        return batteryVoltage != null && batteryVoltage < LOW_BATTERY_VOLTS;
     }
 
     /** Whether this sensor said anything about the air it is standing in. */

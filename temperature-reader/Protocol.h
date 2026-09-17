@@ -22,9 +22,10 @@
       0   type        uint8, from the registry below
       1..2 value      uint16 or int16 depending on the type
 
-  A plain RuuviTag sends two fields and costs 11 bytes; a Ruuvi Air sends four
-  and costs 17. The largest packet this can build is 8 x (5 + 7 x 3) + 8 = 216
-  bytes, well inside the ~508 bytes a UDP datagram carries safely.
+  A plain RuuviTag sends three fields — temperature, humidity and its battery —
+  and costs 14 bytes; a Ruuvi Air sends four and costs 17. The largest packet
+  this can build is 8 x (5 + 7 x 3) + 8 = 216 bytes, well inside the ~508 bytes
+  a UDP datagram carries safely.
 
   WHY THIS SHAPE, AND WHY VERSION 2
 
@@ -90,6 +91,14 @@ static const uint8_t PROTOCOL_FIELD_CO2 = 4;          // uint16, ppm
 static const uint8_t PROTOCOL_FIELD_PM25 = 5;         // uint16, 0.1 µg/m³
 static const uint8_t PROTOCOL_FIELD_VOC = 6;          // uint16, index     (reserved)
 static const uint8_t PROTOCOL_FIELD_NOX = 7;          // uint16, index     (reserved)
+/*
+   The sensor's own battery, so that a tag running down is seen on the server as
+   a falling number rather than, one day, as silence. Millivolts: a coin cell
+   reads about three volts new and is finished near two, so a hundredth would
+   have done — but a thousandth costs nothing in sixteen bits, and it is the
+   unit the tag itself reports in.
+*/
+static const uint8_t PROTOCOL_FIELD_BATTERY = 8;      // uint16, mV
 
 /*
    A sensor-agnostic reading. Sensor classes fill this in, which keeps the
@@ -105,10 +114,11 @@ static const uint8_t PROTOCOL_FIELD_NOX = 7;          // uint16, index     (rese
 */
 struct SensorReading {
   char id[PROTOCOL_ID_SIZE + 1] = "";
-  float temperature = NAN;  // °C
-  float humidity = NAN;     // %RH
-  float co2 = NAN;          // ppm
-  float pm25 = NAN;         // µg/m³
+  float temperature = NAN;    // °C
+  float humidity = NAN;       // %RH
+  float co2 = NAN;            // ppm
+  float pm25 = NAN;           // µg/m³
+  float batteryVoltage = NAN; // V, the sensor's own battery
 };
 
 class MeasurementPacket {
@@ -153,6 +163,7 @@ public:
     addScaled(cursor, *fieldCount, PROTOCOL_FIELD_HUMIDITY, reading.humidity, 100.0f, 655.0f);
     addScaled(cursor, *fieldCount, PROTOCOL_FIELD_CO2, reading.co2, 1.0f, 65535.0f);
     addScaled(cursor, *fieldCount, PROTOCOL_FIELD_PM25, reading.pm25, 10.0f, 6553.0f);
+    addScaled(cursor, *fieldCount, PROTOCOL_FIELD_BATTERY, reading.batteryVoltage, 1000.0f, 65.535f);
 
     length = (uint8_t)(cursor - buffer);
     buffer[5]++;

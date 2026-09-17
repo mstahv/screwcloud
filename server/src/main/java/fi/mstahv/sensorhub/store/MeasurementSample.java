@@ -85,6 +85,15 @@ public class MeasurementSample {
     @DecimalMin(value = "0", message = "A particulate concentration cannot be negative")
     private Double pm25;
 
+    /*
+       The sensor's own battery, in volts. Only tags report one; the column is
+       null for everything else, like the air fields above. Kept as a plain reading
+       rather than derived into a "low" flag, so that the threshold can move
+       without rewriting history.
+    */
+    @DecimalMin(value = "0", message = "A battery voltage cannot be negative")
+    private Double batteryVoltage;
+
     @NotNull
     @Column(nullable = false)
     private Instant receivedAt;
@@ -106,12 +115,19 @@ public class MeasurementSample {
 
     public MeasurementSample(String deviceId, String sensorId, Double temperature, Double humidity,
                              Double co2, Double pm25, Instant receivedAt, int sequence) {
+        this(deviceId, sensorId, temperature, humidity, co2, pm25, null, receivedAt, sequence);
+    }
+
+    public MeasurementSample(String deviceId, String sensorId, Double temperature, Double humidity,
+                             Double co2, Double pm25, Double batteryVoltage,
+                             Instant receivedAt, int sequence) {
         this.deviceId = deviceId;
         this.sensorId = sensorId;
         this.temperature = temperature;
         this.humidity = humidity;
         this.co2 = co2;
         this.pm25 = pm25;
+        this.batteryVoltage = batteryVoltage;
         this.receivedAt = receivedAt;
         this.sequence = sequence;
     }
@@ -142,6 +158,10 @@ public class MeasurementSample {
 
     public Double getPm25() {
         return pm25;
+    }
+
+    public Double getBatteryVoltage() {
+        return batteryVoltage;
     }
 
     public Instant getReceivedAt() {

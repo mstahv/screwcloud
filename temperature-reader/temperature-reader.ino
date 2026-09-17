@@ -340,6 +340,11 @@ struct RuuviMeasurement {
     */
     reading.co2 = co2;
     reading.pm25 = pm25;
+    /*
+       The tag's battery too, now that the packet has a field for it. NAN for a
+       Ruuvi Air, which runs off the mains and does not report one.
+    */
+    reading.batteryVoltage = batteryVoltage;
   }
 
   /*

@@ -283,6 +283,28 @@ class DashboardViewTest {
     }
 
     /*
+       A tag's battery is a reading about the tag, shown under the readings about
+       the room and only for a sensor that has one. A dying cell is the one thing
+       a reader can do something about before the card goes quiet.
+    */
+    @Test
+    void aTagsBatteryIsShownUnderItsReadings(@Autowired BrowserlessUIContext ui) {
+        measurements.store(new DeviceMeasurement("BATT", 1, Instant.now(), List.of(
+                new SensorMeasurement("RBF", 21.0, 40.0, null, null, 2.98),
+                new SensorMeasurement("RLO", 4.0, 80.0, null, null, 2.41),
+                new SensorMeasurement("DHT", 22.0, 45.0))));
+        ui.navigate(DashboardView.class, "BATT");
+
+        assertTrue(ui.findSpan().withText("Battery 2.98 V").exists(),
+                "a healthy battery is a number and nothing more");
+        assertTrue(ui.findSpan().withText("Battery 2.41 V · low, replace it soon").exists(),
+                "a low one says so in words");
+        assertEquals(2, ui.find(com.vaadin.flow.component.html.Span.class).all().stream()
+                        .filter(span -> span.getText().contains("Battery")).count(),
+                "the DHT22 has no battery and gets no line about one");
+    }
+
+    /*
        Reaching the target does not stop the counter: the meat hangs until it is
        taken down, and the number that matters then is the sum it got to. So the
        sum keeps climbing, and the card has to say — loudly — that the target is

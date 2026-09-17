@@ -79,6 +79,7 @@ public final class MeasurementPacket {
         add(fields, Protocol.humidity(sensor.humidity()));
         add(fields, Protocol.co2(sensor.co2()));
         add(fields, Protocol.pm25(sensor.pm25()));
+        add(fields, Protocol.battery(sensor.batteryVoltage()));
         return fields;
     }
 

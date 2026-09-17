@@ -68,6 +68,7 @@ public final class Protocol {
     public static final int FIELD_PM25 = 5;         // uint16, 0.1 µg/m³
     public static final int FIELD_VOC = 6;          // uint16, index     (reserved)
     public static final int FIELD_NOX = 7;          // uint16, index     (reserved)
+    public static final int FIELD_BATTERY = 8;      // uint16, mV — the sensor's own battery
 
     /*
        The bounds the firmware checks before scaling. Outside them the value would
@@ -78,6 +79,7 @@ public final class Protocol {
     private static final double HUMIDITY_LIMIT = 655.0;
     private static final double CO2_LIMIT = 65535.0;
     private static final double PM25_LIMIT = 6553.0;
+    private static final double BATTERY_LIMIT = 65.535;
 
     private Protocol() {
     }
@@ -118,6 +120,11 @@ public final class Protocol {
     /** Particulates under 2.5 µm, in tenths of a µg/m³. */
     public static Field pm25(Double microgramsPerCubicMetre) {
         return unsigned(FIELD_PM25, microgramsPerCubicMetre, 10.0, PM25_LIMIT);
+    }
+
+    /** The sensor's battery in millivolts; a coin cell is a number near 3000. */
+    public static Field battery(Double volts) {
+        return unsigned(FIELD_BATTERY, volts, 1000.0, BATTERY_LIMIT);
     }
 
     private static Field unsigned(int type, Double value, double scale, double limit) {

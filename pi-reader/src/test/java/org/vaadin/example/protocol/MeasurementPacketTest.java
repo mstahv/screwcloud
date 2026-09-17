@@ -107,6 +107,8 @@ class MeasurementPacketTest {
         assertNull(Protocol.humidity(-1.0));
         assertNull(Protocol.co2(70000.0));
         assertNull(Protocol.pm25(-0.1));
+        assertNull(Protocol.battery(70.0));
+        assertEquals(new Protocol.Field(Protocol.FIELD_BATTERY, 2980), Protocol.battery(2.98));
     }
 
     @Test

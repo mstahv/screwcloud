@@ -66,8 +66,9 @@ shows them in a browser.
 ![A device's sensor cards with one sensor's settings open, showing temperature
 bands on the gauge and a degree-day counter](screenshot.png)
 
-Each sensor gets a card with a gauge, the last 24 hours as a curve, and every
-reading behind a collapsed section. The settings open from the cog: a name,
+Each sensor gets a card with a gauge, the last 24 hours as a curve, the humidity
+and — for a RuuviTag — its battery voltage, with a word when it is running low,
+and every reading behind a collapsed section. The settings open from the cog: a name,
 temperature bands that colour the gauge, which of that sensor's alerts this browser
 wants as push notifications, and the degree-day counters — the one above reads
 `hirvi · 11.0 / 40.0 °Cd` with the forecast underneath.
@@ -1017,6 +1018,7 @@ readers by `ProtocolSyncTest`:
 | 5 | PM2.5 | uint16, 0.1 µg/m³ |
 | 6 | VOC index | uint16 — *reserved* |
 | 7 | NOx index | uint16 — *reserved* |
+| 8 | battery | uint16, mV — the sensor's own battery; RuuviTags send it, a Ruuvi Air on the mains does not |
 
 **Numbers are permanent.** A type means one measurement with one scaling, in
 every firmware and every reader, forever; a new measurement takes the next free
