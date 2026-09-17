@@ -39,9 +39,18 @@ public class TestDatabase {
        Reuse is requested so repeated runs get a warm container instead of a
        fresh one every time. It stays clean regardless, because @DataJpaTest
        rolls back each test.
+
+       More connections than PostgreSQL's default hundred. Spring caches one
+       context per distinct test configuration and every context keeps its own
+       pool of ten, and there are enough configurations in this module that the
+       eleventh context found the door shut: "FATAL: sorry, too many clients
+       already", from a store test that had nothing to do with connections. The
+       limit is the image's default rather than anything this application asks
+       for, so it is the limit that moves.
     */
     private static final PostgreSQLContainer CONTAINER = new PostgreSQLContainer(image())
             .withDatabaseName("screwcloud_test")
+            .withCommand("postgres", "-c", "max_connections=300")
             .withReuse(true);
 
     static String image() {
