@@ -10,6 +10,7 @@ import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.html.Section;
 import com.vaadin.flow.component.progressbar.ProgressBar;
+import com.vaadin.flow.dom.Style;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,10 +77,13 @@ class SerialFlasher extends Section {
 
         /*
            Where the image is fetched from: a handler in this session, like the
-           download link's, but one that leaves the file in place. Hidden, because
-           the reader never clicks it — the script reads its address.
+           download link's. Not shown, because the reader never clicks it — the
+           script reads its address. Kept out of sight with display:none rather
+           than setVisible(false): Vaadin withholds an invisible element's
+           attributes from the browser until it is shown again, href included,
+           and the script would have fetched the page itself and written that.
         */
-        image.setVisible(false);
+        image.getStyle().setDisplay(Style.Display.NONE);
         image.setHref(event -> {
             event.setFileName(job.fileName());
             event.setContentType("application/octet-stream");
@@ -107,8 +111,9 @@ class SerialFlasher extends Section {
 
     private void offer(boolean supported) {
         flash.setVisible(supported);
+        log.info("Flasher for {}: the browser {} Web Serial", job.deviceId(),
+                supported ? "has" : "has no");
         if (!supported) {
-            log.info("Not offering to flash {}: the browser has no Web Serial", job.deviceId());
             say("This browser cannot open serial ports, so it cannot flash the board. "
                     + "Use Chrome or Edge on a computer — or download the file below and write "
                     + "it with esptool, as described further down.");
@@ -122,7 +127,7 @@ class SerialFlasher extends Section {
         */
         getElement().executeJs("return window.ScrewCloud.armFlasher(this, $0, $1)",
                         flash.getElement(), image.getElement())
-                .then(armed -> log.debug("Flasher armed for {}", job.deviceId()),
+                .then(armed -> log.info("Flasher armed for {}", job.deviceId()),
                         failure -> {
                             log.warn("The flasher script could not be armed for {}: {}",
                                     job.deviceId(), failure);

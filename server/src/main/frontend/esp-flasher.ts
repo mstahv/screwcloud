@@ -182,3 +182,5 @@ declare global {
 }
 
 window.ScrewCloud = { ...(window.ScrewCloud ?? {}), armFlasher };
+// So that an empty console means the module never arrived, not that it sat idle.
+console.info(LOG, "module loaded");
