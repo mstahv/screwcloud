@@ -141,13 +141,19 @@
         <!--
             3.8.1 is the release where the pieces this application grew came home:
             the form-embedding additions (asSection and friends) and the layouts
-            (Column, NavigationView, SubViewHeader). The ./flow-viritin checkout is
-            only needed for developing the next ones.
+            (Column, NavigationView, SubViewHeader).
+
+            A snapshot again for the moment, like the gauge below: NavigationView
+            on main clips its horizontal overflow, which is what stops the header's
+            veil from giving the device view a sideways scrollbar. Until 3.8.2 is
+            released, build it locally first:
+
+                mvn -f ../flow-viritin/pom.xml install -DskipTests
         -->
         <dependency>
             <groupId>in.virit</groupId>
             <artifactId>viritin</artifactId>
-            <version>3.8.1</version>
+            <version>3.8.2-SNAPSHOT</version>
         </dependency>
 
         <dependency>
