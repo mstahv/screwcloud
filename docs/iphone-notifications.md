@@ -19,7 +19,7 @@ a question for the courts, and they are on it. Until they finish, the recipe
 below is the recipe.
 
 **Android users:** Chrome offers to install the app on its own, and notifications
-work from a plain tab too. You can skip to [step 5](#5-switch-notifications-on);
+work from a plain tab too. You can skip to [step 7](#7-switch-notifications-on);
 everything from there on is the same.
 
 ## 1. Open the menu in the address bar
@@ -49,40 +49,56 @@ among them. Scroll the bottom row of round buttons and tap **View More**.
 
 ## 4. Add to Home Screen
 
-There it is, at the very bottom: **Add to Home Screen**. Tap it, then **Add** in
-the top right corner of the dialog that follows (you can rename it first if you
-like).
+There it is, at the very bottom: **Add to Home Screen**.
 
 <img src="iphone/04-add-to-home-screen.jpg" width="300" alt="The expanded share sheet with Add to Home Screen highlighted">
+
+## 5. Confirm
+
+A dialog shows the icon and the name; change the name if you like. Leave **Open
+as Web App** switched on — that is the setting this whole exercise is about, and
+iOS turns it on by itself. Tap **Add**.
+
+<img src="iphone/05-confirm-add.jpg" width="300" alt="The Add to Home Screen dialog with the Add button highlighted and the Open as Web App switch marked">
+
+## 6. Open the icon, and start from scratch
 
 A ScrewCloud icon appears among your apps. **Close Safari and open that icon
 from now on.** It is the same site, but iOS treats it as a separate app — and
 that is the whole trick: this one is allowed to notify you.
 
-> One consequence worth knowing: the Home Screen app is a separate browser with
-> its own memory. Devices you added while still in Safari are not there — add
-> them again inside the app. Do everything below in the app, and do it once.
+<img src="iphone/06-fresh-start.jpg" width="300" alt="The installed app opening with no devices listed">
 
-## 5. Switch notifications on
+It opens empty, and that is not a fault: the Home Screen app is a separate
+browser with its own memory, so devices you added while still in Safari are not
+here. Add them again by their four-character ID — and notice that the message
+under **Your settings** has changed. In Safari it explained why notifications
+were not on offer; here it simply tells you where to choose them.
 
-In the app, add your device by its four-character ID if you have not yet, then
-scroll down to **Your settings** and tick **Notifications on this browser**. iOS
-asks whether ScrewCloud may send notifications; say **Allow**. (If you refused
-once, the switch is now in Settings → Notifications → ScrewCloud, like any app.)
+## 7. Switch notifications on
 
-<img src="iphone/05-notifications-on.jpg" width="300" alt="The installed app with Notifications on this browser and Notify if it stops reporting highlighted">
+Scroll down to **Your settings** and tick **Notifications on this browser**.
+
+<img src="iphone/07-notifications-on.jpg" width="300" alt="The installed app with Notifications on this browser and Notify if it stops reporting highlighted">
+
+iOS asks whether ScrewCloud may send notifications. Say **Allow**. This is the
+one question the phone asks in the whole process, and it asks it only once: if
+you refuse, the switch moves to Settings → Notifications → ScrewCloud, like any
+app's.
+
+<img src="iphone/07-allow.jpg" width="300" alt="The iOS permission prompt with Allow highlighted">
 
 While you are here: **Notify if it stops reporting** on the device's card, also
-highlighted above, tells you when the device itself goes quiet — a dead battery, a router someone
+highlighted two pictures up, tells you when the device itself goes quiet — a dead battery, a router someone
 unplugged — which is a different thing from the temperature being wrong, and
 worth knowing before a weekend.
 
-## 6. Open the sensor's settings
+## 8. Open the sensor's settings
 
 Tap the device to open it. Each sensor is a card; tap the **cog** on the card of
 the thermometer that hangs where the meat hangs.
 
-<img src="iphone/06-sensor-settings.jpg" width="300" alt="A sensor card with the settings cog highlighted">
+<img src="iphone/08-sensor-settings.jpg" width="300" alt="A sensor card with the settings cog highlighted">
 
 The settings hold a name for the sensor, the temperature bands that colour the
 gauge, and — under **Notify this browser when** — the alerts about the
@@ -90,37 +106,37 @@ temperature itself: too warm, too cold, back to normal. Tick what you want and
 press **Save**. Those are the alerts for a thermometer; the counter below is the
 one for the meat.
 
-## 7. Start a degree-day counter
+## 9. Start a degree-day counter
 
 Under **Degree-day counters**, write what is hanging and since when (the date
 helps when there are two), leave the target at 40 °Cd unless you know better,
 and tap **Start**. The counter starts from this moment — start it when the meat
 goes up.
 
-<img src="iphone/07-start-counter.jpg" width="300" alt="The degree-day counter form with the Start button highlighted">
+<img src="iphone/09-start-counter.jpg" width="300" alt="The degree-day counter form with the Start button highlighted">
 
 Degree-days are temperature multiplied by time: five days at +8 °C and eight
 days at +5 °C are the same forty. Time below freezing counts for nothing, and
 above +10 °C you should be worrying about bacteria rather than tenderness. Forty
 is the usual guideline for game; some prefer sixty for more flavour.
 
-## 8. Choose what the counter tells you
+## 10. Choose what the counter tells you
 
 The running counter shows its own two notifications, both on by default: **a day
 before** the target, judged from the current temperature, and **when reached**.
 Untick what you do not want. Changes here save themselves; there is nothing to
 press.
 
-<img src="iphone/08-counter-alerts.jpg" width="300" alt="A running counter with its two notification choices highlighted">
+<img src="iphone/10-counter-alerts.jpg" width="300" alt="A running counter with its two notification choices highlighted">
 
-## 9. Watch it on the card
+## 11. Watch it on the card
 
 Close the settings. The card now carries the counter: the sum so far against the
 target, and a forecast — *about 4 days left, done Tuesday morning*. The
 forecast is what you actually came for; it sharpens as the counter gathers its
 own readings.
 
-<img src="iphone/09-counter-on-card.jpg" width="300" alt="The sensor card with the counter and its forecast highlighted">
+<img src="iphone/11-counter-on-card.jpg" width="300" alt="The sensor card with the counter and its forecast highlighted">
 
 When the target is passed the card says so with a green badge and keeps
 counting, because the meat is still hanging until you take it down. Stop the
