@@ -125,8 +125,8 @@ class SerialFlasher extends Section {
            the promise rejects and the reader is told rather than left with a
            button that does nothing.
         */
-        getElement().executeJs("return window.ScrewCloud.armFlasher(this, $0, $1)",
-                        flash.getElement(), image.getElement())
+        getElement().executeJs("return window.ScrewCloud.armFlasher(this, $0, $1, $2)",
+                        flash.getElement(), image.getElement(), job.board().chip())
                 .then(armed -> log.info("Flasher armed for {}", job.deviceId()),
                         failure -> {
                             log.warn("The flasher script could not be armed for {}: {}",

@@ -1,5 +1,5 @@
 /*
-  ScrewCloud sensor firmware for ESP32-S3.
+  ScrewCloud sensor firmware for the ESP32-S3 and the ESP32-C3.
 
   Reads Ruuvi devices over BLE advertisements and sends the readings to the
   server over the board's own WiFi:
@@ -25,8 +25,15 @@
   console keep working, or in light sleep if config.h asks for it. See
   "Power" in config.h.example for the numbers.
 
-  Developed against a Waveshare ESP32-S3-Zero, which has no plain LED — status is
-  shown on its WS2812 RGB LED instead, where the colour carries the meaning.
+  One sketch for two chips. The S3 is a dual-core Xtensa and the C3 a
+  single-core RISC-V, and nothing here can tell the difference: the Arduino
+  core, NimBLE, WiFi, the watchdog and the RGB LED call are the same on both.
+  The one thing that differs is which pin the LED hangs on, and config.h picks
+  that by the target the compiler is building for.
+
+  Developed against the Waveshare ESP32-S3-Zero and ESP32-C3-Zero, neither of
+  which has a plain LED — status is shown on their WS2812 RGB LED instead, where
+  the colour carries the meaning.
 
   Libraries: NimBLE-Arduino (2.x) from Library Manager. Nothing else; WiFi,
   neopixelWrite() and temperatureRead() come with the ESP32 Arduino core (3.x).
@@ -537,7 +544,7 @@ static LinkState linkState;
 /* ==========================================================================
    Status LED
 
-   The ESP32-S3-Zero has no plain LED, only a WS2812 on RGB_LED_PIN. The colour
+   The Zero boards have no plain LED, only a WS2812 on RGB_LED_PIN. The colour
    carries the state and the rhythm reinforces it, which reads better across a
    room than rhythm alone. The rhythms are the Pico's, so the two boards can be
    read the same way:
@@ -885,8 +892,10 @@ void setup() {
   ruuviTags.begin();
   setupScanning();
 
-  Serial.printf("ScrewCloud ESP32-S3 reader, device %s -> %s:%u, CPU %u MHz\n",
-                DEVICE_ID, SERVER_HOST, (unsigned)SERVER_PORT, (unsigned)getCpuFrequencyMhz());
+  // CONFIG_IDF_TARGET is the chip the core was built for: "esp32s3", "esp32c3".
+  Serial.printf("ScrewCloud %s reader, device %s -> %s:%u, CPU %u MHz\n",
+                CONFIG_IDF_TARGET, DEVICE_ID, SERVER_HOST, (unsigned)SERVER_PORT,
+                (unsigned)getCpuFrequencyMhz());
 
   startListening();
 

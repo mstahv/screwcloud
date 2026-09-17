@@ -29,7 +29,7 @@ public enum Board {
     PICO_2_W("Raspberry Pi Pico 2 W", "temperature-reader",
             "rp2040:rp2040", "rp2040",
             "rp2040:rp2040:rpipico2w:ipbtstack=ipv4btcble",
-            ".uf2", "screwcloud-%s.uf2", true, false, Flashing.UF2_DRIVE),
+            ".uf2", "screwcloud-%s.uf2", true, false, Flashing.UF2_DRIVE, null, null),
 
     /**
      * The minimal firmware: Ruuvi devices and WiFi, nothing wired to the board.
@@ -41,10 +41,22 @@ public enum Board {
      * BLE and WiFi together do not fit the default 1.2 MB one with anything to
      * spare.
      */
-    ESP32_S3("ESP32-S3", "esp32-s3-reader",
+    ESP32_S3("ESP32-S3", "esp32-reader",
             "esp32:esp32", "esp32",
             "esp32:esp32:esp32s3:CDCOnBoot=cdc,PartitionScheme=huge_app,FlashSize=4M",
-            ".merged.bin", "screwcloud-%s-esp32-s3.bin", false, true, Flashing.SERIAL);
+            ".merged.bin", "screwcloud-%s-esp32-s3.bin", false, true, Flashing.SERIAL,
+            "ESP32-S3", "esp32s3"),
+
+    /**
+     * The same firmware on the cheaper, single-core RISC-V chip. The sketch is
+     * the one the S3 builds; the compiler's target picks the LED pin, and the
+     * board options are the C3's spelling of the same three choices.
+     */
+    ESP32_C3("ESP32-C3", "esp32-reader",
+            "esp32:esp32", "esp32",
+            "esp32:esp32:esp32c3:CDCOnBoot=cdc,PartitionScheme=huge_app,FlashSize=4M",
+            ".merged.bin", "screwcloud-%s-esp32-c3.bin", false, true, Flashing.SERIAL,
+            "ESP32-C3", "esp32c3");
 
     /** How a built image gets onto the board. */
     public enum Flashing {
@@ -64,10 +76,12 @@ public enum Board {
     private final boolean choosesTransport;
     private final boolean padded;
     private final Flashing flashing;
+    private final String chip;
+    private final String esptoolChip;
 
     Board(String caption, String sketch, String core, String packageDirectory, String fqbn,
           String imageSuffix, String fileNamePattern, boolean choosesTransport, boolean padded,
-          Flashing flashing) {
+          Flashing flashing, String chip, String esptoolChip) {
         this.caption = caption;
         this.sketch = sketch;
         this.core = core;
@@ -78,6 +92,8 @@ public enum Board {
         this.choosesTransport = choosesTransport;
         this.padded = padded;
         this.flashing = flashing;
+        this.chip = chip;
+        this.esptoolChip = esptoolChip;
     }
 
     /** What the form calls it. */
@@ -142,6 +158,25 @@ public enum Board {
 
     public Flashing flashing() {
         return flashing;
+    }
+
+    /**
+     * What the ESP bootloader calls the chip, as esptool-js reports it after
+     * connecting — the flasher compares and refuses to write an image built for
+     * another one. Null for a board that is not flashed over serial.
+     */
+    public String chip() {
+        return chip;
+    }
+
+    /** The {@code --chip} argument for the command-line esptool, for the instructions. */
+    public String esptoolChip() {
+        return esptoolChip;
+    }
+
+    /** A directory name for this board's own build output. */
+    public String key() {
+        return name().toLowerCase().replace('_', '-');
     }
 
     /** In the order the form lists them, which is the order declared here. */

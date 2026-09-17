@@ -76,7 +76,7 @@ class ProtocolSyncTest {
     }
 
     private static final Firmware PICO = new Firmware("pico", firmwareDirectory("temperature-reader"));
-    private static final Firmware ESP = new Firmware("esp32", firmwareDirectory("esp32-s3-reader"));
+    private static final Firmware ESP = new Firmware("esp32", firmwareDirectory("esp32-reader"));
 
     /**
      * The sleeper carries the same wire format and none of the Ruuvi decoding, so

@@ -5,8 +5,10 @@ import com.vaadin.flow.component.html.OrderedList;
 import com.vaadin.flow.component.html.Section;
 import com.vaadin.flow.component.html.UnorderedList;
 
+import fi.mstahv.sensorhub.firmware.Board;
+
 /**
- * How an ESP32-S3 takes its firmware, for somebody who has never done it.
+ * How an ESP32 takes its firmware, for somebody who has never done it.
  *
  * <p>An ESP32 has no drive to drop a file on. It takes firmware over its serial
  * port, which used to mean installing a tool and typing a command with an address
@@ -25,10 +27,11 @@ import com.vaadin.flow.component.html.UnorderedList;
  */
 class Esp32FlashingInstructions extends Section {
 
-    Esp32FlashingInstructions() {
+    /** @param board which ESP32 this is for; the command line names the chip */
+    Esp32FlashingInstructions(Board board) {
         OrderedList steps = new OrderedList(
-                new ListItem("Plug the board into this computer with a USB cable. On an "
-                        + "ESP32-S3-Zero, use the USB-C port."),
+                new ListItem("Plug the board into this computer with a USB cable. On a "
+                        + "Waveshare Zero board, use the USB-C port."),
                 new ListItem("Press \"Connect and flash\" above. The browser asks which serial "
                         + "port to use — pick the one that appeared when you plugged the board "
                         + "in. It is often called something like \"USB JTAG/serial debug unit\"."),
@@ -47,7 +50,8 @@ class Esp32FlashingInstructions extends Section {
                         + "write it with esptool:"));
 
         SecondaryText command = new SecondaryText(
-                "esptool.py --chip esp32s3 write_flash 0x0 screwcloud-<id>-esp32-s3.bin");
+                "esptool.py --chip %s write_flash 0x0 %s".formatted(
+                        board.esptoolChip(), board.fileName("<id>")));
         // No dedicated Style method for the font family, so the raw property.
         command.getStyle().set("font-family", "monospace");
         command.getStyle().setDisplay(com.vaadin.flow.dom.Style.Display.BLOCK);

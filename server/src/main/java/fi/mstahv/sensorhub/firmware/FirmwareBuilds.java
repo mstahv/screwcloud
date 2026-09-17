@@ -47,9 +47,10 @@ import org.springframework.validation.annotation.Validated;
  * build directory, and arduino-cli's core cache. That is what turns a rebuild
  * from the minute a cold build takes into seconds — arduino-cli recompiles only
  * what changed, and between two builds the only thing that changed is a config.h
- * of forty bytes. The first two are per board, because a Pico's object files are
- * no use to an ESP32 build and would only be thrown away and rebuilt on every
- * alternation.
+ * of forty bytes. The sketch is per sketch and the build directory per board,
+ * because a Pico's object files are no use to an ESP32 build — nor an S3's to a
+ * C3's, though they compile the same sketch — and would only be thrown away and
+ * rebuilt on every alternation.
  *
  * <p>None of that would be safe with two compilers in the same directories, so
  * the serialisation chosen for the queue's sake pays for itself twice. The cost
@@ -227,7 +228,7 @@ public class FirmwareBuilds {
         Board board = job.board();
         List<String> command = List.of(arduinoCli.executable(), "compile",
                 "--fqbn", board.fqbn(),
-                "--build-path", buildPath.resolve(board.sketch()).toString(),
+                "--build-path", buildPath.resolve(board.key()).toString(),
                 "--build-cache-path", buildCache.toString(),
                 sketch.toString());
 
@@ -272,7 +273,7 @@ public class FirmwareBuilds {
             return;
         }
 
-        Path built = findImage(buildPath.resolve(board.sketch()), board);
+        Path built = findImage(buildPath.resolve(board.key()), board);
         if (built == null) {
             log.error("Firmware build {} for {} produced no {} under {}",
                     job.id(), job.deviceId(), board.imageSuffix(), buildPath);

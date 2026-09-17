@@ -141,7 +141,7 @@ public class FirmwareBuildView extends NavigationView {
            is written from the browser — and from which browsers — while they can
            still switch, not after they have waited for a compile.
         */
-        private final Hint browserNote = new Hint("Flashing an ESP32-S3 happens from this page "
+        private final Hint browserNote = new Hint("Flashing an ESP32 happens from this page "
                 + "over the board's USB port, which needs a Chromium-based browser — Chrome or "
                 + "Edge on a computer. Safari, Firefox and phones cannot open serial ports; "
                 + "from those you can still download the file and write it with esptool.");
@@ -158,6 +158,10 @@ public class FirmwareBuildView extends NavigationView {
                 case ESP32_S3 -> "Builds for an ESP32-S3 with 4 MB of flash, such as the "
                         + "Waveshare ESP32-S3-Zero. Other ESP32 chips need a different build; "
                         + "the flasher checks and stops before writing anything.";
+                case ESP32_C3 -> "Builds for an ESP32-C3 with 4 MB of flash, such as the "
+                        + "Waveshare ESP32-C3-Zero. Other ESP32 chips — the S3 included — need "
+                        + "a different build; the flasher checks and stops before writing "
+                        + "anything.";
             });
             browserNote.setVisible(board.flashing() == Board.Flashing.SERIAL);
         }
@@ -407,7 +411,7 @@ public class FirmwareBuildView extends NavigationView {
                                     + "after, then deleted, because it contains your WiFi "
                                     + "password."));
                     outcome.add(new SerialFlasher(updated), follow, download,
-                            new Esp32FlashingInstructions());
+                            new Esp32FlashingInstructions(updated.board()));
                 }
             }
         }

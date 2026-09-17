@@ -31,9 +31,6 @@ type Port = ConstructorParameters<typeof Transport>[0];
 
 type FlasherElement = HTMLElement & { $server: FlasherServer };
 
-/** The chip the firmware is built for; anything else gets a wrong image. */
-const EXPECTED_CHIP = "ESP32-S3";
-
 /** Espressif's stub flasher talks at this after the initial handshake. */
 const BAUDRATE = 921600;
 
@@ -55,7 +52,12 @@ const quietTerminal = {
   listener below asks for the port first, synchronously, and tells the server
   afterwards.
 */
-function armFlasher(element: FlasherElement, button: HTMLElement, image: HTMLAnchorElement): boolean {
+function armFlasher(
+  element: FlasherElement,
+  button: HTMLElement,
+  image: HTMLAnchorElement,
+  expectedChip: string,
+): boolean {
   if ((button as any).__screwcloudArmed) {
     return true;
   }
@@ -74,16 +76,21 @@ function armFlasher(element: FlasherElement, button: HTMLElement, image: HTMLAnc
     const port: Promise<Port> = serial.requestPort({});
     element.$server.started();
     console.info(LOG, "asked for a port");
-    void flashEsp32(element, port, image);
+    void flashEsp32(element, port, image, expectedChip);
   });
   console.info(LOG, "armed", button);
   return true;
 }
 
+/*
+  expectedChip is what the bootloader must call itself — "ESP32-S3", "ESP32-C3" —
+  for the image to be the right one; the server knows which board it built for.
+*/
 async function flashEsp32(
   element: FlasherElement,
   chosenPort: Promise<Port>,
   image: HTMLAnchorElement,
+  expectedChip: string,
 ): Promise<void> {
   const server = element.$server;
 
@@ -97,9 +104,9 @@ async function flashEsp32(
 
     const chip = await loader.main();
     console.info(LOG, "connected to", chip);
-    if (!chip.includes(EXPECTED_CHIP)) {
+    if (!chip.includes(expectedChip)) {
       throw new Error(
-        `This board is a ${chip}, and the firmware was built for an ${EXPECTED_CHIP}. ` +
+        `This board is a ${chip}, and the firmware was built for an ${expectedChip}. ` +
           "Nothing was written.",
       );
     }

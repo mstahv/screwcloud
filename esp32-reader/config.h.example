@@ -13,7 +13,9 @@
   demo server.
 
   Nothing is wired to this board and nothing needs configuring away: a bare
-  ESP32-S3 with a RuuviTag or a Ruuvi Air in range is a complete setup.
+  ESP32-S3 or ESP32-C3 with a RuuviTag or a Ruuvi Air in range is a complete
+  setup. The same file serves both chips; the one line that differs between
+  them picks itself by the target being compiled for, see RGB_LED_PIN.
 */
 
 /*
@@ -137,11 +139,17 @@ static const uint16_t SCAN_WINDOW_MS = 30;
 /* ==========================================================================
    Status LED
 
-   The ESP32-S3-Zero has no plain LED, only a WS2812 addressable RGB LED on
-   GPIO21. Check your own board if it differs.
+   The Waveshare Zero boards have no plain LED, only a WS2812 addressable RGB
+   LED: on GPIO21 on the ESP32-S3-Zero, on GPIO10 on the ESP32-C3-Zero. The
+   compiler says which chip it is building for, so the right one is picked
+   here without a second config file. Check your own board if it differs.
 
    Brightness is kept low on purpose: a WS2812 at full output is unpleasantly
    bright indoors and wastes current for no benefit.
    ========================================================================== */
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+static const uint8_t RGB_LED_PIN = 10;
+#else
 static const uint8_t RGB_LED_PIN = 21;
+#endif
 static const uint8_t RGB_LED_BRIGHTNESS = 24;

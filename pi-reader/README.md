@@ -1,6 +1,6 @@
 # ScrewCloud Pi reader
 
-The same job as the [Pico](../temperature-reader) and [ESP32](../esp32-s3-reader)
+The same job as the [Pico](../temperature-reader) and [ESP32](../esp32-reader)
 firmwares, in Java: listen for RuuviTags over Bluetooth, show them on a page, and
 forward them to the ScrewCloud server in the same packet the microcontrollers
 send.
