@@ -63,7 +63,7 @@ public final class ConfigHeader {
             Pattern.compile("^static const unsigned long SEND_INTERVAL_MS = .*;$", Pattern.MULTILINE);
 
     /** The ESP32's sleep switch, live or commented out — whichever the template ships with. */
-    static final String SLEEP_MACRO = "LIGHT_SLEEP_BETWEEN_SENDS";
+    static final String SLEEP_MACRO = "SLEEP_BETWEEN_SENDS";
     private static final Pattern SLEEP =
             Pattern.compile("^(?://)?#define " + SLEEP_MACRO + "[ \t]*$", Pattern.MULTILINE);
 

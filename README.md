@@ -724,14 +724,22 @@ per cent of the time instead of all of it. The CPU runs at 80 MHz, the minimum
 the radios accept and more than the work needs. The light and the serial console
 work throughout, because the chip stays awake — it only has less to do.
 
-`LIGHT_SLEEP_BETWEEN_SENDS` in `config.h` goes further and halts the CPU between
-cycles, woken by a timer. It is off by default because two things stop working
-while the chip sleeps: the light is dark between cycles, and the USB console
-drops and reconnects each time, which makes watching the log a chore. Enable it
-once the device is proven and put away — on the firmware build page it is the
-"Sleep between sends" box. Around it the watchdog is stood down and re-armed —
-its timer would otherwise fire the moment the chip wakes, having "missed" its
-feedings for minutes.
+`SLEEP_BETWEEN_SENDS` in `config.h` goes further and puts the chip into deep
+sleep between cycles, woken by a timer into a fresh boot. It is off by default
+because two things stop working while the chip sleeps: the light is dark between
+cycles, and the USB console drops and reconnects each time, which makes watching
+the log a chore. Enable it once the device is proven and put away — on the
+firmware build page it is the "Sleep between sends" box. Only the sequence
+number is carried across, in RTC memory, so the server does not read every
+wake as a reboot.
+
+It is deep sleep rather than light sleep after light sleep was tried and the
+device reported once and never again. Espressif's sleep documentation explains
+it: light sleep powers the radios down, and a BLE controller that was simply
+left initialised is not brought back usable — that only works on the modem-sleep
+and automatic-light-sleep path, which the Arduino core does not set up. The scan
+restarted into nothing and WiFi stayed down. A reboot per cycle costs about a
+second and recovers everything.
 
 The light's own cost is small — a couple of milliamps on average at this
 brightness, against twenty-odd for the chip awake at 80 MHz — but it is there,

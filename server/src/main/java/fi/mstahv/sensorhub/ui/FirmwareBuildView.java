@@ -241,7 +241,8 @@ public class FirmwareBuildView extends NavigationView {
                and said plainly what it costs: a device on a desk with its log
                being watched wants the console; one in a shed wants to be cool.
             */
-            sleepBetweenSends.setHelperText("Cooler and thriftier: the chip halts between sends. "
+            sleepBetweenSends.setHelperText("Cooler and thriftier: the chip sleeps between sends and "
+                    + "wakes for each one. "
                     + "While it does, the light is dark and the USB console drops out, so "
                     + "leave this off until the device is proven.");
 

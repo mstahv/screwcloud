@@ -81,15 +81,20 @@ static const unsigned long PRINT_INTERVAL_MS = 5000;
 #define CPU_FREQUENCY_MHZ 80
 
 /*
-   Light sleep between cycles: CPU halted, RAM kept, woken by a timer. Cooler
-   still, and the right choice for a device on a battery or in a closed box —
-   but two things stop working while it sleeps. The light is dark between
-   cycles (it blinks its status during the listening window and the send), and
-   the USB serial console drops and reconnects every cycle, which makes
-   watching the log a chore. Off by default for those two reasons; enable it
-   once the device is proven and put away.
+   Deep sleep between cycles: the chip powers down after the send and a timer
+   wakes it into a fresh boot for the next one. Cooler still, and the right
+   choice for a device on a battery or in a closed box — but two things stop
+   working while it sleeps. The light is dark between cycles (it blinks its
+   status during the listening window and the send), and the USB serial console
+   drops and reconnects every cycle, which makes watching the log a chore. Off
+   by default for those two reasons; enable it once the device is proven and
+   put away.
+
+   Deep rather than light sleep on purpose: light sleep left the BLE controller
+   in a state it did not recover from, and the device reported once and never
+   again. A reboot per cycle costs a second and recovers everything.
 */
-//#define LIGHT_SLEEP_BETWEEN_SENDS
+//#define SLEEP_BETWEEN_SENDS
 
 /*
    Whether the light keeps blinking its status while the device rests between
@@ -99,8 +104,8 @@ static const unsigned long PRINT_INTERVAL_MS = 5000;
 
    Honest numbers: at this brightness the LED costs a couple of milliamps on
    average, against twenty-odd for the chip awake at 80 MHz. It is a saving,
-   and a small one; the large one is LIGHT_SLEEP_BETWEEN_SENDS above, which
-   turns the light off between cycles anyway.
+   and a small one; the large one is SLEEP_BETWEEN_SENDS above, which turns
+   the light off between cycles anyway.
 */
 #define STATUS_LED_WHILE_RESTING 1
 

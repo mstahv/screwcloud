@@ -84,10 +84,10 @@ class ConfigHeaderTest {
         String asleep = generate(new FirmwareRequest(Board.ESP32_C3, "ABCD", "net", "password", 5,
                 FirmwareTransport.WIFI, true));
 
-        assertTrue(awake.contains("\n//#define LIGHT_SLEEP_BETWEEN_SENDS\n"), awake);
-        assertFalse(awake.contains("\n#define LIGHT_SLEEP_BETWEEN_SENDS\n"), awake);
-        assertTrue(asleep.contains("\n#define LIGHT_SLEEP_BETWEEN_SENDS\n"), asleep);
-        assertFalse(asleep.contains("\n//#define LIGHT_SLEEP_BETWEEN_SENDS\n"), asleep);
+        assertTrue(awake.contains("\n//#define SLEEP_BETWEEN_SENDS\n"), awake);
+        assertFalse(awake.contains("\n#define SLEEP_BETWEEN_SENDS\n"), awake);
+        assertTrue(asleep.contains("\n#define SLEEP_BETWEEN_SENDS\n"), asleep);
+        assertFalse(asleep.contains("\n//#define SLEEP_BETWEEN_SENDS\n"), asleep);
     }
 
     @Test
@@ -96,7 +96,7 @@ class ConfigHeaderTest {
         String header = generate(new FirmwareRequest(Board.PICO_2_W, "ABCD", "net", "password", 5,
                 FirmwareTransport.AUTOMATIC, true));
 
-        assertFalse(header.contains("LIGHT_SLEEP_BETWEEN_SENDS"), header);
+        assertFalse(header.contains("SLEEP_BETWEEN_SENDS"), header);
     }
 
     @Test

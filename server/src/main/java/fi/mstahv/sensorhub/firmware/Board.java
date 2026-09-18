@@ -175,7 +175,7 @@ public enum Board {
     }
 
     /**
-     * Whether the sketch has {@code LIGHT_SLEEP_BETWEEN_SENDS} to offer.
+     * Whether the sketch has {@code SLEEP_BETWEEN_SENDS} to offer.
      *
      * <p>The ESP32 sketch rests between sends and can sleep through the rest;
      * the Pico's runs a transport that must stay awake for a modem, and has no

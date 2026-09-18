@@ -22,8 +22,8 @@
   that reports every five minutes needs neither for more than a fraction of
   that. So each cycle listens for a short window, sends what it heard, switches
   both radios off and waits — awake by default, so the light and the serial
-  console keep working, or in light sleep if config.h asks for it. See
-  "Power" in config.h.example for the numbers.
+  console keep working, or in deep sleep if config.h asks for it, in which case
+  every cycle is a fresh boot. See "Power" in config.h.example for the numbers.
 
   One sketch for two chips. The S3 is a dual-core Xtensa and the C3 a
   single-core RISC-V, and nothing here can tell the difference: the Arduino
@@ -90,6 +90,13 @@ static const float LUMINOSITY_RATIO = 22.9028f;  // 254 / ln(65536)
 */
 #ifndef STATUS_LED_WHILE_RESTING
 #define STATUS_LED_WHILE_RESTING 1
+#endif
+/*
+   The sleep switch was called LIGHT_SLEEP_BETWEEN_SENDS for a week, while it
+   was light sleep. A config from that week still means "sleep".
+*/
+#if defined(LIGHT_SLEEP_BETWEEN_SENDS) && !defined(SLEEP_BETWEEN_SENDS)
+#define SLEEP_BETWEEN_SENDS
 #endif
 
 /*
@@ -777,9 +784,15 @@ static bool sendPacket(const MeasurementPacket &packet, const char *&failure) {
    reading of a dead tag is not a measurement, and on the server it would look
    fresh.
 */
-static void reportMeasurements() {
-  static uint16_t sequence = 0;
+/*
+   In RTC memory rather than a plain static, so that it survives the deep sleep
+   between cycles: the server reads the sequence to tell a reboot from a gap,
+   and a device that slept is not a device that rebooted. Zeroed on a cold start
+   like any other variable.
+*/
+RTC_DATA_ATTR static uint16_t sequence = 0;
 
+static void reportMeasurements() {
   MeasurementPacket packet;
   packet.begin(DEVICE_ID, ++sequence);
 
@@ -894,8 +907,8 @@ static void startWatchdog() {
      listening   BLE scanning, for LISTEN_MS. Long enough that every tag in
                  range has advertised several times over.
      resting     both radios off, until the next cycle is due. Awake, unless
-                 LIGHT_SLEEP_BETWEEN_SENDS is defined — then the chip sleeps
-                 and wakes on its timer.
+                 SLEEP_BETWEEN_SENDS is defined — then the chip goes into deep
+                 sleep and the timer wakes it into setup() for the next cycle.
 
    The send sits between the two: scanning stops, WiFi comes up, the packet
    goes, WiFi goes down. A failed send shortens the rest to RETRY_INTERVAL_MS.
@@ -945,35 +958,37 @@ static void startResting() {
   statusLed.off();
 #endif
   Serial.printf("Resting for %lu s\n", restFor / 1000UL);
+#ifdef SLEEP_BETWEEN_SENDS
+  sleepUntilNextCycle();  // does not return
+#endif
 }
 
-#ifdef LIGHT_SLEEP_BETWEEN_SENDS
+#ifdef SLEEP_BETWEEN_SENDS
 /*
-   Light sleep until the next cycle: CPU halted, RAM kept, radios already off.
-   Two things have to be arranged around it. The watchdog's timer would fire the
-   moment the chip wakes, having "missed" its feedings for minutes, so this task
-   leaves the watchdog's care before sleeping and returns to it after. And the
-   light is switched off — it cannot be blinked from a halted CPU, and a light
-   frozen on would read as a state that does not exist.
+   Deep sleep until the next cycle. The timer wakes the chip into setup(), so
+   every cycle is a fresh boot: NimBLE, WiFi and the watchdog all start from
+   nothing, the way they do on power-up, and the only thing carried across is
+   the sequence number in RTC memory.
 
-   The USB console drops while the chip sleeps and comes back after; that is the
-   price of this mode, and why it is not the default.
+   This used to be light sleep, and it did not work: the device reported once
+   and never again. Espressif's sleep documentation says why. Light sleep powers
+   the radios down, and a BLE controller that was simply left initialised is not
+   brought back in a usable state — that path exists only for modem sleep with
+   automatic light sleep, which the Arduino core does not configure. The scan
+   restarted into nothing and WiFi did not come up either. Deep sleep sidesteps
+   all of it by not trying to resume anything.
+
+   The light is switched off first — it cannot be blinked from a sleeping chip,
+   and a light frozen on would read as a state that does not exist — and the
+   console is flushed, because the USB drops with the sleep and comes back with
+   the boot. That drop is the price of this mode, and why it is not the default.
 */
 static void sleepUntilNextCycle() {
-  unsigned long elapsed = millis() - phaseStartedAt;
-  if (elapsed >= restFor) {
-    return;
-  }
-  unsigned long remaining = restFor - elapsed;
   neopixelWrite(RGB_LED_PIN, 0, 0, 0);
-  Serial.printf("Light sleep for %lu s\n", remaining / 1000UL);
+  Serial.printf("Deep sleep for %lu s\n", restFor / 1000UL);
   Serial.flush();
-
-  esp_task_wdt_delete(NULL);
-  esp_sleep_enable_timer_wakeup((uint64_t)remaining * 1000ULL);
-  esp_light_sleep_start();
-  esp_task_wdt_add(NULL);
-  esp_task_wdt_reset();
+  esp_sleep_enable_timer_wakeup((uint64_t)restFor * 1000ULL);
+  esp_deep_sleep_start();
 }
 #endif
 
@@ -992,9 +1007,11 @@ void setup() {
   setupScanning();
 
   // CONFIG_IDF_TARGET is the chip the core was built for: "esp32s3", "esp32c3".
-  Serial.printf("ScrewCloud %s reader, device %s -> %s:%u, CPU %u MHz\n",
+  Serial.printf("ScrewCloud %s reader, device %s -> %s:%u, CPU %u MHz%s\n",
                 CONFIG_IDF_TARGET, DEVICE_ID, SERVER_HOST, (unsigned)SERVER_PORT,
-                (unsigned)getCpuFrequencyMhz());
+                (unsigned)getCpuFrequencyMhz(),
+                esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER
+                    ? " — woke for the next cycle" : "");
 
   startListening();
 
@@ -1031,9 +1048,7 @@ void loop() {
       break;
     }
     case Phase::Resting:
-#ifdef LIGHT_SLEEP_BETWEEN_SENDS
-      sleepUntilNextCycle();
-#endif
+      // Only reached awake; a sleeping device never comes back here.
       if (millis() - phaseStartedAt >= restFor) {
         startListening();
       }
