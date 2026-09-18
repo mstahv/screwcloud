@@ -109,6 +109,9 @@ class MeasurementPacketTest {
         assertNull(Protocol.pm25(-0.1));
         assertNull(Protocol.battery(70.0));
         assertEquals(new Protocol.Field(Protocol.FIELD_BATTERY, 2980), Protocol.battery(2.98));
+        assertEquals(new Protocol.Field(Protocol.FIELD_PRESSURE, 9944), Protocol.pressure(994.4));
+        assertEquals(new Protocol.Field(Protocol.FIELD_VOC, 104), Protocol.voc(104.0));
+        assertEquals(new Protocol.Field(Protocol.FIELD_LUMINOSITY, 120), Protocol.luminosity(120.4));
     }
 
     @Test

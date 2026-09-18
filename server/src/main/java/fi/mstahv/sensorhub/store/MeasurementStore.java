@@ -49,6 +49,10 @@ public class MeasurementStore {
                         sensor.co2(),
                         sensor.pm25(),
                         sensor.batteryVoltage(),
+                        sensor.pressure(),
+                        sensor.voc(),
+                        sensor.nox(),
+                        sensor.luminosity(),
                         measurement.receivedAt(),
                         measurement.sequence()))
                 .toList());
@@ -89,7 +93,9 @@ public class MeasurementStore {
         List<SensorMeasurement> sensors = samples.stream()
                 .map(sample -> new SensorMeasurement(
                         sample.getSensorId(), sample.getTemperature(), sample.getHumidity(),
-                        sample.getCo2(), sample.getPm25(), sample.getBatteryVoltage()))
+                        sample.getCo2(), sample.getPm25(), sample.getBatteryVoltage(),
+                        sample.getPressure(), sample.getVoc(), sample.getNox(),
+                        sample.getLuminosity()))
                 .toList();
         return Optional.of(new DeviceMeasurement(
                 deviceId, samples.getFirst().getSequence(), latest, sensors));
@@ -145,6 +151,7 @@ public class MeasurementStore {
     private static HistoryPoint toHistoryPoint(MeasurementSample sample) {
         return new HistoryPoint(
                 sample.getReceivedAt(), sample.getTemperature(), sample.getHumidity(),
-                sample.getCo2(), sample.getPm25(), sample.getBatteryVoltage());
+                sample.getCo2(), sample.getPm25(), sample.getBatteryVoltage(),
+                sample.getPressure(), sample.getVoc(), sample.getNox(), sample.getLuminosity());
     }
 }

@@ -30,6 +30,17 @@ enum ChartSeries {
     },
 
     /*
+       Two decimals, as Ruuvi shows it: a barometer's day is a few hectopascals,
+       and one decimal made a still afternoon look like a flat line.
+    */
+    PRESSURE("Pressure", "pressure", "#6c8ebf", SensorMeasurement::pressure, HistoryPoint::pressure) {
+        @Override
+        String value(SensorMeasurement sensor) {
+            return Readings.format(sensor.pressure(), "%.2f hPa");
+        }
+    },
+
+    /*
        CO₂ without decimals because the sensor's own accuracy is tens of ppm, and
        particulates with one because the numbers that matter are small.
     */
@@ -44,6 +55,38 @@ enum ChartSeries {
         @Override
         String value(SensorMeasurement sensor) {
             return Readings.format(sensor.pm25(), "%.1f µg/m³");
+        }
+    },
+
+    /*
+       Ruuvi's indexes, shown as Ruuvi shows them: a bare number on a 0–500 scale
+       where 100 is the sensor's idea of typical air and more is worse. Not a
+       concentration — the sensor learns the room and rates it against itself —
+       so no unit, and no decimals either.
+    */
+    VOC("VOC index", "the VOC index", "#8f9a27", SensorMeasurement::voc, HistoryPoint::voc) {
+        @Override
+        String value(SensorMeasurement sensor) {
+            return Readings.format(sensor.voc(), "%.0f");
+        }
+    },
+
+    NOX("NOx index", "the NOx index", "#b5533c", SensorMeasurement::nox, HistoryPoint::nox) {
+        @Override
+        String value(SensorMeasurement sensor) {
+            return Readings.format(sensor.nox(), "%.0f");
+        }
+    },
+
+    /*
+       Whole lux: the device sends them on a logarithmic byte, so the number is
+       coarse to begin with — good for a lit room against a dark one, not for
+       comparing two lamps.
+    */
+    LUMINOSITY("Light", "the light", "#f2b134", SensorMeasurement::luminosity, HistoryPoint::luminosity) {
+        @Override
+        String value(SensorMeasurement sensor) {
+            return Readings.format(sensor.luminosity(), "%.0f lx");
         }
     },
 

@@ -58,6 +58,8 @@ static const uint8_t RUUVI_FORMAT_5 = 0x05;
 static const uint8_t RUUVI_FORMAT_6 = 0x06;  // Ruuvi Air, legacy-size advertisement
 static const uint8_t RUUVI_FORMAT_6_LEN = 20;  // bytes after the company id
 static const uint8_t RUUVI_FORMAT_5_LEN = 24;  // bytes after the company id
+// Data Format 6 sends light on a log scale: 254 steps across ln(65536).
+static const float LUMINOSITY_RATIO = 22.9028f;  // 254 / ln(65536)
 
 /*
    config.h is gitignored, so a copy written before the chip temperature existed
@@ -166,17 +168,21 @@ static const char *ruuviNameFor(const uint8_t mac[6]) {
 }
 
 /*
-   Only the fields this firmware reports, plus what the serial log wants to show
-   about a Ruuvi Air. The Pico version also decodes pressure and acceleration for
-   its log; here they are skipped to keep things minimal.
+   The fields this firmware reports, which is everything a Ruuvi sends that the
+   server has a place for. The Pico version also decodes acceleration and the
+   transmit power for its log; here they are skipped to keep things minimal.
 */
 struct RuuviReading {
   bool valid = false;
   uint8_t mac[6] = {0};
   float temperature = NAN;    // °C
   float humidity = NAN;       // %RH
+  float pressure = NAN;       // hPa
   float co2 = NAN;            // ppm, Ruuvi Air only
   float pm25 = NAN;           // µg/m³, Ruuvi Air only
+  float voc = NAN;            // VOC index, Ruuvi Air only
+  float nox = NAN;            // NOx index, Ruuvi Air only
+  float luminosity = NAN;     // lx, Ruuvi Air only
   float batteryVoltage = NAN; // V, tags only — an Air runs off the mains
   int rssi = 0;
   unsigned long receivedAt = 0;
@@ -217,6 +223,10 @@ struct RuuviReading {
     reading.co2 = co2;
     reading.pm25 = pm25;
     reading.batteryVoltage = batteryVoltage;
+    reading.pressure = pressure;
+    reading.voc = voc;
+    reading.nox = nox;
+    reading.luminosity = luminosity;
   }
 
   /*
@@ -236,6 +246,11 @@ struct RuuviReading {
     uint16_t rawHumidity = readUint16(&data[3]);
     if (rawHumidity != 0xFFFF) {
       humidity = rawHumidity * 0.0025f;
+    }
+
+    uint16_t rawPressure = readUint16(&data[5]);
+    if (rawPressure != 0xFFFF) {
+      pressure = (rawPressure + 50000.0f) / 100.0f;  // Pa -> hPa
     }
 
     /*
@@ -263,9 +278,10 @@ struct RuuviReading {
      Air broadcasts in a legacy-size advertisement. data points at the format
      byte (0x06) and len is the number of bytes remaining.
 
-     Everything the server can receive is a plain 16-bit field here, so the
-     format's 9-bit values (VOC, NOx, sound) are simply not decoded — the packet
-     has no room for them anyway.
+     Everything the format carries about the air is decoded: the two 16-bit
+     fields, the two 9-bit indexes whose ninth bit lives in the flags byte, and
+     the light on its logarithmic byte. Byte 14 is reserved by Ruuvi and left
+     alone.
 
      The advertisement carries only the low three bytes of the address; the high
      three stay zero. The identifier the server sees is derived from the last
@@ -287,6 +303,11 @@ struct RuuviReading {
       humidity = rawHumidity / 400.0f;
     }
 
+    uint16_t rawPressure = readUint16(&data[5]);
+    if (rawPressure != 0xFFFF) {
+      pressure = (rawPressure + 50000.0f) / 100.0f;  // Pa -> hPa
+    }
+
     uint16_t rawPm25 = readUint16(&data[7]);
     if (rawPm25 != 0xFFFF) {
       pm25 = rawPm25 / 10.0f;
@@ -295,6 +316,30 @@ struct RuuviReading {
     uint16_t rawCo2 = readUint16(&data[9]);
     if (rawCo2 != 0xFFFF) {
       co2 = rawCo2;
+    }
+
+    /*
+       VOC and NOx are nine bits each: eight in their own byte and the ninth —
+       the lowest, not the highest — parked in the flags byte, bits 6 and 7.
+       0x1FF is "not available", which the Air sends while its sensors warm up.
+    */
+    uint8_t flags = data[16];
+    uint16_t rawVoc = ((uint16_t)data[11] << 1) | ((flags >> 6) & 1);
+    if (rawVoc != 0x1FF) {
+      voc = rawVoc;
+    }
+    uint16_t rawNox = ((uint16_t)data[12] << 1) | ((flags >> 7) & 1);
+    if (rawNox != 0x1FF) {
+      nox = rawNox;
+    }
+
+    /*
+       Light is one byte on a logarithmic scale — 254 steps across ln(65536) —
+       so the lux come back out through expf. 0xFF is "not available".
+    */
+    uint8_t rawLuminosity = data[13];
+    if (rawLuminosity != 0xFF) {
+      luminosity = expf(rawLuminosity / LUMINOSITY_RATIO) - 1.0f;
     }
 
     memset(mac, 0, sizeof(mac));
@@ -316,7 +361,11 @@ struct RuuviReading {
                temperature, humidity, rssi,
                millis() - receivedAt, isStale() ? "  [STALE]" : "");
     if (isAir()) {
-      out.printf("  CO2 %.0f ppm, PM2.5 %.1f ug/m3\n", co2, pm25);
+      out.printf("  CO2 %.0f ppm, PM2.5 %.1f ug/m3, VOC %.0f, NOx %.0f, %.0f lx\n",
+                 co2, pm25, voc, nox, luminosity);
+    }
+    if (!isnan(pressure)) {
+      out.printf("  pressure %.2f hPa\n", pressure);
     }
     if (!isnan(batteryVoltage)) {
       out.printf("  battery %.3f V\n", batteryVoltage);

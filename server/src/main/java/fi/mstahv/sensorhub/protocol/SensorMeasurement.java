@@ -20,9 +20,20 @@ import java.util.Optional;
  * @param pm25 particulates under 2.5 µm, in µg/m³, null unless measured
  * @param batteryVoltage the sensor's own battery in volts, null when it has none
  *        to report — a Ruuvi Air runs off the mains, a DHT22 off the board
+ * @param pressure air pressure in hPa, which every Ruuvi measures
+ * @param voc Ruuvi's VOC index, 0–500 with 100 as "typical", null unless measured
+ * @param nox Ruuvi's NOx index on the same scale, null unless measured
+ * @param luminosity light in lux, null unless measured
  */
 public record SensorMeasurement(String sensorId, Double temperature, Double humidity,
-                                Double co2, Double pm25, Double batteryVoltage) {
+                                Double co2, Double pm25, Double batteryVoltage,
+                                Double pressure, Double voc, Double nox, Double luminosity) {
+
+    /** The fields the format had before the reserved types were put to use. */
+    public SensorMeasurement(String sensorId, Double temperature, Double humidity,
+                             Double co2, Double pm25, Double batteryVoltage) {
+        this(sensorId, temperature, humidity, co2, pm25, batteryVoltage, null, null, null, null);
+    }
 
     /**
      * A reading from a sensor that measures only the two things every sensor

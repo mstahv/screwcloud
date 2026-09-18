@@ -80,8 +80,8 @@ class MeasurementStoreTest {
     @Test
     void everyFieldComesBackOutOfTheStore() {
         store.store(new DeviceMeasurement("LAHT", 1, NOW, List.of(
-                new SensorMeasurement("RA1", 21.5, 45.0, 812.0, 6.3, null),
-                new SensorMeasurement("RBF", 21.0, 40.0, null, null, 2.98))));
+                new SensorMeasurement("RA1", 21.5, 45.0, 812.0, 6.3, null, 994.4, 104.0, 1.0, 120.0),
+                new SensorMeasurement("RBF", 21.0, 40.0, null, null, 2.98, 1001.2, null, null, null))));
 
         List<SensorMeasurement> sensors = store.findLatest("LAHT").orElseThrow().sensors();
         SensorMeasurement air = sensors.stream()
@@ -94,6 +94,12 @@ class MeasurementStoreTest {
         assertNull(air.batteryVoltage());
         assertEquals(2.98, tag.batteryVoltage(), 0.0001);
         assertNull(tag.co2());
+        assertEquals(994.4, air.pressure(), 0.0001);
+        assertEquals(104.0, air.voc(), 0.0001);
+        assertEquals(1.0, air.nox(), 0.0001);
+        assertEquals(120.0, air.luminosity(), 0.0001);
+        assertEquals(1001.2, tag.pressure(), 0.0001);
+        assertNull(tag.voc());
     }
 
     @Test

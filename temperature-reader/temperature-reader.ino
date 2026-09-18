@@ -95,6 +95,8 @@ static const uint8_t RUUVI_FORMAT_5 = 0x05;
 static const uint8_t RUUVI_FORMAT_6 = 0x06;  // Ruuvi Air, legacy-size advertisement
 static const uint8_t RUUVI_FORMAT_6_LEN = 20;  // bytes after the company id
 static const uint8_t RUUVI_FORMAT_5_LEN = 24;  // bytes after the company id
+// Data Format 6 sends light on a log scale: 254 steps across ln(65536).
+static const float LUMINOSITY_RATIO = 22.9028f;  // 254 / ln(65536)
 
 // BLE AD types
 static const uint8_t AD_TYPE_MANUFACTURER_SPECIFIC = 0xFF;
@@ -279,6 +281,9 @@ struct RuuviMeasurement {
   float batteryVoltage = NAN;  // V
   float co2 = NAN;             // ppm, Ruuvi Air only
   float pm25 = NAN;            // µg/m³, Ruuvi Air only
+  float voc = NAN;             // VOC index, Ruuvi Air only
+  float nox = NAN;             // NOx index, Ruuvi Air only
+  float luminosity = NAN;      // lx, Ruuvi Air only
   int txPower = 0;             // dBm
   uint8_t movementCounter = 0;
   uint16_t sequenceNumber = 0;
@@ -345,6 +350,15 @@ struct RuuviMeasurement {
        Ruuvi Air, which runs off the mains and does not report one.
     */
     reading.batteryVoltage = batteryVoltage;
+    /*
+       And the rest of what the device measures: the pressure every Ruuvi has,
+       and the Air's indexes and light. Each is NAN where the device has no such
+       sensor, and the packer leaves a NAN out.
+    */
+    reading.pressure = pressure;
+    reading.voc = voc;
+    reading.nox = nox;
+    reading.luminosity = luminosity;
   }
 
   /*
@@ -417,10 +431,10 @@ struct RuuviMeasurement {
      Ruuvi Air broadcasts in a legacy-size advertisement. data points at the
      format byte (0x06) and len is the number of bytes remaining.
 
-     Everything the server can receive is a plain 16-bit field here, so the
-     format's 9-bit values (VOC, NOx, sound) are simply not decoded — the
-     packet has no room for them anyway. CO2 and PM2.5 are kept for the serial
-     log, where they are the reason to point an antenna at this device at all.
+     Everything the format carries about the air is decoded: the two 16-bit
+     fields, the two 9-bit indexes whose ninth bit lives in the flags byte, and
+     the light on its logarithmic byte. Byte 14 is reserved by Ruuvi and left
+     alone.
 
      The advertisement carries only the low three bytes of the address; the
      high three stay zero. The identifier the server sees is derived from the
@@ -458,6 +472,30 @@ struct RuuviMeasurement {
       co2 = rawCo2;
     }
 
+    /*
+       VOC and NOx are nine bits each: eight in their own byte and the ninth —
+       the lowest, not the highest — parked in the flags byte, bits 6 and 7.
+       0x1FF is "not available", which the Air sends while its sensors warm up.
+    */
+    uint8_t flags = data[16];
+    uint16_t rawVoc = ((uint16_t)data[11] << 1) | ((flags >> 6) & 1);
+    if (rawVoc != 0x1FF) {
+      voc = rawVoc;
+    }
+    uint16_t rawNox = ((uint16_t)data[12] << 1) | ((flags >> 7) & 1);
+    if (rawNox != 0x1FF) {
+      nox = rawNox;
+    }
+
+    /*
+       Light is one byte on a logarithmic scale — 254 steps across ln(65536) —
+       so the lux come back out through expf. 0xFF is "not available".
+    */
+    uint8_t rawLuminosity = data[13];
+    if (rawLuminosity != 0xFF) {
+      luminosity = expf(rawLuminosity / LUMINOSITY_RATIO) - 1.0f;
+    }
+
     sequenceNumber = data[15];
     memset(mac, 0, sizeof(mac));
     memcpy(&mac[3], &data[17], 3);
@@ -479,7 +517,8 @@ struct RuuviMeasurement {
     out.printf("  battery %.3f V, TX %d dBm, movement %u, sequence %u\n",
                batteryVoltage, txPower, movementCounter, sequenceNumber);
     if (!isnan(co2) || !isnan(pm25)) {
-      out.printf("  CO2 %.0f ppm, PM2.5 %.1f ug/m3\n", co2, pm25);
+      out.printf("  CO2 %.0f ppm, PM2.5 %.1f ug/m3, VOC %.0f, NOx %.0f, %.0f lx\n",
+                 co2, pm25, voc, nox, luminosity);
     }
   }
 };

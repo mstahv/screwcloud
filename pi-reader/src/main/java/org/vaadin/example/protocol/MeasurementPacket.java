@@ -80,6 +80,10 @@ public final class MeasurementPacket {
         add(fields, Protocol.co2(sensor.co2()));
         add(fields, Protocol.pm25(sensor.pm25()));
         add(fields, Protocol.battery(sensor.batteryVoltage()));
+        add(fields, Protocol.pressure(sensor.pressure()));
+        add(fields, Protocol.voc(sensor.voc()));
+        add(fields, Protocol.nox(sensor.nox()));
+        add(fields, Protocol.luminosity(sensor.luminosity()));
         return fields;
     }
 

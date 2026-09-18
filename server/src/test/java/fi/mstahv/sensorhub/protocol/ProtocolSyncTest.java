@@ -135,6 +135,10 @@ class ProtocolSyncTest {
                 new Rule("battery scaling",
                         "batteryVoltage\\s*=\\s*(\\(1600\\.0f\\s*\\+\\s*batteryMilliVolts\\)\\s*/\\s*1000\\.0f);"),
                 new Rule("battery sentinel", "batteryMilliVolts\\s*!=\\s*(.+?)\\)\\s*\\{"),
+                new Rule("pressure scaling", "pressure\\s*=\\s*(\\(rawPressure[^;]+);"),
+                new Rule("VOC bits", "rawVoc\\s*=\\s*([^;]+);"),
+                new Rule("NOx bits", "rawNox\\s*=\\s*([^;]+);"),
+                new Rule("luminosity scaling", "luminosity\\s*=\\s*(expf[^;]+);"),
                 /*
                    The Ruuvi Air's format divides where the tag's multiplies, so
                    these are separate rules rather than the ones above matching

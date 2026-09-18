@@ -16,9 +16,20 @@ package org.vaadin.example.protocol;
  * @param pm25 particulates under 2.5 µm in µg/m³, or null
  * @param batteryVoltage the sensor's own battery in volts, or null — a Ruuvi Air
  *        runs off the mains and has none to report
+ * @param pressure air pressure in hPa, or null
+ * @param voc Ruuvi's VOC index, or null
+ * @param nox Ruuvi's NOx index, or null
+ * @param luminosity light in lux, or null
  */
 public record SensorReading(String id, Double temperature, Double humidity,
-                            Double co2, Double pm25, Double batteryVoltage) {
+                            Double co2, Double pm25, Double batteryVoltage,
+                            Double pressure, Double voc, Double nox, Double luminosity) {
+
+    /** The fields the format had before the reserved types were put to use. */
+    public SensorReading(String id, Double temperature, Double humidity,
+                         Double co2, Double pm25, Double batteryVoltage) {
+        this(id, temperature, humidity, co2, pm25, batteryVoltage, null, null, null, null);
+    }
 
     /** A sensor that measures only the two things most sensors measure. */
     public SensorReading(String id, Double temperature, Double humidity) {

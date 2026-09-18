@@ -87,6 +87,7 @@ class ProtocolSyncTest {
         assertEquals(constant("PROTOCOL_FIELD_VOC"), Protocol.FIELD_VOC);
         assertEquals(constant("PROTOCOL_FIELD_NOX"), Protocol.FIELD_NOX);
         assertEquals(constant("PROTOCOL_FIELD_BATTERY"), Protocol.FIELD_BATTERY);
+        assertEquals(constant("PROTOCOL_FIELD_LUMINOSITY"), Protocol.FIELD_LUMINOSITY);
     }
 
     /**
@@ -122,6 +123,14 @@ class ProtocolSyncTest {
                 "PM2.5 scaling changed in the firmware: " + call("PROTOCOL_FIELD_PM25"));
         assertTrue(call("PROTOCOL_FIELD_BATTERY").contains("1000.0f"),
                 "battery scaling changed in the firmware: " + call("PROTOCOL_FIELD_BATTERY"));
+        assertTrue(call("PROTOCOL_FIELD_PRESSURE").contains("10.0f"),
+                "pressure scaling changed in the firmware: " + call("PROTOCOL_FIELD_PRESSURE"));
+        assertTrue(call("PROTOCOL_FIELD_VOC").contains("1.0f"),
+                "VOC scaling changed in the firmware: " + call("PROTOCOL_FIELD_VOC"));
+        assertTrue(call("PROTOCOL_FIELD_NOX").contains("1.0f"),
+                "NOx scaling changed in the firmware: " + call("PROTOCOL_FIELD_NOX"));
+        assertTrue(call("PROTOCOL_FIELD_LUMINOSITY").contains("1.0f"),
+                "luminosity scaling changed in the firmware: " + call("PROTOCOL_FIELD_LUMINOSITY"));
     }
 
     /**

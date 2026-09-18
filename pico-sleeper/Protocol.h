@@ -22,10 +22,10 @@
       0   type        uint8, from the registry below
       1..2 value      uint16 or int16 depending on the type
 
-  A plain RuuviTag sends three fields — temperature, humidity and its battery —
-  and costs 14 bytes; a Ruuvi Air sends four and costs 17. The largest packet
-  this can build is 8 x (5 + 7 x 3) + 8 = 216 bytes, well inside the ~508 bytes
-  a UDP datagram carries safely.
+  A plain RuuviTag sends four fields — temperature, humidity, pressure and its
+  battery — and costs 17 bytes; a Ruuvi Air sends eight and costs 29. The
+  largest packet this can build is 8 x (5 + 9 x 3) + 8 = 264 bytes, well inside
+  the ~508 bytes a UDP datagram carries safely.
 
   WHY THIS SHAPE, AND WHY VERSION 2
 
@@ -69,7 +69,12 @@ static const uint8_t PROTOCOL_SENSOR_HEADER_SIZE = 5;
 
 /* One field: a type byte and a 16-bit value. */
 static const uint8_t PROTOCOL_FIELD_SIZE = 3;
-static const uint8_t PROTOCOL_MAX_FIELDS = 7;
+/*
+   As many as there are types, so that a sensor with all of them — a Ruuvi Air
+   sends eight — is never turned away at the door. Seven was the number before
+   the reserved types were put to use.
+*/
+static const uint8_t PROTOCOL_MAX_FIELDS = 9;
 
 /*
    The field type registry.
@@ -80,17 +85,18 @@ static const uint8_t PROTOCOL_MAX_FIELDS = 7;
    receiver that has not been updated must be able to skip what it does not know
    without being wrong about what it does.
 
-   The reserved three are decoded by some readers already and have no column on
-   the server, so nothing sends them yet. They have numbers so that whoever adds
-   them does not have to renumber anything.
+   Three of these were reserved for a while — decoded by some readers, sent by
+   none, with no column on the server. Reserving the numbers is what made
+   putting them to use a matter of filling in the blanks rather than
+   renumbering anything.
 */
 static const uint8_t PROTOCOL_FIELD_TEMPERATURE = 1;  // int16,  0.01 °C
 static const uint8_t PROTOCOL_FIELD_HUMIDITY = 2;     // uint16, 0.01 %RH
-static const uint8_t PROTOCOL_FIELD_PRESSURE = 3;     // uint16, 0.1 hPa   (reserved)
+static const uint8_t PROTOCOL_FIELD_PRESSURE = 3;     // uint16, 0.1 hPa
 static const uint8_t PROTOCOL_FIELD_CO2 = 4;          // uint16, ppm
 static const uint8_t PROTOCOL_FIELD_PM25 = 5;         // uint16, 0.1 µg/m³
-static const uint8_t PROTOCOL_FIELD_VOC = 6;          // uint16, index     (reserved)
-static const uint8_t PROTOCOL_FIELD_NOX = 7;          // uint16, index     (reserved)
+static const uint8_t PROTOCOL_FIELD_VOC = 6;          // uint16, index, Ruuvi's 0–500 scale
+static const uint8_t PROTOCOL_FIELD_NOX = 7;          // uint16, index, Ruuvi's 0–500 scale
 /*
    The sensor's own battery, so that a tag running down is seen on the server as
    a falling number rather than, one day, as silence. Millivolts: a coin cell
@@ -99,6 +105,12 @@ static const uint8_t PROTOCOL_FIELD_NOX = 7;          // uint16, index     (rese
    unit the tag itself reports in.
 */
 static const uint8_t PROTOCOL_FIELD_BATTERY = 8;      // uint16, mV
+/*
+   Light, in whole lux. A Ruuvi Air measures it on a logarithmic scale that is
+   coarse in the bright and fine in the dark, which is the right way round for
+   telling a lit room from a dark one; the decoded lux are sent as they are.
+*/
+static const uint8_t PROTOCOL_FIELD_LUMINOSITY = 9;   // uint16, lx
 
 /*
    A sensor-agnostic reading. Sensor classes fill this in, which keeps the
@@ -119,6 +131,10 @@ struct SensorReading {
   float co2 = NAN;            // ppm
   float pm25 = NAN;           // µg/m³
   float batteryVoltage = NAN; // V, the sensor's own battery
+  float pressure = NAN;       // hPa
+  float voc = NAN;            // VOC index, 0–500
+  float nox = NAN;            // NOx index, 0–500
+  float luminosity = NAN;     // lx
 };
 
 class MeasurementPacket {
@@ -164,6 +180,10 @@ public:
     addScaled(cursor, *fieldCount, PROTOCOL_FIELD_CO2, reading.co2, 1.0f, 65535.0f);
     addScaled(cursor, *fieldCount, PROTOCOL_FIELD_PM25, reading.pm25, 10.0f, 6553.0f);
     addScaled(cursor, *fieldCount, PROTOCOL_FIELD_BATTERY, reading.batteryVoltage, 1000.0f, 65.535f);
+    addScaled(cursor, *fieldCount, PROTOCOL_FIELD_PRESSURE, reading.pressure, 10.0f, 6553.5f);
+    addScaled(cursor, *fieldCount, PROTOCOL_FIELD_VOC, reading.voc, 1.0f, 65535.0f);
+    addScaled(cursor, *fieldCount, PROTOCOL_FIELD_NOX, reading.nox, 1.0f, 65535.0f);
+    addScaled(cursor, *fieldCount, PROTOCOL_FIELD_LUMINOSITY, reading.luminosity, 1.0f, 65535.0f);
 
     length = (uint8_t)(cursor - buffer);
     buffer[5]++;

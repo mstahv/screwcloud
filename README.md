@@ -68,7 +68,8 @@ bands on the gauge and a degree-day counter](screenshot.png)
 
 Each sensor gets a card with a gauge, the last 24 hours as a curve, and under it
 a small table of the readings the sensor has besides the temperature: the
-humidity, a Ruuvi Air's CO₂ and PM2.5, a RuuviTag's battery — drawn as a battery,
+humidity and pressure, a Ruuvi Air's CO₂, PM2.5, VOC and NOx indexes and light —
+everything Ruuvi's own app lists for it — and a RuuviTag's battery, drawn as a battery,
 with the bar as long as the charge and red under twenty per cent, beside the
 voltage and a rough guess at what is left (see
 [The battery guess](#the-battery-guess)). Each row ends in a small chart icon
@@ -1020,12 +1021,13 @@ readers by `ProtocolSyncTest`:
 |---|---|---|
 | 1 | temperature | int16, 0.01 °C |
 | 2 | humidity | uint16, 0.01 %RH |
-| 3 | pressure | uint16, 0.1 hPa — *reserved, not sent yet* |
+| 3 | pressure | uint16, 0.1 hPa — every RuuviTag and Ruuvi Air |
 | 4 | CO₂ | uint16, ppm |
 | 5 | PM2.5 | uint16, 0.1 µg/m³ |
-| 6 | VOC index | uint16 — *reserved* |
-| 7 | NOx index | uint16 — *reserved* |
+| 6 | VOC index | uint16 — Ruuvi's 0–500 scale, 100 is typical air; Ruuvi Air |
+| 7 | NOx index | uint16 — the same scale; Ruuvi Air |
 | 8 | battery | uint16, mV — the sensor's own battery; RuuviTags send it, a Ruuvi Air on the mains does not |
+| 9 | luminosity | uint16, lx — a Ruuvi Air; coarse, since the device measures it on a logarithmic byte |
 
 **Numbers are permanent.** A type means one measurement with one scaling, in
 every firmware and every reader, forever; a new measurement takes the next free

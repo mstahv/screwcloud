@@ -215,6 +215,22 @@ class PacketDecoderTest {
     }
 
     @Test
+    void theRestOfWhatAnAirMeasuresArrivesInItsOwnUnits() {
+        byte[] packet = packet("LAHT", 1, sensor("RA1",
+                field(1, 2246), field(2, 5610), field(3, 9944), field(4, 790), field(5, 9),
+                field(6, 104), field(7, 1), field(9, 120)));
+
+        SensorMeasurement air = PacketDecoder.decode(packet, packet.length, NOW).sensors().getFirst();
+
+        assertEquals(994.4, air.pressure(), 0.0001);
+        assertEquals(104.0, air.voc(), 0.0001);
+        assertEquals(1.0, air.nox(), 0.0001);
+        assertEquals(120.0, air.luminosity(), 0.0001);
+        assertEquals(790.0, air.co2(), 0.0001);
+        assertNull(air.batteryVoltage(), "an Air runs off the mains");
+    }
+
+    @Test
     void aSensorWithoutABatterySaysNothingAboutOne() {
         byte[] packet = packet("LAHT", 1, sensor("DHT", field(1, 2560), field(2, 3570)));
 

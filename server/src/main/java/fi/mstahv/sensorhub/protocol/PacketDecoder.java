@@ -70,14 +70,18 @@ public final class PacketDecoder {
     /* Version 2: the record header, and one field. */
     private static final int SENSOR_HEADER_SIZE = ID_SIZE + 1;
     private static final int FIELD_SIZE = 3;
-    private static final int MAX_FIELDS = 7;
+    private static final int MAX_FIELDS = 9;
 
     /* The field type registry, as Protocol.h defines it. Numbers are permanent. */
     private static final int FIELD_TEMPERATURE = 1;
     private static final int FIELD_HUMIDITY = 2;
     private static final int FIELD_CO2 = 4;
+    private static final int FIELD_PRESSURE = 3;
     private static final int FIELD_PM25 = 5;
+    private static final int FIELD_VOC = 6;
+    private static final int FIELD_NOX = 7;
     private static final int FIELD_BATTERY = 8;
+    private static final int FIELD_LUMINOSITY = 9;
 
     private PacketDecoder() {
     }
@@ -157,6 +161,10 @@ public final class PacketDecoder {
             Double co2 = null;
             Double pm25 = null;
             Double batteryVoltage = null;
+            Double pressure = null;
+            Double voc = null;
+            Double nox = null;
+            Double luminosity = null;
             for (int field = 0; field < fieldCount; field++) {
                 int type = Byte.toUnsignedInt(buffer.get());
                 short raw = buffer.getShort();
@@ -166,6 +174,10 @@ public final class PacketDecoder {
                     case FIELD_CO2 -> co2 = (double) Short.toUnsignedInt(raw);
                     case FIELD_PM25 -> pm25 = Short.toUnsignedInt(raw) / 10.0;
                     case FIELD_BATTERY -> batteryVoltage = Short.toUnsignedInt(raw) / 1000.0;
+                    case FIELD_PRESSURE -> pressure = Short.toUnsignedInt(raw) / 10.0;
+                    case FIELD_VOC -> voc = (double) Short.toUnsignedInt(raw);
+                    case FIELD_NOX -> nox = (double) Short.toUnsignedInt(raw);
+                    case FIELD_LUMINOSITY -> luminosity = (double) Short.toUnsignedInt(raw);
                     default -> {
                         /*
                            A type from a newer firmware than this server. Already
@@ -176,7 +188,7 @@ public final class PacketDecoder {
                 }
             }
             sensors.add(new SensorMeasurement(sensorId, temperature, humidity, co2, pm25,
-                    batteryVoltage));
+                    batteryVoltage, pressure, voc, nox, luminosity));
         }
 
         if (buffer.hasRemaining()) {

@@ -54,7 +54,8 @@ public final class Protocol {
 
     /** One field: a type byte and a 16-bit value. */
     public static final int FIELD_SIZE = 3;
-    public static final int MAX_FIELDS = 7;
+    /** As many as there are types; a Ruuvi Air sends eight. */
+    public static final int MAX_FIELDS = 9;
 
     /*
        The field type registry. Numbers are permanent: a type means the same thing
@@ -63,12 +64,13 @@ public final class Protocol {
     */
     public static final int FIELD_TEMPERATURE = 1;  // int16,  0.01 °C
     public static final int FIELD_HUMIDITY = 2;     // uint16, 0.01 %RH
-    public static final int FIELD_PRESSURE = 3;     // uint16, 0.1 hPa   (reserved)
+    public static final int FIELD_PRESSURE = 3;     // uint16, 0.1 hPa
     public static final int FIELD_CO2 = 4;          // uint16, ppm
     public static final int FIELD_PM25 = 5;         // uint16, 0.1 µg/m³
-    public static final int FIELD_VOC = 6;          // uint16, index     (reserved)
-    public static final int FIELD_NOX = 7;          // uint16, index     (reserved)
+    public static final int FIELD_VOC = 6;          // uint16, Ruuvi's index, 0–500
+    public static final int FIELD_NOX = 7;          // uint16, Ruuvi's index, 0–500
     public static final int FIELD_BATTERY = 8;      // uint16, mV — the sensor's own battery
+    public static final int FIELD_LUMINOSITY = 9;   // uint16, lx
 
     /*
        The bounds the firmware checks before scaling. Outside them the value would
@@ -80,6 +82,9 @@ public final class Protocol {
     private static final double CO2_LIMIT = 65535.0;
     private static final double PM25_LIMIT = 6553.0;
     private static final double BATTERY_LIMIT = 65.535;
+    private static final double PRESSURE_LIMIT = 6553.5;
+    private static final double INDEX_LIMIT = 65535.0;
+    private static final double LUMINOSITY_LIMIT = 65535.0;
 
     private Protocol() {
     }
@@ -125,6 +130,26 @@ public final class Protocol {
     /** The sensor's battery in millivolts; a coin cell is a number near 3000. */
     public static Field battery(Double volts) {
         return unsigned(FIELD_BATTERY, volts, 1000.0, BATTERY_LIMIT);
+    }
+
+    /** Air pressure in tenths of a hectopascal. */
+    public static Field pressure(Double hectopascals) {
+        return unsigned(FIELD_PRESSURE, hectopascals, 10.0, PRESSURE_LIMIT);
+    }
+
+    /** Ruuvi's VOC index, a whole number. */
+    public static Field voc(Double index) {
+        return unsigned(FIELD_VOC, index, 1.0, INDEX_LIMIT);
+    }
+
+    /** Ruuvi's NOx index, a whole number. */
+    public static Field nox(Double index) {
+        return unsigned(FIELD_NOX, index, 1.0, INDEX_LIMIT);
+    }
+
+    /** Light in whole lux. */
+    public static Field luminosity(Double lux) {
+        return unsigned(FIELD_LUMINOSITY, lux, 1.0, LUMINOSITY_LIMIT);
     }
 
     private static Field unsigned(int type, Double value, double scale, double limit) {

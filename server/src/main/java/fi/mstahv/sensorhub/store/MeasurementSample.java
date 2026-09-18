@@ -94,6 +94,23 @@ public class MeasurementSample {
     @DecimalMin(value = "0", message = "A battery voltage cannot be negative")
     private Double batteryVoltage;
 
+    /*
+       The rest of what a Ruuvi measures, added when the protocol's reserved
+       types were put to use: pressure from every tag and Air, and the Air's two
+       indexes and its light. Nullable like everything above the temperature.
+    */
+    @DecimalMin(value = "0", message = "A pressure cannot be negative")
+    private Double pressure;
+
+    @DecimalMin(value = "0", message = "A VOC index cannot be negative")
+    private Double voc;
+
+    @DecimalMin(value = "0", message = "A NOx index cannot be negative")
+    private Double nox;
+
+    @DecimalMin(value = "0", message = "A luminosity cannot be negative")
+    private Double luminosity;
+
     @NotNull
     @Column(nullable = false)
     private Instant receivedAt;
@@ -121,6 +138,18 @@ public class MeasurementSample {
     public MeasurementSample(String deviceId, String sensorId, Double temperature, Double humidity,
                              Double co2, Double pm25, Double batteryVoltage,
                              Instant receivedAt, int sequence) {
+        this(deviceId, sensorId, temperature, humidity, co2, pm25, batteryVoltage,
+                null, null, null, null, receivedAt, sequence);
+    }
+
+    public MeasurementSample(String deviceId, String sensorId, Double temperature, Double humidity,
+                             Double co2, Double pm25, Double batteryVoltage,
+                             Double pressure, Double voc, Double nox, Double luminosity,
+                             Instant receivedAt, int sequence) {
+        this.pressure = pressure;
+        this.voc = voc;
+        this.nox = nox;
+        this.luminosity = luminosity;
         this.deviceId = deviceId;
         this.sensorId = sensorId;
         this.temperature = temperature;
@@ -162,6 +191,22 @@ public class MeasurementSample {
 
     public Double getBatteryVoltage() {
         return batteryVoltage;
+    }
+
+    public Double getPressure() {
+        return pressure;
+    }
+
+    public Double getVoc() {
+        return voc;
+    }
+
+    public Double getNox() {
+        return nox;
+    }
+
+    public Double getLuminosity() {
+        return luminosity;
     }
 
     public Instant getReceivedAt() {

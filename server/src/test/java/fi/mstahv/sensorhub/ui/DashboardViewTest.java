@@ -290,12 +290,16 @@ class DashboardViewTest {
     @Test
     void anAirsReadingsEachGetALineOfTheirOwn(@Autowired BrowserlessUIContext ui) {
         measurements.store(new DeviceMeasurement("AIR1", 1, Instant.now(), List.of(
-                new SensorMeasurement("RA1", 21.0, 40.0, 801.0, 0.5))));
+                new SensorMeasurement("RA1", 21.0, 40.0, 801.0, 0.5, null, 994.4, 104.0, 1.0, 120.0))));
         ui.navigate(DashboardView.class, "AIR1");
 
         assertTrue(ui.findSpan().withText("801 ppm").exists());
         assertTrue(ui.findSpan().withText("0.5 µg/m³").exists());
         assertTrue(ui.findSpan().withText("40.0 % RH").exists());
+        assertTrue(ui.findSpan().withText("994.40 hPa").exists());
+        assertTrue(ui.findSpan().withText("104").exists(), "the VOC index as Ruuvi shows it: a bare number");
+        assertTrue(ui.findSpan().withText("1").exists(), "and the NOx index likewise");
+        assertTrue(ui.findSpan().withText("120 lx").exists());
         assertTrue(ui.find(com.vaadin.flow.component.html.TableHeaderCell.class).all().stream()
                         .anyMatch(cell -> "CO₂".equals(cell.getText())),
                 "the name is in a column of its own, as the row's header");

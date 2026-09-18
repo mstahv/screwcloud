@@ -83,6 +83,26 @@ public interface Reading {
         return null;
     }
 
+    /** Air pressure in hPa, or null. Every Ruuvi has it; the packet carries it now. */
+    default Double pressure() {
+        return null;
+    }
+
+    /** Ruuvi's VOC index, or null for a sensor without an air sensor. */
+    default Double voc() {
+        return null;
+    }
+
+    /** Ruuvi's NOx index, or null. */
+    default Double nox() {
+        return null;
+    }
+
+    /** Light in lux, or null. */
+    default Double luminosity() {
+        return null;
+    }
+
     /** Signal strength as this receiver saw it, or null when it is not known. */
     Short rssi();
 
