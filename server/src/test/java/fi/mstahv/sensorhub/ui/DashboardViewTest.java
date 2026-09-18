@@ -343,8 +343,8 @@ class DashboardViewTest {
                 new SensorMeasurement("DHT", 22.0, 45.0))));
         ui.navigate(DashboardView.class, "BATT");
 
-        assertTrue(ui.findSpan().withText("Battery 2.98 V").exists(),
-                "a healthy battery is a number and nothing more");
+        assertTrue(ui.findSpan().withText("Battery 2.98 V · about 95 % left").exists(),
+                "a healthy battery is its voltage and a rough guess at what is left");
         assertTrue(ui.findSpan().withText("Battery 2.41 V · low, replace it soon").exists(),
                 "a low one says so in words");
         assertEquals(2, ui.find(com.vaadin.flow.component.html.Span.class).all().stream()

@@ -4,6 +4,7 @@ import java.util.function.Function;
 
 import in.virit.color.Color;
 
+import fi.mstahv.sensorhub.protocol.BatteryLevel;
 import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.store.HistoryPoint;
 
@@ -48,16 +49,22 @@ enum ChartSeries {
 
     /**
      * Two decimals: a coin cell spends months between 3.0 and 2.9, and the second
-     * decimal is what shows it moving at all. The "low" is the measurement's own
-     * judgement — see {@link SensorMeasurement#LOW_BATTERY_VOLTS} — and a word
-     * rather than a colour, because the gauge above already uses colour to mean
-     * something about the temperature.
+     * decimal is what shows it moving at all. Beside it the guess at what is left,
+     * said as "about" because that is what it is — see {@link BatteryLevel} — and
+     * in place of the guess, once the cell is under Ruuvi's replace-it line for
+     * this temperature, the word that matters. A word rather than a colour,
+     * because the gauge above already uses colour to mean something about the
+     * temperature.
      */
     BATTERY("battery", "#3cb371", SensorMeasurement::batteryVoltage, HistoryPoint::batteryVoltage) {
         @Override
         String text(SensorMeasurement sensor) {
-            String text = "Battery " + Readings.format(sensor.batteryVoltage(), "%.2f V");
-            return sensor.hasLowBattery() ? text + " · low, replace it soon" : text;
+            String volts = "Battery " + Readings.format(sensor.batteryVoltage(), "%.2f V");
+            return sensor.battery()
+                    .map(level -> level.low()
+                            ? volts + " · low, replace it soon"
+                            : volts + " · about %d %% left".formatted(level.percent()))
+                    .orElse(volts);
         }
     };
 

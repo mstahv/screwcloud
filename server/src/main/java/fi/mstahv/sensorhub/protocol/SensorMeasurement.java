@@ -1,5 +1,7 @@
 package fi.mstahv.sensorhub.protocol;
 
+import java.util.Optional;
+
 /**
  * One sensor's reading. A value is null when the sensor did not provide it — a
  * RuuviTag Pro 2in1, for instance, does not measure humidity at all, and only a
@@ -37,16 +39,17 @@ public record SensorMeasurement(String sensorId, Double temperature, Double humi
     }
 
     /**
-     * Below this a RuuviTag's coin cell is on its way out. Ruuvi's own app warns
-     * at the same point; in a cold shed the voltage sags further, so a tag that
-     * reads low on a winter morning may recover by noon — the reading is a hint
-     * to buy a battery, not an emergency.
+     * What is left in the battery, guessed from the voltage and this sensor's
+     * own temperature — see {@link BatteryLevel} for how rough a guess, and
+     * why the temperature is part of it. Empty for a sensor with no battery.
      */
-    public static final double LOW_BATTERY_VOLTS = 2.5;
+    public Optional<BatteryLevel> battery() {
+        return BatteryLevel.of(batteryVoltage, temperature);
+    }
 
-    /** Whether the sensor reported a battery, and it is running low. */
+    /** Whether the sensor reported a battery, and it is below Ruuvi's replace-it line. */
     public boolean hasLowBattery() {
-        return batteryVoltage != null && batteryVoltage < LOW_BATTERY_VOLTS;
+        return battery().map(BatteryLevel::low).orElse(false);
     }
 
     /** Whether this sensor said anything about the air it is standing in. */

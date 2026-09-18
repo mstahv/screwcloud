@@ -68,8 +68,9 @@ bands on the gauge and a degree-day counter](screenshot.png)
 
 Each sensor gets a card with a gauge, the last 24 hours as a curve, and under it
 one line per reading the sensor has besides the temperature: the humidity, a
-Ruuvi Air's CO₂ and PM2.5, a RuuviTag's battery voltage with a word when it is
-running low. Each line has a small chart icon that lays that reading over the
+Ruuvi Air's CO₂ and PM2.5, a RuuviTag's battery voltage with a rough guess at
+what is left and a word when it is running low (see
+[The battery guess](#the-battery-guess)). Each line has a small chart icon that lays that reading over the
 temperature curve in its own colour — stretched to the temperature's scale, so
 the shape shows and the numbers stay on the line below. Every reading is behind a
 collapsed section further down. The settings open from the cog: a name,
@@ -1844,6 +1845,47 @@ The database grows without bound: three sensors every five minutes is about 860
 rows per day per device. PostgreSQL will not notice that for years, but at some
 point pruning old rows is worth adding. There is deliberately no automatic deletion —
 discarding data is the user's decision.
+
+### The battery guess
+
+A RuuviTag's card says `Battery 2.99 V · about 100 % left`, and the second half
+is a guess, so here is where it comes from. A CR2477 does not run down in a
+straight line. Ruuvi's own firmware notes describe the curve: a little over
+3.0 V new, 3.0 within hours under load, months of slow decline to about 2.7 V,
+and then a cliff — below 2.0 V the tag reboots on momentary droops and soon goes
+quiet. They conclude that predicting the end from the voltage is unreliable,
+and their app accordingly shows the voltage and a *Low battery* word and no
+percentage; a capacity indicator was discussed and left at three bands.
+
+`BatteryLevel` turns that curve into a number anyway, because "about 25 %"
+answers the question a reader has — do I need a battery this month — better than
+`2.71 V` does, as long as it does not pretend to precision. It is linear between
+six anchors and rounded to fives:
+
+| volts | left | why there |
+|---|---|---|
+| 3.00 | 100 % | a new cell under load |
+| 2.90 | 80 % | the plateau's slow slide |
+| 2.80 | 55 % | |
+| 2.70 | 25 % | the end of the plateau, where Ruuvi's curve turns down |
+| 2.50 | 5 % | Ruuvi's "replace the battery" voltage at room temperature |
+| 2.00 | 0 % | rebooting on droops by now |
+
+**Cold reads low without being empty.** Ruuvi Station moves its *Low battery*
+line with the tag's own temperature — 2.5 V above freezing, 2.3 V down to
+−20 °C, 2.0 V below that — and the card does the same, and reads the voltage
+that much higher against the curve before guessing. A tag in a freezer at 2.4 V
+is therefore *about 80 %*, not *low*, which is roughly what its owner would find
+on bringing it indoors. The word *low* replaces the percentage once the cell is
+under the line for its temperature.
+
+Sources: Ruuvi's [FAQ: battery](https://github.com/ruuvi/ruuvitag_fw/wiki/FAQ:-battery)
+in the firmware wiki, the thresholds in Ruuvi Station's
+[strings.xml](https://github.com/ruuvi/com.ruuvi.station/blob/master/app/src/main/res/values/strings.xml)
+and on the support page
+[Battery information and changing the RuuviTag battery](https://ruuvi.com/ruuvitag-battery-and-how-to-change/),
+and the capacity indicator discussion in
+[com.ruuvi.station#335](https://github.com/ruuvi/com.ruuvi.station/issues/335).
 
 ### Validation
 
