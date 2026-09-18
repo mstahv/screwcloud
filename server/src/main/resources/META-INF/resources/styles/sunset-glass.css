@@ -121,8 +121,19 @@ vaadin-card[data-motif]::part(media) {
    so it follows the scheme without naming either.
 */
 vaadin-card > svg path {
-  stroke: var(--spark-line);
   stroke-width: 1.25;
+}
+
+/*
+   Only the last path is the temperature. The card can lay other readings over
+   the curve, each a path in its own colour drawn before the temperature so the
+   temperature stays on top — and a rule on every path painted them all indigo,
+   which made the overlay a second indigo line nobody could tell from the first.
+   The overlays keep the stroke the component gave them; this one takes the
+   theme's.
+*/
+vaadin-card > svg path:last-of-type {
+  stroke: var(--spark-line);
 }
 
 /* The min and max guides are furniture, not data — present but quieter. */

@@ -5,7 +5,6 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.card.CardVariant;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.dom.Style;
 import fi.mstahv.sensorhub.alerts.HeatSum;
 import fi.mstahv.sensorhub.protocol.SensorMeasurement;
 import fi.mstahv.sensorhub.store.HistoryPoint;
@@ -16,7 +15,9 @@ import org.vaadin.firitin.components.popover.ContentProvider;
 import org.vaadin.firitin.components.popover.PopoverButton;
 
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * One sensor's readings and its temperature curve. The temperature is the gauge
@@ -43,22 +44,21 @@ class SensorCard extends Card {
 
     private final TemperatureBandGauge gauge = new TemperatureBandGauge();
     private final TemperatureSparkLine sparkLine = new TemperatureSparkLine();
-    private final Reading humidity = new Reading();
 
     /*
-       Air quality, which only a Ruuvi Air has. Hidden rather than dashed when the
-       sensor does not measure it: a dash means "measured and missing", and every
-       plain tag would otherwise carry two permanent dashes for instruments it
-       does not have.
+       The readings under the curve, one row each, in the enum's order: the
+       humidity, then the air a Ruuvi Air measures, then the tag's battery. Each
+       row shows itself only for a sensor that has the value, and each carries the
+       switch that lays it over the curve — see ExtraReading.
     */
-    private final Reading airQuality = new Reading();
+    private final Map<ChartSeries, ExtraReading> readings = new EnumMap<>(ChartSeries.class);
 
-    /*
-       The tag's battery, under the readings about the room. Hidden for a sensor
-       that reports none, like the air line: a dash would say "measured and
-       missing" about a Ruuvi Air on the mains and a DHT22 on the board's 3.3 V.
-    */
-    private final Reading battery = new Reading();
+    /**
+     * The history last drawn, kept so that switching a line on can redraw without
+     * a query. A day of one sensor's points, which is what the curve already
+     * holds in another form.
+     */
+    private List<HistoryPoint> lastHistory = List.of();
 
     /*
        VDetails takes a supplier rather than a component: the grid is built when
@@ -116,7 +116,13 @@ class SensorCard extends Card {
             }
         });
 
-        add(sparkLine, humidity, airQuality, battery, heatSums, measurements);
+        add(sparkLine);
+        for (ChartSeries series : ChartSeries.values()) {
+            ExtraReading row = new ExtraReading(series, toggled -> redrawCurve());
+            readings.put(series, row);
+            add(row);
+        }
+        add(heatSums, measurements);
     }
 
     /*
@@ -279,10 +285,9 @@ class SensorCard extends Card {
         */
         gauge.setTemperature(sensor.temperature());
 
-        humidity.setText(Readings.format(sensor.humidity(), "%.1f %% RH"));
-        showAirQuality(sensor);
-        showBattery(sensor);
-        sparkLine.setHistory(history);
+        readings.values().forEach(row -> row.show(sensor));
+        lastHistory = history;
+        redrawCurve();
         lastTemperature = sensor.temperature();
         showHeatSums(lastTemperature);
 
@@ -295,44 +300,6 @@ class SensorCard extends Card {
         if (openMeasurements != null) {
             openMeasurements.refresh();
         }
-    }
-
-    /**
-     * CO₂ and particulates, on one line, and only for a sensor that has them.
-     *
-     * <p>Together rather than on a line each: they are read as a pair — how stale
-     * the air is and how dirty it is — and a card is a small thing to spend two
-     * rows of on a device most readers do not own.
-     *
-     * <p>CO₂ without decimals because the sensor's own accuracy is tens of ppm,
-     * and particulates with one because the numbers that matter are small.
-     */
-    private void showAirQuality(SensorMeasurement sensor) {
-        airQuality.setVisible(sensor.hasAirQuality());
-        if (!sensor.hasAirQuality()) {
-            return;
-        }
-        airQuality.setText("%s CO2 · %s PM2.5".formatted(
-                Readings.format(sensor.co2(), "%.0f ppm"),
-                Readings.format(sensor.pm25(), "%.1f ug/m3")));
-    }
-
-    /**
-     * The battery, and a word when it is low.
-     *
-     * <p>Two decimals: a coin cell spends months between 3.0 and 2.9, and the
-     * second decimal is what shows it moving at all. The "low" is the sensor's
-     * own judgement rather than this card's — see {@code LOW_BATTERY_VOLTS} — and
-     * it is a word rather than a colour, because the gauge above already uses
-     * colour to mean something about the temperature.
-     */
-    private void showBattery(SensorMeasurement sensor) {
-        battery.setVisible(sensor.batteryVoltage() != null);
-        if (sensor.batteryVoltage() == null) {
-            return;
-        }
-        String text = "Battery " + Readings.format(sensor.batteryVoltage(), "%.2f V");
-        battery.setText(sensor.hasLowBattery() ? text + " · low, replace it soon" : text);
     }
 
     /*
@@ -354,6 +321,15 @@ class SensorCard extends Card {
         heatSums = replacement;
     }
 
+    /** The temperature, with whichever readings have their line switched on. */
+    private void redrawCurve() {
+        List<ChartSeries> shown = readings.values().stream()
+                .filter(ExtraReading::isOnChart)
+                .map(ExtraReading::series)
+                .toList();
+        sparkLine.setHistory(lastHistory, shown);
+    }
+
     private Component createMeasurementGrid() {
         openMeasurements = new MeasurementGrid(context.measurements(), deviceId, sensorId);
         return openMeasurements;
@@ -369,13 +345,4 @@ class SensorCard extends Card {
         }
     }
 
-    /**
-     * One line of a sensor's readings. Block display because these are spans in the
-     * card's content slot, and each belongs on a line of its own.
-     */
-    private static class Reading extends SecondaryText {
-        Reading() {
-            getStyle().setDisplay(Style.Display.BLOCK);
-        }
-    }
 }

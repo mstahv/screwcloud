@@ -283,6 +283,54 @@ class DashboardViewTest {
     }
 
     /*
+       The air a Ruuvi Air measures, one line each. They used to share a line —
+       "801 ppm CO2 · 0.5 ug/m3 PM2.5" — which read as one measurement with a
+       strange unit.
+    */
+    @Test
+    void anAirsReadingsEachGetALineOfTheirOwn(@Autowired BrowserlessUIContext ui) {
+        measurements.store(new DeviceMeasurement("AIR1", 1, Instant.now(), List.of(
+                new SensorMeasurement("RA1", 21.0, 40.0, 801.0, 0.5))));
+        ui.navigate(DashboardView.class, "AIR1");
+
+        assertTrue(ui.findSpan().withText("801 ppm CO2").exists());
+        assertTrue(ui.findSpan().withText("0.5 ug/m3 PM2.5").exists());
+        assertTrue(ui.findSpan().withText("40.0 % RH").exists());
+    }
+
+    /*
+       Each reading under the curve can be laid over it. The switch is the small
+       chart icon on the reading's row, and what it adds is one more path in the
+       sensor's SVG — drawn before the temperature, which stays on top.
+    */
+    @Test
+    void aReadingCanBeLaidOverTheCurve(@Autowired BrowserlessUIContext ui) {
+        // One sensor, so there is one switch of each kind on the page.
+        Instant now = Instant.now();
+        for (int hoursAgo = 2; hoursAgo >= 0; hoursAgo--) {
+            measurements.store(new DeviceMeasurement("OVR1", 3 - hoursAgo,
+                    now.minus(Duration.ofHours(hoursAgo)),
+                    List.of(new SensorMeasurement("RBF", 6.0 + hoursAgo, 20.0 + hoursAgo))));
+        }
+        ui.navigate(DashboardView.class, "OVR1");
+
+        long before = curvePaths(ui);
+        ui.findButton().withAriaLabel("Show humidity on the chart").click();
+        long after = curvePaths(ui);
+
+        assertEquals(before + 1, after, "the humidity should be one more line on the curve");
+        assertTrue(ui.findButton().withAriaLabel("Hide humidity on the chart").exists(),
+                "and the switch should now offer to take it off again");
+    }
+
+    /** How many lines the first card's curve is drawn with. */
+    private static long curvePaths(BrowserlessUIContext ui) {
+        return ui.find(TemperatureSparkLine.class).all().getFirst().getElement().getChildren()
+                .filter(child -> "path".equals(child.getTag()))
+                .count();
+    }
+
+    /*
        A tag's battery is a reading about the tag, shown under the readings about
        the room and only for a sensor that has one. A dying cell is the one thing
        a reader can do something about before the card goes quiet.

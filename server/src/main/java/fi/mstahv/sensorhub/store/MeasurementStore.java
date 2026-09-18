@@ -144,6 +144,7 @@ public class MeasurementStore {
 
     private static HistoryPoint toHistoryPoint(MeasurementSample sample) {
         return new HistoryPoint(
-                sample.getReceivedAt(), sample.getTemperature(), sample.getHumidity());
+                sample.getReceivedAt(), sample.getTemperature(), sample.getHumidity(),
+                sample.getCo2(), sample.getPm25(), sample.getBatteryVoltage());
     }
 }

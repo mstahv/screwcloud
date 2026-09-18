@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -21,6 +22,16 @@ import fi.mstahv.sensorhub.store.HistoryPoint;
  * are labelled with their timestamps. Those labels are what keep the curve
  * honest: without them a sensor that has been up for an hour would look the same
  * as one with a full day of history.
+ *
+ * <p>Other readings can be laid over the temperature — humidity, the air, the
+ * battery — each as a line in its own colour. They are drawn to the
+ * temperature's scale, not their own: the component gives every series one
+ * y axis, and 800 ppm on a 10 °C axis would be a straight line along the top
+ * with the temperature flattened underneath. So each extra series is stretched
+ * to run between the temperature's low and high, which keeps its <i>shape</i> —
+ * the rise when the door opened, the fall overnight — and gives up its numbers,
+ * which are on the card's own line below in any case. What the overlay is for
+ * is seeing two things move together, and that is what survives.
  */
 class TemperatureSparkLine extends SvgSparkLine {
 
@@ -38,6 +49,13 @@ class TemperatureSparkLine extends SvgSparkLine {
     }
 
     void setHistory(List<HistoryPoint> history) {
+        setHistory(history, List.of());
+    }
+
+    /**
+     * @param extras the readings to lay over the temperature, in their own colours
+     */
+    void setHistory(List<HistoryPoint> history, Collection<ChartSeries> extras) {
         // Missing readings are dropped, otherwise the curve would jump to zero.
         List<HistoryPoint> measured = history.stream()
                 .filter(point -> point.temperature() != null)
@@ -56,6 +74,19 @@ class TemperatureSparkLine extends SvgSparkLine {
         setVisible(true);
         setData(measured.stream().map(HistoryPoint::at).toArray(Instant[]::new),
                 measured.stream().mapToDouble(HistoryPoint::temperature).toArray());
+        /*
+           After setData, which starts the series list afresh, and before draw,
+           which is what puts them on screen. Over the temperature's time span:
+           the x axis is fixed by the first and last temperature, and a series
+           drawn against its own first and last would slide along it.
+        */
+        double low = measured.stream().mapToDouble(HistoryPoint::temperature).min().orElse(0);
+        double high = measured.stream().mapToDouble(HistoryPoint::temperature).max().orElse(0);
+        setXRange(measured.getFirst().at(), measured.getLast().at());
+        for (ChartSeries extra : extras) {
+            overlay(history, extra, low, high);
+        }
+        clearXRange();
 
         /*
            The points are oldest first, which both the store and the sparkline's
@@ -74,6 +105,30 @@ class TemperatureSparkLine extends SvgSparkLine {
            the first attach.
         */
         draw();
+    }
+
+    /**
+     * One extra series, stretched onto the temperature's range. Two points at
+     * least, for the same reason as the temperature itself: one is a dot, not a
+     * line. A flat series — the same value throughout — sits at the middle of
+     * the range rather than dividing by zero.
+     */
+    private void overlay(List<HistoryPoint> history, ChartSeries extra, double low, double high) {
+        List<HistoryPoint> present = history.stream()
+                .filter(point -> extra.of(point) != null)
+                .toList();
+        if (present.size() < 2) {
+            return;
+        }
+        double min = present.stream().mapToDouble(extra::of).min().orElseThrow();
+        double max = present.stream().mapToDouble(extra::of).max().orElseThrow();
+        double span = high - low;
+        List<DataPoint> points = present.stream()
+                .map(point -> DataPoint.of(point.at(), max - min < 1e-9
+                        ? low + span / 2
+                        : low + (extra.of(point) - min) / (max - min) * span))
+                .toList();
+        addSeries(points, extra.color());
     }
 
     /** The two texts drawn under the ends of the axis. */

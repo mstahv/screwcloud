@@ -66,9 +66,13 @@ shows them in a browser.
 ![A device's sensor cards with one sensor's settings open, showing temperature
 bands on the gauge and a degree-day counter](screenshot.png)
 
-Each sensor gets a card with a gauge, the last 24 hours as a curve, the humidity
-and — for a RuuviTag — its battery voltage, with a word when it is running low,
-and every reading behind a collapsed section. The settings open from the cog: a name,
+Each sensor gets a card with a gauge, the last 24 hours as a curve, and under it
+one line per reading the sensor has besides the temperature: the humidity, a
+Ruuvi Air's CO₂ and PM2.5, a RuuviTag's battery voltage with a word when it is
+running low. Each line has a small chart icon that lays that reading over the
+temperature curve in its own colour — stretched to the temperature's scale, so
+the shape shows and the numbers stay on the line below. Every reading is behind a
+collapsed section further down. The settings open from the cog: a name,
 temperature bands that colour the gauge, which of that sensor's alerts this browser
 wants as push notifications, and the degree-day counters — the one above reads
 `hirvi · 11.0 / 40.0 °Cd` with the forecast underneath.
