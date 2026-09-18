@@ -45,7 +45,7 @@ import java.util.Optional;
  * @param percent the guess, in steps of five
  * @param low below Ruuvi's replace-it line for the tag's temperature
  */
-public record BatteryLevel(double volts, int percent, boolean low) {
+public record BatteryEstimate(double volts, int percent, boolean low) {
 
     /*
        Ruuvi Station's thresholds, from its strings.xml and the support page
@@ -66,7 +66,7 @@ public record BatteryLevel(double volts, int percent, boolean low) {
      * @param temperature the tag's own temperature, which decides how much of a
      *        low reading is the cold talking; null is read as room temperature
      */
-    public static Optional<BatteryLevel> of(Double volts, Double temperature) {
+    public static Optional<BatteryEstimate> of(Double volts, Double temperature) {
         if (volts == null) {
             return Optional.empty();
         }
@@ -77,7 +77,7 @@ public record BatteryLevel(double volts, int percent, boolean low) {
            hiding, so the voltage is read that much higher against the curve.
         */
         double asIfWarm = volts + (LOW_ABOVE_FREEZING - threshold);
-        return Optional.of(new BatteryLevel(volts, percent(asIfWarm), volts < threshold));
+        return Optional.of(new BatteryEstimate(volts, percent(asIfWarm), volts < threshold));
     }
 
     static double lowThreshold(Double temperature) {

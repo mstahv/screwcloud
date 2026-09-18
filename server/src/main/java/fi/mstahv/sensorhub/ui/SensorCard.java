@@ -15,9 +15,7 @@ import org.vaadin.firitin.components.popover.ContentProvider;
 import org.vaadin.firitin.components.popover.PopoverButton;
 
 import java.time.Instant;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * One sensor's readings and its temperature curve. The temperature is the gauge
@@ -46,12 +44,11 @@ class SensorCard extends Card {
     private final TemperatureSparkLine sparkLine = new TemperatureSparkLine();
 
     /*
-       The readings under the curve, one row each, in the enum's order: the
-       humidity, then the air a Ruuvi Air measures, then the tag's battery. Each
-       row shows itself only for a sensor that has the value, and each carries the
-       switch that lays it over the curve — see ExtraReading.
+       The readings under the curve as a table — name, value, and the switch
+       that lays the reading over the curve. Rows show themselves only for a
+       sensor that has the value; see ReadingsTable.
     */
-    private final Map<ChartSeries, ExtraReading> readings = new EnumMap<>(ChartSeries.class);
+    private final ReadingsTable readings = new ReadingsTable(toggled -> redrawCurve());
 
     /**
      * The history last drawn, kept so that switching a line on can redraw without
@@ -116,13 +113,7 @@ class SensorCard extends Card {
             }
         });
 
-        add(sparkLine);
-        for (ChartSeries series : ChartSeries.values()) {
-            ExtraReading row = new ExtraReading(series, toggled -> redrawCurve());
-            readings.put(series, row);
-            add(row);
-        }
-        add(heatSums, measurements);
+        add(sparkLine, readings, heatSums, measurements);
     }
 
     /*
@@ -285,7 +276,7 @@ class SensorCard extends Card {
         */
         gauge.setTemperature(sensor.temperature());
 
-        readings.values().forEach(row -> row.show(sensor));
+        readings.show(sensor);
         lastHistory = history;
         redrawCurve();
         lastTemperature = sensor.temperature();
@@ -323,11 +314,7 @@ class SensorCard extends Card {
 
     /** The temperature, with whichever readings have their line switched on. */
     private void redrawCurve() {
-        List<ChartSeries> shown = readings.values().stream()
-                .filter(ExtraReading::isOnChart)
-                .map(ExtraReading::series)
-                .toList();
-        sparkLine.setHistory(lastHistory, shown);
+        sparkLine.setHistory(lastHistory, readings.onChart());
     }
 
     private Component createMeasurementGrid() {

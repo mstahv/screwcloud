@@ -40,16 +40,16 @@ public record SensorMeasurement(String sensorId, Double temperature, Double humi
 
     /**
      * What is left in the battery, guessed from the voltage and this sensor's
-     * own temperature — see {@link BatteryLevel} for how rough a guess, and
+     * own temperature — see {@link BatteryEstimate} for how rough a guess, and
      * why the temperature is part of it. Empty for a sensor with no battery.
      */
-    public Optional<BatteryLevel> battery() {
-        return BatteryLevel.of(batteryVoltage, temperature);
+    public Optional<BatteryEstimate> battery() {
+        return BatteryEstimate.of(batteryVoltage, temperature);
     }
 
     /** Whether the sensor reported a battery, and it is below Ruuvi's replace-it line. */
     public boolean hasLowBattery() {
-        return battery().map(BatteryLevel::low).orElse(false);
+        return battery().map(BatteryEstimate::low).orElse(false);
     }
 
     /** Whether this sensor said anything about the air it is standing in. */

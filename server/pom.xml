@@ -39,7 +39,7 @@
     <properties>
         <java.version>21</java.version>
         <!-- Vaadin 25.2.5 pulls in Spring Boot 4.1.0, so the versions move as a pair. -->
-        <vaadin.version>25.2.5</vaadin.version>
+        <vaadin.version>25.3.0-rc1</vaadin.version>
     </properties>
 
     <dependencyManagement>

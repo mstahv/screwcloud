@@ -67,12 +67,14 @@ shows them in a browser.
 bands on the gauge and a degree-day counter](screenshot.png)
 
 Each sensor gets a card with a gauge, the last 24 hours as a curve, and under it
-one line per reading the sensor has besides the temperature: the humidity, a
-Ruuvi Air's CO₂ and PM2.5, a RuuviTag's battery voltage with a rough guess at
-what is left and a word when it is running low (see
-[The battery guess](#the-battery-guess)). Each line has a small chart icon that lays that reading over the
-temperature curve in its own colour — stretched to the temperature's scale, so
-the shape shows and the numbers stay on the line below. Every reading is behind a
+a small table of the readings the sensor has besides the temperature: the
+humidity, a Ruuvi Air's CO₂ and PM2.5, a RuuviTag's battery — drawn as a battery,
+with the bar as long as the charge and red under twenty per cent, beside the
+voltage and a rough guess at what is left (see
+[The battery guess](#the-battery-guess)). Each row ends in a small chart icon
+that lays that reading over the temperature curve in its own colour — stretched
+to the temperature's scale, so the shape shows and the numbers stay in the
+table. Every reading is behind a
 collapsed section further down. The settings open from the cog: a name,
 temperature bands that colour the gauge, which of that sensor's alerts this browser
 wants as push notifications, and the degree-day counters — the one above reads
@@ -1848,8 +1850,8 @@ discarding data is the user's decision.
 
 ### The battery guess
 
-A RuuviTag's card says `Battery 2.99 V · about 100 % left`, and the second half
-is a guess, so here is where it comes from. A CR2477 does not run down in a
+A RuuviTag's card says `2.99 V · about 100 %` beside a drawn battery, and the
+second half is a guess, so here is where it comes from. A CR2477 does not run down in a
 straight line. Ruuvi's own firmware notes describe the curve: a little over
 3.0 V new, 3.0 within hours under load, months of slow decline to about 2.7 V,
 and then a cliff — below 2.0 V the tag reboots on momentary droops and soon goes
@@ -1857,7 +1859,7 @@ quiet. They conclude that predicting the end from the voltage is unreliable,
 and their app accordingly shows the voltage and a *Low battery* word and no
 percentage; a capacity indicator was discussed and left at three bands.
 
-`BatteryLevel` turns that curve into a number anyway, because "about 25 %"
+`BatteryEstimate` turns that curve into a number anyway, because "about 25 %"
 answers the question a reader has — do I need a battery this month — better than
 `2.71 V` does, as long as it does not pretend to precision. It is linear between
 six anchors and rounded to fives:

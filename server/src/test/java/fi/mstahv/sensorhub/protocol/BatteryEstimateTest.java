@@ -12,10 +12,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * line between them runs the right way, and a cold tag is read as warmer than
  * it says before anyone calls it low.
  */
-class BatteryLevelTest {
+class BatteryEstimateTest {
 
-    private static BatteryLevel at(double volts, double temperature) {
-        return BatteryLevel.of(volts, temperature).orElseThrow();
+    private static BatteryEstimate at(double volts, double temperature) {
+        return BatteryEstimate.of(volts, temperature).orElseThrow();
     }
 
     @Test
@@ -70,12 +70,12 @@ class BatteryLevelTest {
 
     @Test
     void noTemperatureIsReadAsRoomTemperature() {
-        assertEquals(at(2.6, 20).percent(), BatteryLevel.of(2.6, null).orElseThrow().percent());
-        assertTrue(BatteryLevel.of(2.4, null).orElseThrow().low());
+        assertEquals(at(2.6, 20).percent(), BatteryEstimate.of(2.6, null).orElseThrow().percent());
+        assertTrue(BatteryEstimate.of(2.4, null).orElseThrow().low());
     }
 
     @Test
     void aSensorWithoutABatteryHasNoLevel() {
-        assertTrue(BatteryLevel.of(null, 20.0).isEmpty());
+        assertTrue(BatteryEstimate.of(null, 20.0).isEmpty());
     }
 }

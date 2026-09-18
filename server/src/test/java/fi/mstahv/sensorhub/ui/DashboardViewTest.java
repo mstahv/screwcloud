@@ -293,9 +293,12 @@ class DashboardViewTest {
                 new SensorMeasurement("RA1", 21.0, 40.0, 801.0, 0.5))));
         ui.navigate(DashboardView.class, "AIR1");
 
-        assertTrue(ui.findSpan().withText("801 ppm CO2").exists());
-        assertTrue(ui.findSpan().withText("0.5 ug/m3 PM2.5").exists());
+        assertTrue(ui.findSpan().withText("801 ppm").exists());
+        assertTrue(ui.findSpan().withText("0.5 µg/m³").exists());
         assertTrue(ui.findSpan().withText("40.0 % RH").exists());
+        assertTrue(ui.find(com.vaadin.flow.component.html.TableHeaderCell.class).all().stream()
+                        .anyMatch(cell -> "CO₂".equals(cell.getText())),
+                "the name is in a column of its own, as the row's header");
     }
 
     /*
@@ -343,13 +346,15 @@ class DashboardViewTest {
                 new SensorMeasurement("DHT", 22.0, 45.0))));
         ui.navigate(DashboardView.class, "BATT");
 
-        assertTrue(ui.findSpan().withText("Battery 2.98 V · about 95 % left").exists(),
+        assertTrue(ui.findSpan().withText("2.98 V · about 95 %").exists(),
                 "a healthy battery is its voltage and a rough guess at what is left");
-        assertTrue(ui.findSpan().withText("Battery 2.41 V · low, replace it soon").exists(),
+        assertTrue(ui.findSpan().withText("2.41 V · low, replace it soon").exists(),
                 "a low one says so in words");
-        assertEquals(2, ui.find(com.vaadin.flow.component.html.Span.class).all().stream()
-                        .filter(span -> span.getText().contains("Battery")).count(),
-                "the DHT22 has no battery and gets no line about one");
+        List<BatteryLevel> drawn = ui.find(BatteryLevel.class).all();
+        assertEquals(2, drawn.size(), "the DHT22 has no battery and gets no drawing of one");
+        assertTrue(drawn.stream().anyMatch(battery -> battery.getPercent() == 95));
+        assertTrue(drawn.stream().anyMatch(BatteryLevel::isLow),
+                "the bar of the one under twenty per cent is drawn red");
     }
 
     /*
@@ -441,9 +446,11 @@ class DashboardViewTest {
     /*
        The row saves on every change, which is one keystroke away from saving a
        half-typed value — emptying the field is what happens on the way to typing a
-       new number. It cannot: the target is @NotNull, and the binder turns that into
-       a required field, which then refuses to be emptied at all. The store's own
-       constraint stays behind it for callers that are not a form.
+       new number. It must not reach the store: the target is @NotNull, the binder
+       turns that into a required field, and an empty one is refused — outright by
+       the older testers, which threw, or by the form declining to save, which is
+       what the current one does. Either way the counter keeps its target, and the
+       store's own constraint stays behind it for callers that are not a form.
     */
     @Test
     void aCounterCannotBeLeftWithoutATarget(@Autowired BrowserlessUIContext ui) {
@@ -458,10 +465,14 @@ class DashboardViewTest {
 
         assertTrue(targetOfTheRunningCounter(ui).component().isRequiredIndicatorVisible(),
                 "The constraint should have reached the field");
-        assertThrows(IllegalArgumentException.class,
-                () -> targetOfTheRunningCounter(ui).setValue(null),
-                "and a required field should refuse to be emptied");
-        assertTrue(ui.findSpan().withTextContaining("/ 40.0 °Cd").exists());
+        try {
+            targetOfTheRunningCounter(ui).setValue(null);
+        } catch (IllegalArgumentException refusedOutright) {
+            // One acceptable answer; the other is below.
+        }
+        assertTrue(ui.findSpan().withTextContaining("/ 40.0 °Cd").exists(),
+                "an emptied field must not have reached the store");
+        assertEquals(40.0, heatSums.countersFor("LLLL", "DHT").getFirst().getTarget(), 0.0001);
     }
 
     /*
