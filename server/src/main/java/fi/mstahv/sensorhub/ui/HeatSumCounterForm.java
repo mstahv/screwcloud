@@ -1,6 +1,8 @@
 package fi.mstahv.sensorhub.ui;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -11,6 +13,7 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
+import com.vaadin.flow.component.datetimepicker.DateTimePicker;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -47,10 +50,19 @@ import org.vaadin.firitin.layouts.Column;
  */
 class HeatSumCounterForm extends Div {
 
-    /** What the form hands back when a counter is started. */
+    /**
+     * What the form hands back when a counter is started.
+     *
+     * @param hungSince when the meat went up, in the reader's own zone — now
+     *        unless they say otherwise. Not checked against the clock here: a
+     *        local date-time has no zone to check it in, and the browser's zone
+     *        is only known to the form. The form refuses a future time itself,
+     *        and the store's {@code @PastOrPresent} stands behind it.
+     */
     record NewCounter(@Size(max = HeatSumCounter.MAX_COMMENT_LENGTH) String comment,
                       @NotNull @Positive(message = "The target has to be more than zero degree-days")
-                      Double target) {
+                      Double target,
+                      @NotNull LocalDateTime hungSince) {
     }
 
     /**
@@ -138,14 +150,20 @@ class HeatSumCounterForm extends Div {
     }
 
     /**
-     * Starting a new one. The start time is now: a counter is begun when the meat
-     * goes up, and backdating it is the rare case — the target can be adjusted
-     * instead, which comes to the same thing.
+     * Starting a new one.
+     *
+     * <p>The start time is now by default, because a counter is begun when the
+     * meat goes up. It is a field all the same, because the meat goes up on a
+     * Saturday evening with cold hands and the counter comes to mind on Tuesday.
+     * Every reading since then is in the database, so a counter started from the
+     * moment the door closed is as true as one started on the spot — the sum
+     * appears already partly counted, and the forecast with it.
      */
     private static class StartCounter extends BeanValidationForm<NewCounter> {
 
         private final TextField comment = new CommentField();
         private final NumberField target = new TargetField();
+        private final DateTimePicker hungSince = new HungSinceField();
 
         StartCounter(Consumer<NewCounter> onStart) {
             super(NewCounter.class);
@@ -153,6 +171,19 @@ class HeatSumCounterForm extends Div {
 
             setSaveCaption("Start");
             setSavedHandler(started -> {
+                /*
+                   A time still ahead of us is not a start. The picker's maximum
+                   already says so in the browser, but the maximum was set when
+                   the popover opened and the record carries a local time that
+                   only this form can compare against the reader's clock — so the
+                   refusal is here, in words, and the store's own constraint is
+                   the last line behind it.
+                */
+                if (started.hungSince().isAfter(now())) {
+                    hungSince.setErrorMessage("That is still ahead of us");
+                    hungSince.setInvalid(true);
+                    return;
+                }
                 onStart.accept(started);
                 // Ready for the next one, rather than showing what was just started.
                 setEntityWithEnabledSave(blank());
@@ -165,7 +196,12 @@ class HeatSumCounterForm extends Div {
         }
 
         private static NewCounter blank() {
-            return new NewCounter(null, HeatSumCounter.DEFAULT_TARGET);
+            return new NewCounter(null, HeatSumCounter.DEFAULT_TARGET, now());
+        }
+
+        /** The reader's clock, to the minute: what the picker shows and compares against. */
+        private static LocalDateTime now() {
+            return LocalDateTime.now(ClientTimeZone.get()).withSecond(0).withNano(0);
         }
 
         @Override
@@ -176,8 +212,11 @@ class HeatSumCounterForm extends Div {
                has nothing to switch off.
             */
             return new Div(
-                    new FieldRow(comment, target, getSaveButton()),
+                    new FieldRow(comment, target),
+                    new FieldRow(hungSince, getSaveButton()),
                     getClassLevelViolationsDisplay(),
+                    new Hint("Now, unless it went up earlier: set the day and hour it did, and "
+                            + "the sum is counted from the readings stored since then."),
                     new Hint("Degree-days: temperature multiplied by time. Forty is the usual "
                             + "guideline for hanging game, some prefer sixty. Time below freezing "
                             + "does not count."));
@@ -199,6 +238,21 @@ class HeatSumCounterForm extends Div {
             return new Button(getSaveCaption()){{
                 setVisible(false);
             }};
+        }
+    }
+
+    /**
+     * When the meat went up. Quarter hours, because nobody remembers the minute
+     * and the sum does not care; no later than now, because a start in the
+     * future is not a start. Wide enough for a date and a time side by side, and
+     * no wider, so the Start button fits beside it on a phone.
+     */
+    private static class HungSinceField extends DateTimePicker {
+        HungSinceField() {
+            setLabel("Hung since");
+            setStep(Duration.ofMinutes(15));
+            setMax(LocalDateTime.now(ClientTimeZone.get()));
+            setWidth("17rem");
         }
     }
 

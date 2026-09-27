@@ -362,6 +362,47 @@ class DashboardViewTest {
     }
 
     /*
+       The meat goes up on Saturday and the counter comes to mind on Tuesday.
+       Every reading since Saturday is in the database, so a counter started from
+       the moment the door closed appears already partly counted.
+    */
+    @Test
+    void aCounterCanBeStartedFromWhenTheMeatWentUp(@Autowired BrowserlessUIContext ui) {
+        Instant threeDaysAgo = Instant.now().minus(Duration.ofDays(3));
+        // Ten degrees for three days is thirty degree-days.
+        store("BACK", threeDaysAgo, 10.0, 10.0);
+        store("BACK", Instant.now(), 10.0, 10.0);
+        ui.navigate(DashboardView.class, "BACK");
+
+        openSettings(ui, "DHT");
+        ui.findTextField().withPlaceholder("What is hanging").setValue("peura");
+        hungSince(ui).setValue(java.time.LocalDateTime.ofInstant(threeDaysAgo,
+                java.time.ZoneId.systemDefault()));
+        ui.findButton().withText("Start").click();
+
+        assertTrue(ui.findSpan().withTextContaining("peura · 30.0 / 40.0 °Cd").exists(),
+                "three days at ten degrees, counted from the readings already stored");
+    }
+
+    @Test
+    void aCounterCannotStartInTheFuture(@Autowired BrowserlessUIContext ui) {
+        store("FUTU", Instant.now(), 6.5, 21.0);
+        ui.navigate(DashboardView.class, "FUTU");
+
+        openSettings(ui, "DHT");
+        hungSince(ui).setValue(java.time.LocalDateTime.now().plusDays(1));
+        ui.findButton().withText("Start").click();
+
+        assertTrue(hungSince(ui).isInvalid(), "the field should say the time is still ahead");
+        assertTrue(heatSums.countersFor("FUTU", "DHT").isEmpty(), "and nothing should have started");
+    }
+
+    private static com.vaadin.flow.component.datetimepicker.DateTimePicker hungSince(
+            BrowserlessUIContext ui) {
+        return ui.find(com.vaadin.flow.component.datetimepicker.DateTimePicker.class).all().getFirst();
+    }
+
+    /*
        Reaching the target does not stop the counter: the meat hangs until it is
        taken down, and the number that matters then is the sum it got to. So the
        sum keeps climbing, and the card has to say — loudly — that the target is

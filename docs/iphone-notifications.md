@@ -108,10 +108,12 @@ one for the meat.
 
 ## 9. Start a degree-day counter
 
-Under **Degree-day counters**, write what is hanging and since when (the date
-helps when there are two), leave the target at 40 °Cd unless you know better,
-and tap **Start**. The counter starts from this moment — start it when the meat
-goes up.
+Under **Degree-day counters**, write what is hanging (a date in the name helps
+when there are two), leave the target at 40 °Cd unless you know better, and tap
+**Start**. The counter starts from now — unless you set **Hung since** to the
+day and hour the meat actually went up. Every reading since then is already
+stored, so a counter remembered on Tuesday for a Saturday's carcass appears with
+three days already counted.
 
 <img src="iphone/09-start-counter.jpg" width="300" alt="The degree-day counter form with the Start button highlighted">
 

@@ -194,11 +194,18 @@ class SensorCard extends Card {
                    The store's constraints have already been checked in the form, so
                    a violation here would be a programming error rather than
                    something to explain to the reader — it is left to surface.
-                   Counting starts now: the counter begins when the meat goes up.
+                   Counting starts when the reader says it did: now, unless the
+                   meat went up before anyone thought of the counter.
                 */
                 started -> {
+                    /*
+                       The form's time is the reader's local time; the store keeps
+                       instants. The browser's zone is the one to convert in — the
+                       server's would put a Finnish evening a few hours off.
+                    */
                     context.heatSums().start(deviceId, sensorId, started.comment(),
-                            started.target(), Instant.now());
+                            started.target(),
+                            started.hungSince().atZone(ClientTimeZone.get()).toInstant());
                     afterCounterChange();
                 },
                 changed -> {

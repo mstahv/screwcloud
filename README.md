@@ -2277,6 +2277,13 @@ shed is a fact, not a preference, so everyone watching that sensor sees the same
 counters — only whether a notification arrives is personal, and that follows the push
 subscription each browser already has.
 
+**A counter can start in the past.** The meat goes up on Saturday evening with
+cold hands and the counter comes to mind on Tuesday. The Start form has a *Hung
+since* field, now by default, and a counter started from the moment the door
+closed is as true as one started on the spot: every reading since then is in the
+database, and the sum appears already counted. The form refuses a time still
+ahead of the reader's clock, and the store's `@PastOrPresent` stands behind it.
+
 **Alerts default to on**, both of them: a day before the target and when it is
 reached. A counter nobody is told about is a calendar reminder with extra steps. "A
 day before" is judged from the forecast rather than from a margin in degree-days,
